@@ -40,16 +40,10 @@ module.exports = async function (context, req) {
     }
 
     context.res = {
-      status: 200,
-      body: {
-        message: "Login successful",
-        user: {
-          id: user.UserID,
-          email: user.Email,
-          name: user.FullName
-        }
-      }
-    };
+  status: 200,
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ message: "Login successful" })
+};
   } catch (error) {
     context.log('Database error:', error);
     context.res = {
