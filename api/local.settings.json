@@ -1,0 +1,8 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "SqlConnectionString": "Server=tcp:candidatetrack.database.windows.net,1433;Initial Catalog=CandidateTrack_DB;Persist Security Info=False;User ID=divash.singh@frostbytedigital.co.za@candidatetrack;Password=Frostbyte26;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
+  }
+}

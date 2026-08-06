@@ -1,0 +1,13 @@
+{
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  },
+  "routes": [
+    {
+      "route": "/.auth/login/aad",
+      "statusCode": 302,
+      "redirect": "/.auth/login/aad"
+    }
+  ]
+}
+

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RecruitTrack - Sign In</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="login-card">
+    <div class="brand-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+        <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+      </svg>
+    </div>
+
+    <h1 class="brand-title">RecruitTrack</h1>
+    <p class="brand-subtitle">Recruitment Management Portal</p>
+
+    <a href="/.auth/login/aad" class="btn-sso">
+      <svg class="ms-logo" viewBox="0 0 23 23" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#f35325" d="M1 1h10v10H1z"/>
+        <path fill="#81bc06" d="M12 1h10v10H12z"/>
+        <path fill="#05a6f0" d="M1 12h10v10H1z"/>
+        <path fill="#ffba08" d="M12 12h10v10H12z"/>
+      </svg>
+      Sign in with Microsoft Entra ID
+    </a>
+
+    <div class="divider">
+      <span>or use email</span>
+    </div>
+
+    <form class="form" id="loginForm">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input 
+          type="email" 
+          id="email" 
+          class="form-control" 
+          value="sarah.jones@recruitco.co.za" 
+          required 
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input 
+          type="password" 
+          id="password" 
+          class="form-control" 
+          value="••••••••" 
+          required 
+        />
+      </div>
+
+      <button type="submit" class="btn-submit">Sign In</button>
+    </form>
+  </div>
+
+  <script src="js/login.js"></script>
+</body>
+</html>
