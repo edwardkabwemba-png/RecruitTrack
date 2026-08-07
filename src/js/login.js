@@ -4,7 +4,6 @@ document.addEventListener('DOMContentLoaded', () => {
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Trim input values to prevent trailing whitespace errors
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
 
@@ -17,23 +16,21 @@ document.addEventListener('DOMContentLoaded', () => {
         body: JSON.stringify({ email, password })
       });
 
-      const data = await response.json();
+      // Safely check for empty response bodies
+      const text = await response.text();
+      const data = text ? JSON.parse(text) : {};
 
       if (response.ok) {
-        // Store user details returned by Azure Function for the session
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
-
-        // Redirect to dashboard upon successful authentication
         window.location.href = '/dashboard.html';
       } else {
-        // Display specific error message returned from backend (e.g. 401 or 400 details)
-        alert(data.message || data.error || 'Login failed. Please check your credentials.');
+        alert(data.message || data.error || `Login failed (Status Code: ${response.status})`);
       }
     } catch (err) {
       console.error('Login error:', err);
-      alert('An error occurred while connecting to the server. Please try again.');
+      alert('An error occurred while parsing the server response.');
     }
   });
 });

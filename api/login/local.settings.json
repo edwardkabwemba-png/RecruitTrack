@@ -3,5 +3,5 @@
   "Values": {
     "FUNCTIONS_WORKER_RUNTIME": "CfDJ8E005kigqeVHlRa9k1IUq/LGSfA8ikc0JUxkMYLbohLYrQazU4LFgGSQY5C+KlMh1xrAUWvccALhAodx4KLZzJEZounRD3g7ug7v70+NyDETmcvGVkT1c5CvuaexFeZOMw=="
   },
-  "ConnectionStrings": {}
+  "SqlConnectionString": "Server=tcp:candidatetrack.database.windows.net,1433;Initial Catalog=CandidateTrack_DB;Persist Security Info=False;User ID=divash.singh@frostbytedigital.co.za@candidatetrack;Password=Frostbyte26;MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 }
