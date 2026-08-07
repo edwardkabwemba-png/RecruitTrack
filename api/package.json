@@ -1,8 +1,13 @@
 {
-  "name": "recruittrack-api",
+  "name": "recruit-track-api",
   "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "func start"
+  },
   "dependencies": {
     "bcryptjs": "^2.4.3",
-    "mssql": "^10.0.1"
+    "mssql": "^9.1.1"
   }
 }
