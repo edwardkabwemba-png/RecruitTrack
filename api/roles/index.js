@@ -5,6 +5,7 @@ module.exports = async function (context, req) {
 
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
+    
     const result = await pool.request().query(`
       SELECT 
         r.RoleID,
@@ -21,9 +22,14 @@ module.exports = async function (context, req) {
       ORDER BY r.RoleID DESC
     `);
 
+    // Ensure we always return an array, even if empty
+    const roles = result.recordset || [];
+
     context.res.status = 200;
-    context.res.body = JSON.stringify(result.recordset);
+    context.res.body = JSON.stringify(roles);
+
   } catch (error) {
+    context.log.error("Error fetching roles:", error);
     context.res.status = 500;
     context.res.body = JSON.stringify({ message: "Error fetching roles", error: error.message });
   }
