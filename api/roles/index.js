@@ -11,7 +11,8 @@ module.exports = async function (context, req) {
         p.PositionTitle,
         c.ClientName,
         r.Status,
-        STRING_AGG(u.AvatarInitials, ',') AS RecruiterInitials
+        STRING_AGG(u.AvatarInitials, ',') AS RecruiterInitials,
+        STRING_AGG(CAST(u.UserID AS VARCHAR), ',') AS RecruiterIDs
       FROM dbo.Roles r
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
