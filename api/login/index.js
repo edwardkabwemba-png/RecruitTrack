@@ -1,16 +1,16 @@
 const sql = require('mssql');
-const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+// Helper function to hash input using SHA-256
+function hashPasswordSHA256(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
 
 module.exports = async function (context, req) {
-  context.res = {
-    headers: { 'Content-Type': 'application/json' }
-  };
+  context.res = { headers: { 'Content-Type': 'application/json' } };
 
   try {
     const { email, password } = req.body || {};
-
-    // LOG TO AZURE STREAMING LOGS
-    context.log("Received raw body in backend:", JSON.stringify(req.body));
 
     if (!email || !password) {
       context.res.status = 400;
@@ -26,29 +26,19 @@ module.exports = async function (context, req) {
 
     if (result.recordset.length === 0) {
       context.res.status = 401;
-      context.res.body = JSON.stringify({ 
-        message: "Invalid email or password.",
-        receivedJson: req.body // ECHO RECEIVED JSON
-      });
+      context.res.body = JSON.stringify({ message: "Invalid email or password." });
       return;
     }
 
     const user = result.recordset[0];
-    const match = await bcrypt.compare(password, user.PasswordHash);
 
-    if (!match) {
+    // Hash the incoming plain-text password using SHA-256
+    const inputHash = hashPasswordSHA256(password);
+
+    // Compare the generated hex string directly against the stored SQL value
+    if (inputHash.toLowerCase() !== user.PasswordHash.toLowerCase()) {
       context.res.status = 401;
-      context.res.body = JSON.stringify({ 
-        message: "Invalid email or password.",
-        receivedJson: {
-          email: email,
-          passwordReceivedLength: password ? password.length : 0
-        },
-        databaseRecord: {
-          emailInDb: user.Email,
-          hashLengthInDb: user.PasswordHash ? user.PasswordHash.length : 0
-        }
-      });
+      context.res.body = JSON.stringify({ message: "Invalid email or password." });
       return;
     }
 
