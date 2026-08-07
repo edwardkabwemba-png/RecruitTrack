@@ -5,11 +5,10 @@ module.exports = async function (context, req) {
 
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
-    
     const result = await pool.request().query(`
       SELECT 
         r.RoleID,
-        p.PositionName,
+        p.PositionTitle,
         c.ClientName,
         r.Status,
         STRING_AGG(u.AvatarInitials, ',') AS RecruiterInitials
@@ -18,15 +17,12 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
       LEFT JOIN dbo.RoleRecruiters rr ON r.RoleID = rr.RoleID
       LEFT JOIN dbo.Users u ON rr.UserID = u.UserID
-      GROUP BY r.RoleID, p.PositionName, c.ClientName, r.Status
+      GROUP BY r.RoleID, p.PositionTitle, c.ClientName, r.Status
       ORDER BY r.RoleID DESC
     `);
 
-    // Ensure we always return an array, even if empty
-    const roles = result.recordset || [];
-
     context.res.status = 200;
-    context.res.body = JSON.stringify(roles);
+    context.res.body = JSON.stringify(result.recordset || []);
 
   } catch (error) {
     context.log.error("Error fetching roles:", error);
