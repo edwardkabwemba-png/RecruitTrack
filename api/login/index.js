@@ -2,14 +2,15 @@ const sql = require('mssql');
 const bcrypt = require('bcryptjs');
 
 module.exports = async function (context, req) {
-  // Ensure default JSON headers
   context.res = {
-    headers: { 'Content-Type': 'application/json' },
-    body: ''
+    headers: { 'Content-Type': 'application/json' }
   };
 
   try {
     const { email, password } = req.body || {};
+
+    // LOG TO AZURE STREAMING LOGS
+    context.log("Received raw body in backend:", JSON.stringify(req.body));
 
     if (!email || !password) {
       context.res.status = 400;
@@ -18,12 +19,6 @@ module.exports = async function (context, req) {
     }
 
     const connectionString = process.env.SqlConnectionString;
-    if (!connectionString) {
-      context.res.status = 500;
-      context.res.body = JSON.stringify({ message: "Database connection string is missing." });
-      return;
-    }
-
     const pool = await sql.connect(connectionString);
     const result = await pool.request()
       .input('Email', sql.VarChar, email)
@@ -31,7 +26,10 @@ module.exports = async function (context, req) {
 
     if (result.recordset.length === 0) {
       context.res.status = 401;
-      context.res.body = JSON.stringify({ message: "Invalid email or password." });
+      context.res.body = JSON.stringify({ 
+        message: "Invalid email or password.",
+        receivedJson: req.body // ECHO RECEIVED JSON
+      });
       return;
     }
 
@@ -40,7 +38,17 @@ module.exports = async function (context, req) {
 
     if (!match) {
       context.res.status = 401;
-      context.res.body = JSON.stringify({ message: "Invalid email or password." });
+      context.res.body = JSON.stringify({ 
+        message: "Invalid email or password.",
+        receivedJson: {
+          email: email,
+          passwordReceivedLength: password ? password.length : 0
+        },
+        databaseRecord: {
+          emailInDb: user.Email,
+          hashLengthInDb: user.PasswordHash ? user.PasswordHash.length : 0
+        }
+      });
       return;
     }
 
@@ -51,8 +59,7 @@ module.exports = async function (context, req) {
     });
 
   } catch (error) {
-    context.log.error("Login execution error:", error.message);
     context.res.status = 500;
-    context.res.body = JSON.stringify({ message: "Server error during authentication.", error: error.message });
+    context.res.body = JSON.stringify({ message: "Server error", error: error.message });
   }
 };
