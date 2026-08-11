@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TalentCoPilot - Manage Skills</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; height: 100vh; background-color: #f4f6f8; color: #333; }
+    
+    .sidebar { width: 240px; background-color: #1e293b; color: #94a3b8; display: flex; flex-direction: column; padding: 20px 0; }
+    .brand { padding: 0 20px 20px; font-weight: bold; color: #fff; font-size: 1.2rem; }
+    .brand span { display: block; font-size: 0.75rem; color: #64748b; font-weight: normal; }
+    .nav-section { margin-top: 15px; }
+    .nav-title { font-size: 0.65rem; text-transform: uppercase; color: #475569; padding: 0 20px 8px; font-weight: 700; }
+    .nav-item { display: flex; align-items: center; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    .nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; border-left: 4px solid #3b82f6; }
+
+    .main-content { flex: 1; overflow-y: auto; padding: 25px 35px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .btn-primary { background-color: #1d4ed8; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; border: none; cursor: pointer; }
+    
+    .filter-bar { display: flex; justify-content: space-between; margin-bottom: 15px; background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
+    .filter-bar input { width: 300px; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    
+    .table-card { background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+    th { background: #f8fafc; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase; }
+    td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+
+    /* Modal Styles */
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
+    .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 400px; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .btn-secondary { background: #e2e8f0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="brand">TalentCoPilot <span>Recruitment Portal</span></div>
+    <div class="nav-section">
+      <div class="nav-title">MAIN</div>
+      <a href="/dashboard.html" class="nav-item">Dashboard</a>
+      <a href="#" class="nav-item">Add Recruit</a>
+      <a href="/roles.html" class="nav-item">Manage Roles</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-title">ADMIN</div>
+      <a href="#" class="nav-item">Manage Users</a>
+      <a href="#" class="nav-item">Manage Positions</a>
+      <a href="#" class="nav-item">Manage Sources</a>
+      <a href="#" class="nav-item">Manage Clients</a>
+      <a href="/skills.html" class="nav-item active">Manage Skills</a>
+      <a href="#" class="nav-item">Manage Certifications</a>
+      <a href="#" class="nav-item">Settings</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div class="top-bar">
+      <div>
+        <h2>Manage Skills</h2>
+        <p style="font-size: 0.8rem; color: #64748b;">Skill Library for Role Matching</p>
+      </div>
+      <button class="btn-primary" onclick="openSkillModal()">+ Add Skill</button>
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" id="search-skill" placeholder="🔍 Search skill or category..." oninput="filterSkills()">
+    </div>
+
+    <div class="table-card">
+      <table>
+        <thead>
+          <tr>
+            <th>Skill ID</th>
+            <th>Skill Name</th>
+            <th>Category</th>
+          </tr>
+        </thead>
+        <tbody id="skills-table-body">
+          <tr><td colspan="3" style="text-align: center;">Loading skills...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- Modal for Adding Skill -->
+  <div class="modal" id="skillModal">
+    <div class="modal-content">
+      <h3>Add New Skill</h3>
+      <form id="addSkillForm">
+        <div class="form-group" style="margin-top: 15px;">
+          <label>Skill Name</label>
+          <input type="text" id="skillName" required placeholder="e.g. SQL Server">
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <input type="text" id="skillCategory" required placeholder="e.g. Database / Technical">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeSkillModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save Skill</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/js/skills.js"></script>
+</body>
+</html>
