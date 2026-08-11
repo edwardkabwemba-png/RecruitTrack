@@ -1,19 +1,16 @@
 const sql = require('mssql');
 
 module.exports = async function (context, req) {
-  // Always enforce JSON content type
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
-    
-    // Note: Ensure STRING_AGG is executed cleanly
     const result = await pool.request().query(`
       SELECT 
         r.RoleID,
-        p.PositionTitle,
-        c.ClientName,
-        r.Status,
+        ISNULL(p.PositionTitle, 'N/A') AS PositionTitle,
+        ISNULL(c.ClientName, 'N/A') AS ClientName,
+        ISNULL(r.Status, 'Active') AS Status,
         ISNULL(STRING_AGG(u.AvatarInitials, ','), '') AS RecruiterInitials,
         ISNULL(STRING_AGG(CAST(u.UserID AS VARCHAR), ','), '') AS RecruiterIDs
       FROM dbo.Roles r
@@ -29,11 +26,8 @@ module.exports = async function (context, req) {
     context.res.body = JSON.stringify(result.recordset || []);
 
   } catch (error) {
-    context.log.error("Roles fetch error:", error);
+    context.log.error("Error fetching roles:", error);
     context.res.status = 500;
-    context.res.body = JSON.stringify({ 
-      message: "Backend call failure", 
-      error: error.message 
-    });
+    context.res.body = JSON.stringify({ message: "Error fetching roles", error: error.message });
   }
 };
