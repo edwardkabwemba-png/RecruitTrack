@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TalentCoPilot - Manage Positions</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { display: flex; min-height: 100vh; background: #f1f5f9; color: #334155; }
+    .sidebar { width: 240px; background: #1e293b; color: #94a3b8; padding: 20px 0; }
+    .brand { padding: 0 20px 20px; font-weight: bold; color: #fff; }
+    .nav-item { display: block; padding: 10px 20px; color: #94a3b8; text-decoration: none; }
+    .nav-item.active { background: #334155; color: #fff; border-left: 4px solid #3b82f6; }
+    .main-content { flex: 1; padding: 25px 35px; }
+    .card { background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #cbd5e1; margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+    th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
+    .btn-primary { background: #1d4ed8; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
+    .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 400px; }
+  </style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand">TalentCoPilot</div>
+    <a href="/roles.html" class="nav-item">Manage Roles</a>
+    <a href="/clients.html" class="nav-item">Manage Clients</a>
+    <a href="/positions.html" class="nav-item active">Manage Positions</a>
+  </aside>
+
+  <main class="main-content">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <h2>Manage Positions</h2>
+      <button class="btn-primary" onclick="openModal()">+ Add Position</button>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead>
+          <tr><th>Position ID</th><th>Position Title</th><th>Status</th></tr>
+        </thead>
+        <tbody id="positionTableBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <div class="modal" id="positionModal">
+    <div class="modal-content">
+      <h3>Add New Position</h3>
+      <form id="addPositionForm" style="margin-top:15px;">
+        <input type="text" id="positionTitleInput" placeholder="Position Title" required style="width:100%; padding:8px; margin-bottom:15px;">
+        <button type="submit" class="btn-primary">Save</button>
+        <button type="button" onclick="closeModal()" style="padding:8px 16px;">Cancel</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', fetchPositions);
+
+    async function fetchPositions() {
+      const res = await fetch('/api/positions');
+      const data = await res.json();
+      const tbody = document.getElementById('positionTableBody');
+      tbody.innerHTML = data.map(p => `
+        <tr>
+          <td>#PS-${String(p.PositionID).padStart(4, '0')}</td>
+          <td>${p.PositionTitle}</td>
+          <td>${p.IsActive ? 'Active' : 'Inactive'}</td>
+        </tr>
+      `).join('');
+    }
+
+    function openModal() { document.getElementById('positionModal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('positionModal').style.display = 'none'; }
+
+    document.getElementById('addPositionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const positionTitle = document.getElementById('positionTitleInput').value;
+      await fetch('/api/positions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ positionTitle })
+      });
+      closeModal();
+      document.getElementById('positionTitleInput').value = '';
+      fetchPositions();
+    });
+  </script>
+</body>
+</html>
