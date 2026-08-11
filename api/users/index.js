@@ -6,12 +6,17 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
-    // GET ALL USERS
     if (req.method === 'GET') {
       const result = await pool.request().query(`
-        SELECT UserID, FullName, Email, Role, AvatarInitials, IsActive 
+        SELECT 
+          UserID, 
+          FullName, 
+          Email, 
+          ISNULL(Role, 'Recruiter') AS Role, 
+          ISNULL(AvatarInitials, 'U') AS AvatarInitials, 
+          ISNULL(IsActive, 1) AS IsActive 
         FROM dbo.Users 
-        ORDER BY FullName ASC
+        ORDER BY UserID DESC
       `);
       
       context.res.status = 200;
@@ -19,9 +24,8 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // POST NEW USER
     if (req.method === 'POST') {
-      const { fullName, email, role, isActive } = req.body || {};
+      const { fullName, email, role } = req.body || {};
 
       if (!fullName || !email) {
         context.res.status = 400;
@@ -29,7 +33,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Generate Avatar Initials (e.g., "John Doe" -> "JD")
       const initials = fullName
         .split(' ')
         .filter(n => n)
@@ -37,15 +40,12 @@ module.exports = async function (context, req) {
         .slice(0, 2)
         .join('');
 
-      const userRole = role || 'Recruiter';
-      const activeStatus = isActive !== undefined ? (isActive ? 1 : 0) : 1;
-
       await pool.request()
         .input('FullName', sql.NVarChar(100), fullName)
         .input('Email', sql.NVarChar(150), email)
-        .input('Role', sql.NVarChar(50), userRole)
+        .input('Role', sql.NVarChar(50), role || 'Recruiter')
         .input('AvatarInitials', sql.NVarChar(5), initials)
-        .input('IsActive', sql.Bit, activeStatus)
+        .input('IsActive', sql.Bit, 1)
         .query(`
           INSERT INTO dbo.Users (FullName, Email, Role, AvatarInitials, IsActive)
           VALUES (@FullName, @Email, @Role, @AvatarInitials, @IsActive)

@@ -5,14 +5,15 @@ module.exports = async function (context, req) {
 
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
+    
     const result = await pool.request().query(`
       SELECT 
         r.RoleID,
         ISNULL(p.PositionTitle, 'N/A') AS PositionTitle,
         ISNULL(c.ClientName, 'N/A') AS ClientName,
         ISNULL(r.Status, 'Active') AS Status,
-        ISNULL(STRING_AGG(u.AvatarInitials, ','), '') AS RecruiterInitials,
-        ISNULL(STRING_AGG(CAST(u.UserID AS VARCHAR), ','), '') AS RecruiterIDs
+        ISNULL(STRING_AGG(CAST(u.AvatarInitials AS VARCHAR(10)), ','), '') AS RecruiterInitials,
+        ISNULL(STRING_AGG(CAST(u.UserID AS VARCHAR(10)), ','), '') AS RecruiterIDs
       FROM dbo.Roles r
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
