@@ -174,27 +174,40 @@
 
       <!-- Required Skills -->
       <div class="form-group">
-        <label>Required Skills <span class="req">*</span> <span class="sub">— from shared Skills Library</span></label>
-        <div class="tag-container" id="reqSkillsContainer">
-          <button type="button" class="btn-add-tag" onclick="promptAddTag('reqSkill')">+ Add skill</button>
-        </div>
-      </div>
+  <label>Required Skills <span class="req">*</span> <span class="sub">— from shared Skills Library</span></label>
+  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+    <select id="skillsDropdown" style="flex: 1;">
+      <option value="">— Select Skill from Database —</option>
+    </select>
+    <input type="number" id="skillYearsInput" placeholder="Yrs exp" style="width: 100px;" min="1" max="30">
+    <button type="button" class="btn-secondary" onclick="addSelectedSkill('reqSkill')">+ Add Skill</button>
+  </div>
+  <div class="tag-container" id="reqSkillsContainer"></div>
+</div>
 
       <!-- Nice to have Skills -->
-      <div class="form-group">
-        <label>Nice-to-have Skills</label>
-        <div class="tag-container" id="niceSkillsContainer">
-          <button type="button" class="btn-add-tag" onclick="promptAddTag('niceSkill')">+ Add skill</button>
-        </div>
-      </div>
+  <div class="form-group">
+  <label>Nice-to-have Skills</label>
+  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+    <select id="niceSkillsDropdown" style="flex: 1;">
+      <option value="">— Select Skill from Database —</option>
+    </select>
+    <button type="button" class="btn-secondary" onclick="addSelectedSkill('niceSkill')">+ Add Skill</button>
+  </div>
+  <div class="tag-container" id="niceSkillsContainer"></div>
+</div>
 
       <!-- Required Certifications -->
-      <div class="form-group">
-        <label>Required Certifications <span class="sub">— from shared Certifications Library</span></label>
-        <div class="tag-container" id="certificationsContainer">
-          <button type="button" class="btn-add-tag" onclick="promptAddTag('certification')">+ Add certification</button>
-        </div>
-      </div>
+<div class="form-group">
+  <label>Required Certifications <span class="sub">— from shared Certifications Library</span></label>
+  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+    <select id="certsDropdown" style="flex: 1;">
+      <option value="">— Select Certification from Database —</option>
+    </select>
+    <button type="button" class="btn-secondary" onclick="addSelectedCert()">+ Add Certification</button>
+  </div>
+  <div class="tag-container" id="certificationsContainer"></div>
+</div>
 
       <!-- Other Skills / Certifications -->
       <div class="form-group">

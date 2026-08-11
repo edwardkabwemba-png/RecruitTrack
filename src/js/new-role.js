@@ -179,3 +179,136 @@ async function handleFormSubmit(e) {
     alert(err.message);
   }
 }
+
+let dbSkills = [];
+let dbCertifications = [];
+
+let selectedReqSkills = [];
+let selectedNiceSkills = [];
+let selectedCerts = [];
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await Promise.all([
+    loadPositions(),
+    loadClients(),
+    loadDatabaseSkills(),
+    loadDatabaseCertifications()
+  ]);
+
+  document.getElementById('newRoleForm').addEventListener('submit', handleFormSubmit);
+});
+
+// Fetch Skills from DB
+async function loadDatabaseSkills() {
+  try {
+    const res = await fetch('/api/skills');
+    dbSkills = await res.json();
+
+    const reqSelect = document.getElementById('skillsDropdown');
+    const niceSelect = document.getElementById('niceSkillsDropdown');
+
+    if (Array.isArray(dbSkills)) {
+      dbSkills.forEach(s => {
+        const name = s.SkillName || s.name;
+        const id = s.SkillID || s.id;
+
+        reqSelect.appendChild(new Option(name, id));
+        niceSelect.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading skills from DB:", err);
+  }
+}
+
+// Fetch Certifications from DB
+async function loadDatabaseCertifications() {
+  try {
+    const res = await fetch('/api/certifications');
+    dbCertifications = await res.json();
+
+    const certSelect = document.getElementById('certsDropdown');
+
+    if (Array.isArray(dbCertifications)) {
+      dbCertifications.forEach(c => {
+        const name = c.CertName || c.CertificationName;
+        const id = c.CertID || c.CertificationID;
+
+        certSelect.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading certifications from DB:", err);
+  }
+}
+
+// Add Skill from DB Dropdown
+function addSelectedSkill(type) {
+  const dropdownId = type === 'reqSkill' ? 'skillsDropdown' : 'niceSkillsDropdown';
+  const select = document.getElementById(dropdownId);
+  const skillId = select.value;
+  const skillText = select.options[select.selectedIndex]?.text;
+
+  if (!skillId) return;
+
+  let label = skillText;
+  if (type === 'reqSkill') {
+    const yrs = document.getElementById('skillYearsInput').value;
+    if (yrs) label += ` — ${yrs} yrs`;
+  }
+
+  const skillItem = { id: skillId, label: label };
+
+  if (type === 'reqSkill') {
+    if (!selectedReqSkills.some(s => s.id === skillId)) selectedReqSkills.push(skillItem);
+  } else {
+    if (!selectedNiceSkills.some(s => s.id === skillId)) selectedNiceSkills.push(skillItem);
+  }
+
+  select.value = '';
+  document.getElementById('skillYearsInput').value = '';
+  renderTags(type);
+}
+
+// Add Certification from DB Dropdown
+function addSelectedCert() {
+  const select = document.getElementById('certsDropdown');
+  const certId = select.value;
+  const certText = select.options[select.selectedIndex]?.text;
+
+  if (!certId) return;
+
+  if (!selectedCerts.some(c => c.id === certId)) {
+    selectedCerts.push({ id: certId, label: certText });
+  }
+
+  select.value = '';
+  renderTags('certification');
+}
+
+function removeTag(type, index) {
+  if (type === 'reqSkill') selectedReqSkills.splice(index, 1);
+  else if (type === 'niceSkill') selectedNiceSkills.splice(index, 1);
+  else if (type === 'certification') selectedCerts.splice(index, 1);
+
+  renderTags(type);
+}
+
+function renderTags(type) {
+  let list = [];
+  let containerId = '';
+
+  if (type === 'reqSkill') { list = selectedReqSkills; containerId = 'reqSkillsContainer'; }
+  else if (type === 'niceSkill') { list = selectedNiceSkills; containerId = 'niceSkillsContainer'; }
+  else if (type === 'certification') { list = selectedCerts; containerId = 'certificationsContainer'; }
+
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.innerHTML = list.map((item, idx) => `
+    <span class="tag">
+      ${item.label}
+      <span class="remove-btn" onclick="removeTag('${type}', ${idx})">×</span>
+    </span>
+  `).join('');
+}
