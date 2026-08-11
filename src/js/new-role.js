@@ -31,6 +31,8 @@ async function loadPositions() {
 
   try {
     const res = await fetch('/api/positions');
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+    
     const positions = await res.json();
     if (Array.isArray(positions)) {
       positions.forEach(p => {
@@ -41,7 +43,7 @@ async function loadPositions() {
       });
     }
   } catch (err) { 
-    console.error("Error loading positions:", err); 
+    console.error("Error loading positions:", err.message); 
   }
 }
 
@@ -51,6 +53,8 @@ async function loadClients() {
 
   try {
     const res = await fetch('/api/clients');
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
     const clients = await res.json();
     if (Array.isArray(clients)) {
       clients.forEach(c => {
@@ -61,15 +65,16 @@ async function loadClients() {
       });
     }
   } catch (err) { 
-    console.error("Error loading clients:", err); 
+    console.error("Error loading clients:", err.message); 
   }
 }
 
 async function loadDatabaseSkills() {
   try {
     const res = await fetch('/api/skills');
-    dbSkills = await res.json();
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
+    dbSkills = await res.json();
     const reqSelect = document.getElementById('skillsDropdown');
     const niceSelect = document.getElementById('niceSkillsDropdown');
 
@@ -83,15 +88,16 @@ async function loadDatabaseSkills() {
       });
     }
   } catch (err) {
-    console.error("Error loading skills from DB:", err);
+    console.error("Error loading skills from DB:", err.message);
   }
 }
 
 async function loadDatabaseCertifications() {
   try {
     const res = await fetch('/api/certifications');
-    dbCertifications = await res.json();
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
+    dbCertifications = await res.json();
     const certSelect = document.getElementById('certsDropdown');
 
     if (Array.isArray(dbCertifications)) {
@@ -103,7 +109,7 @@ async function loadDatabaseCertifications() {
       });
     }
   } catch (err) {
-    console.error("Error loading certifications from DB:", err);
+    console.error("Error loading certifications from DB:", err.message);
   }
 }
 
