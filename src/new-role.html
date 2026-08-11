@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TalentCoPilot - New Role / Job Description</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; min-height: 100vh; background-color: #f1f5f9; color: #334155; }
+    
+    .sidebar { width: 240px; background-color: #1e293b; color: #94a3b8; padding: 20px 0; display: flex; flex-direction: column; flex-shrink: 0; }
+    .brand { padding: 0 20px 20px; font-weight: bold; color: #fff; font-size: 1.2rem; }
+    .brand span { display: block; font-size: 0.75rem; color: #64748b; font-weight: normal; }
+    .nav-section { margin-top: 15px; }
+    .nav-title { font-size: 0.65rem; text-transform: uppercase; color: #475569; padding: 0 20px 8px; font-weight: 700; }
+    .nav-item { display: flex; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    .nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; border-left: 4px solid #3b82f6; }
+
+    .main-content { flex: 1; padding: 25px 35px; overflow-y: auto; }
+    .header-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .header-title h2 { font-size: 1.4rem; color: #0f172a; }
+    .header-title p { font-size: 0.8rem; color: #64748b; font-style: italic; }
+    .role-id-badge { font-size: 0.75rem; color: #64748b; background: #e2e8f0; padding: 4px 10px; border-radius: 4px; font-weight: 600; }
+
+    /* Duplicate Alert Banner */
+    .duplicate-banner { display: none; background-color: #fef3c7; border: 1px solid #fde68a; padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; align-items: center; justify-content: space-between; font-size: 0.85rem; color: #92400e; }
+    .duplicate-actions { display: flex; gap: 8px; }
+    .btn-warning-action { background: #fff; border: 1px solid #cbd5e1; padding: 5px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .btn-blue { background: #2563eb; color: #fff; border: none; padding: 5px 12px; border-radius: 4px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+
+    /* Form Layout */
+    .form-card { background: #fff; border-radius: 8px; border: 1px solid #cbd5e1; padding: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .section-title { font-size: 1rem; font-weight: 700; color: #1e293b; margin-bottom: 20px; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; }
+    
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
+    .form-group { display: flex; flex-direction: column; margin-bottom: 15px; }
+    .form-group label { font-size: 0.8rem; font-weight: 700; color: #334155; margin-bottom: 6px; }
+    .form-group label span.req { color: #dc2626; }
+    .form-group label span.sub { font-weight: normal; color: #64748b; font-size: 0.75rem; }
+
+    input[type="text"], input[type="number"], select, textarea {
+      width: 100%; padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; outline: none; transition: border 0.15s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: #2563eb; }
+    textarea { resize: vertical; min-height: 70px; }
+
+    /* Tags Input Box */
+    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; background: #fff; min-height: 42px; }
+    .tag { background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 16px; padding: 4px 10px; font-size: 0.8rem; display: flex; align-items: center; gap: 6px; }
+    .tag .remove-btn { cursor: pointer; font-weight: bold; color: #0284c7; }
+    .btn-add-tag { background: #f1f5f9; border: 1px dashed #cbd5e1; padding: 4px 12px; border-radius: 16px; font-size: 0.78rem; color: #475569; cursor: pointer; }
+    .btn-add-tag:hover { background: #e2e8f0; }
+
+    .form-actions { display: flex; gap: 10px; margin-top: 25px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+    .btn-primary { background-color: #1d4ed8; color: #fff; padding: 10px 22px; border-radius: 6px; font-size: 0.9rem; font-weight: 600; border: none; cursor: pointer; }
+    .btn-secondary { background-color: #e2e8f0; color: #475569; padding: 10px 22px; border-radius: 6px; font-size: 0.9rem; font-weight: 600; border: none; cursor: pointer; text-decoration: none; display: inline-block; }
+  </style>
+</head>
+<body>
+
+  <aside class="sidebar">
+    <div class="brand">TalentCoPilot <span>Recruitment Portal</span></div>
+    <div class="nav-section">
+      <div class="nav-title">MAIN</div>
+      <a href="/dashboard.html" class="nav-item">Dashboard</a>
+      <a href="#" class="nav-item">Add Recruit</a>
+      <a href="/roles.html" class="nav-item active">Manage Roles</a>
+    </div>
+    <div class="nav-section">
+      <div class="nav-title">ADMIN</div>
+      <a href="/users.html" class="nav-item">Manage Users</a>
+      <a href="/positions.html" class="nav-item">Manage Positions</a>
+      <a href="/sources.html" class="nav-item">Manage Sources</a>
+      <a href="/clients.html" class="nav-item">Manage Clients</a>
+      <a href="/skills.html" class="nav-item">Manage Skills</a>
+      <a href="/certifications.html" class="nav-item">Manage Certifications</a>
+    </div>
+  </aside>
+
+  <main class="main-content">
+    <div class="header-row">
+      <div class="header-title">
+        <h2>New Role / Job Description</h2>
+        <p>Rough wireframe — layout & content only, not final visual design</p>
+      </div>
+      <div class="role-id-badge">Role ID: auto-generated on save</div>
+    </div>
+
+    <!-- Duplicate Alert Banner -->
+    <div class="duplicate-banner" id="duplicateBanner">
+      <div>
+        ⚠️ <strong>Possible duplicate:</strong> An active Role already exists — 
+        <span id="dupDetails">Data Analyst @ Nexora Financial, #RL-0140</span>
+      </div>
+      <div class="duplicate-actions">
+        <button class="btn-warning-action" onclick="viewDuplicate()">View Role</button>
+        <button class="btn-blue" onclick="joinAsCoRecruiter()">Join as Co-Recruiter</button>
+        <button class="btn-warning-action" onclick="ignoreDuplicate()">Create New Anyway</button>
+      </div>
+    </div>
+
+    <form class="form-card" id="newRoleForm">
+      <div class="section-title">Role Details</div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Position <span class="req">*</span></label>
+          <select id="positionSelect" required onchange="checkDuplicate()">
+            <option value="">— select from Position list —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Client <span class="req">*</span></label>
+          <select id="clientSelect" required onchange="checkDuplicate()">
+            <option value="">— select from Client list —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Seniority Level Required <span class="req">*</span></label>
+          <input type="text" id="seniority" required placeholder="e.g. Mid–Senior">
+        </div>
+        <div class="form-group">
+          <label>Minimum Education Level <span class="req">*</span></label>
+          <input type="text" id="education" required placeholder="e.g. Bachelor's">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Field of Study</label>
+          <input type="text" id="fieldOfStudy" placeholder="e.g. Information Systems">
+        </div>
+        <div class="form-group">
+          <label>Minimum Years of Experience <span class="req">*</span></label>
+          <input type="number" id="minExperience" required placeholder="e.g. 4">
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Location / Client Site</label>
+          <input type="text" id="location" placeholder="e.g. Johannesburg, GP">
+        </div>
+        <div class="form-group">
+          <label>Work Model</label>
+          <select id="workModel">
+            <option value="Hybrid">Hybrid</option>
+            <option value="On-site">On-site</option>
+            <option value="Remote">Remote</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Rate Budget — Min (ZAR)</label>
+          <input type="number" id="rateMin" placeholder="e.g. 40000">
+        </div>
+        <div class="form-group">
+          <label>Rate Budget — Max (ZAR)</label>
+          <input type="number" id="rateMax" placeholder="e.g. 55000">
+        </div>
+      </div>
+
+      <!-- Recruiters Assigned -->
+      <div class="form-group">
+        <label>Recruiters Assigned</label>
+        <div class="tag-container" id="recruitersContainer">
+          <button type="button" class="btn-add-tag" onclick="promptAddTag('recruiter')">+ Add recruiter</button>
+        </div>
+      </div>
+
+      <!-- Required Skills -->
+      <div class="form-group">
+        <label>Required Skills <span class="req">*</span> <span class="sub">— from shared Skills Library</span></label>
+        <div class="tag-container" id="reqSkillsContainer">
+          <button type="button" class="btn-add-tag" onclick="promptAddTag('reqSkill')">+ Add skill</button>
+        </div>
+      </div>
+
+      <!-- Nice to have Skills -->
+      <div class="form-group">
+        <label>Nice-to-have Skills</label>
+        <div class="tag-container" id="niceSkillsContainer">
+          <button type="button" class="btn-add-tag" onclick="promptAddTag('niceSkill')">+ Add skill</button>
+        </div>
+      </div>
+
+      <!-- Required Certifications -->
+      <div class="form-group">
+        <label>Required Certifications <span class="sub">— from shared Certifications Library</span></label>
+        <div class="tag-container" id="certificationsContainer">
+          <button type="button" class="btn-add-tag" onclick="promptAddTag('certification')">+ Add certification</button>
+        </div>
+      </div>
+
+      <!-- Other Skills / Certifications -->
+      <div class="form-group">
+        <label>Other Skills / Certifications <span class="sub">(free text — not part of automatic matching)</span></label>
+        <textarea id="otherSkills" placeholder="e.g. internal legacy system experience, niche client-specific tools..."></textarea>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn-primary">Create Role</button>
+        <a href="/roles.html" class="btn-secondary">Cancel</a>
+      </div>
+    </form>
+  </main>
+
+  <script src="/js/new-role.js"></script>
+</body>
+</html>
