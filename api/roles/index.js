@@ -6,15 +6,15 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
-    // GET ROLES (Optional duplicate check / listing)
+    // GET ROLES
     if (req.method === 'GET') {
       const { positionId, clientId } = req.query;
 
       let query = `
         SELECT 
-          r.RoleID, r.PositionID, r.ClientID, r.Seniority, r.Education, 
-          r.FieldOfStudy, r.MinExperience, r.Location, r.WorkModel, 
-          r.RateMin, r.RateMax, r.Status,
+          r.RoleID, r.PositionID, r.ClientID, r.SeniorityLevel, r.MinEducation, 
+          r.FieldOfStudy, r.MinYearsExperience, r.Location, r.WorkModel, 
+          r.RateBudgetMin, r.RateBudgetMax, r.Status, r.CreatedByUserID, r.CreatedDate,
           p.PositionTitle, c.ClientName
         FROM dbo.Roles r
         LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
@@ -42,7 +42,7 @@ module.exports = async function (context, req) {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
         minExperience, location, workModel, rateMin, rateMax,
-        recruiters, reqSkills, niceSkills, certifications, otherSkills
+        createdByUserId
       } = req.body || {};
 
       if (!positionId || !clientId) {
@@ -52,24 +52,25 @@ module.exports = async function (context, req) {
       }
 
       const result = await pool.request()
-        .input('PositionID', sql.Int, positionId)
-        .input('ClientID', sql.Int, clientId)
-        .input('Seniority', sql.NVarChar(100), seniority || null)
-        .input('Education', sql.NVarChar(100), education || null)
+        .input('PositionID', sql.Int, parseInt(positionId))
+        .input('ClientID', sql.Int, parseInt(clientId))
+        .input('SeniorityLevel', sql.NVarChar(100), seniority || 'Mid')
+        .input('MinEducation', sql.NVarChar(100), education || 'None')
         .input('FieldOfStudy', sql.NVarChar(150), fieldOfStudy || null)
-        .input('MinExperience', sql.Int, minExperience ? parseInt(minExperience) : 0)
+        .input('MinYearsExperience', sql.Int, minExperience ? parseInt(minExperience) : 0)
         .input('Location', sql.NVarChar(150), location || null)
         .input('WorkModel', sql.NVarChar(50), workModel || 'Hybrid')
-        .input('RateMin', sql.Decimal(18, 2), rateMin ? parseFloat(rateMin) : null)
-        .input('RateMax', sql.Decimal(18, 2), rateMax ? parseFloat(rateMax) : null)
-        .input('OtherSkills', sql.NVarChar(sql.MAX), otherSkills || null)
+        .input('RateBudgetMin', sql.Decimal(18, 2), rateMin ? parseFloat(rateMin) : null)
+        .input('RateBudgetMax', sql.Decimal(18, 2), rateMax ? parseFloat(rateMax) : null)
         .input('Status', sql.NVarChar(50), 'Active')
+        .input('CreatedByUserID', sql.Int, createdByUserId ? parseInt(createdByUserId) : 1)
+        .input('CreatedDate', sql.DateTime, new Date())
         .query(`
           INSERT INTO dbo.Roles 
-            (PositionID, ClientID, Seniority, Education, FieldOfStudy, MinExperience, Location, WorkModel, RateMin, RateMax, OtherSkills, Status)
+            (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate)
           OUTPUT INSERTED.RoleID
           VALUES 
-            (@PositionID, @ClientID, @Seniority, @Education, @FieldOfStudy, @MinExperience, @Location, @WorkModel, @RateMin, @RateMax, @OtherSkills, @Status)
+            (@PositionID, @ClientID, @SeniorityLevel, @MinEducation, @FieldOfStudy, @MinYearsExperience, @Location, @WorkModel, @RateBudgetMin, @RateBudgetMax, @Status, @CreatedByUserID, @CreatedDate)
         `);
 
       const newRoleId = result.recordset[0].RoleID;
