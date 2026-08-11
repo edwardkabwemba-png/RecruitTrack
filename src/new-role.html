@@ -165,12 +165,16 @@
       </div>
 
       <!-- Recruiters Assigned -->
-      <div class="form-group">
-        <label>Recruiters Assigned</label>
-        <div class="tag-container" id="recruitersContainer">
-          <button type="button" class="btn-add-tag" onclick="promptAddTag('recruiter')">+ Add recruiter</button>
-        </div>
-      </div>
+<div class="form-group">
+  <label>Recruiters Assigned</label>
+  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+    <select id="recruitersDropdown" style="flex: 1;">
+      <option value="">— Select Recruiter / User from Database —</option>
+    </select>
+    <button type="button" class="btn-secondary" onclick="addSelectedRecruiter()">+ Add Recruiter</button>
+  </div>
+  <div class="tag-container" id="recruitersContainer"></div>
+</div>
 
       <!-- Required Skills -->
       <div class="form-group">

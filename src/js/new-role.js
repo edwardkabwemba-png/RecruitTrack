@@ -6,13 +6,16 @@ let selectedCerts = [];
 let dbSkills = [];
 let dbCertifications = [];
 let matchedDuplicateRole = null;
+let dbUsers = [];
+
 
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
     loadPositions(),
     loadClients(),
     loadDatabaseSkills(),
-    loadDatabaseCertifications()
+    loadDatabaseCertifications(),
+    loadDatabaseUsers() // Added User Loader
   ]);
 
   setCurrentUserDefault();
@@ -254,6 +257,66 @@ function renderTags(type) {
   }
 }
 
+// Fetch Users / Recruiters from DB
+async function loadDatabaseUsers() {
+  try {
+    const res = await fetch('/api/users');
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
+    dbUsers = await res.json();
+    const select = document.getElementById('recruitersDropdown');
+
+    if (Array.isArray(dbUsers) && select) {
+      dbUsers.forEach(u => {
+        const name = u.FullName || u.fullName || u.Email || u.email;
+        const id = u.UserID || u.id;
+        select.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading users/recruiters from DB:", err.message);
+  }
+}
+
+// Add Recruiter from DB Dropdown
+function addSelectedRecruiter() {
+  const select = document.getElementById('recruitersDropdown');
+  if (!select) return;
+
+  const userId = select.value;
+  const userName = select.options[select.selectedIndex]?.text;
+
+  if (!userId) return;
+
+  // Prevent duplicate additions
+  if (!selectedRecruiters.some(r => r.id === userId)) {
+    selectedRecruiters.push({ id: userId, label: userName });
+  }
+
+  select.value = '';
+  renderTags('recruiter');
+}
+
+// Ensure renderTags handles recruiter pills without the old prompt button
+function renderTags(type) {
+  let list = [];
+  let containerId = '';
+
+  if (type === 'recruiter') { list = selectedRecruiters; containerId = 'recruitersContainer'; }
+  else if (type === 'reqSkill') { list = selectedReqSkills; containerId = 'reqSkillsContainer'; }
+  else if (type === 'niceSkill') { list = selectedNiceSkills; containerId = 'niceSkillsContainer'; }
+  else if (type === 'certification') { list = selectedCerts; containerId = 'certificationsContainer'; }
+
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  container.innerHTML = list.map((item, idx) => `
+    <span class="tag">
+      ${item.label}
+      <span class="remove-btn" onclick="removeTag('${type}', ${idx})">×</span>
+    </span>
+  `).join('');
+}
 // --- BANNER ACTIONS ---
 
 function viewDuplicate() {
