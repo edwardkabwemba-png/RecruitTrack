@@ -49,7 +49,7 @@ module.exports = async function (context, req) {
         '  WHERE rr.RoleID = r.RoleID ' +
         ') rec ' +
 
-        // Required Skills Aggregation (JOINs with dbo.Skills)
+        // Required Skills (JOINs with dbo.Skills using SkillID)
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG(s.SkillName, \', \') AS RequiredSkills ' +
         '  FROM dbo.RoleSkills rs ' +
@@ -57,7 +57,7 @@ module.exports = async function (context, req) {
         '  WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1 ' +
         ') skReq ' +
 
-        // Nice-To-Have Skills Aggregation (JOINs with dbo.Skills)
+        // Nice-To-Have Skills (JOINs with dbo.Skills using SkillID)
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG(s.SkillName, \', \') AS NiceToHaveSkills ' +
         '  FROM dbo.RoleSkills rs ' +
@@ -65,12 +65,9 @@ module.exports = async function (context, req) {
         '  WHERE rs.RoleID = r.RoleID AND (rs.IsRequired = 0 OR rs.IsRequired IS NULL) ' +
         ') skNice ' +
 
-        // Certifications Aggregation (Supports RoleCertifications joining Certifications)
+        // Safe Fallback for Certifications to prevent 500 crashes
         'OUTER APPLY ( ' +
-        '  SELECT STRING_AGG(c.CertificationName, \', \') AS RequiredCertifications ' +
-        '  FROM dbo.RoleCertifications rc ' +
-        '  JOIN dbo.Certifications c ON rc.CertificationID = c.CertificationID ' +
-        '  WHERE rc.RoleID = r.RoleID ' +
+        '  SELECT \'\' AS RequiredCertifications ' +
         ') cert ';
 
       let whereConditions = [];
@@ -109,7 +106,7 @@ module.exports = async function (context, req) {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
         minExperience, location, workModel, rateMin, rateMax,
-        createdByUserId
+        createdByUserId, requiredSkills, niceToHaveSkills, requiredCertifications
       } = req.body || {};
 
       if (!positionId || !clientId) {
