@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TalentCoPilot - Manage Recruits</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { display: flex; background-color: #f4f6f8; min-height: 100vh; color: #333; }
+
+    /* Sidebar Navigation */
+    .sidebar { width: 240px; background-color: #1e293b; color: #cbd5e1; flex-shrink: 0; padding: 20px 0; }
+    .sidebar-header { padding: 0 20px 20px 20px; font-weight: bold; font-size: 1.1rem; color: #fff; border-bottom: 1px solid #334155; }
+    .sidebar-header small { display: block; font-weight: normal; font-size: 0.75rem; color: #94a3b8; }
+    
+    .nav-section { margin-top: 20px; font-size: 0.75rem; text-transform: uppercase; color: #64748b; padding: 0 20px; font-weight: 600; letter-spacing: 0.05em; }
+    .nav-item { display: block; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; transition: background 0.2s, color 0.2s; }
+    .nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; font-weight: 500; }
+
+    /* Main Content Area */
+    .main-content { flex: 1; padding: 30px 40px; }
+    
+    .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; }
+    .page-title h1 { font-size: 1.6rem; color: #0f172a; font-weight: 700; }
+    .page-title p { color: #64748b; font-size: 0.9rem; margin-top: 4px; }
+
+    /* Action Button */
+    .btn-add { background-color: #2563eb; color: #fff; padding: 10px 18px; font-size: 0.9rem; font-weight: 600; border-radius: 6px; text-decoration: none; transition: background-color 0.2s; border: none; cursor: pointer; }
+    .btn-add:hover { background-color: #1d4ed8; }
+
+    /* Data Table Card */
+    .table-card { background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; }
+    .data-table th { background-color: #f8fafc; padding: 14px 20px; font-size: 0.75rem; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; }
+    .data-table td { padding: 16px 20px; border-bottom: 1px solid #f1f5f9; font-size: 0.9rem; color: #334155; vertical-align: middle; }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background-color: #f8fafc; }
+
+    /* Stage Badges */
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .badge-discussion { background-color: #eff6ff; color: #1d4ed8; }
+    .badge-screened { background-color: #fef3c7; color: #d97706; }
+    .badge-hired { background-color: #dcfce7; color: #15803d; }
+  </style>
+</head>
+<body>
+
+  <!-- Left Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      TalentCoPilot
+      <small>Recruitment Portal</small>
+    </div>
+
+    <div class="nav-section">Main</div>
+    <a href="dashboard.html" class="nav-item">Dashboard</a>
+    <a href="manage-recruits.html" class="nav-item active">Add Recruit</a>
+    <a href="manage-roles.html" class="nav-item">Manage Roles</a>
+
+    <div class="nav-section">Admin</div>
+    <a href="manage-users.html" class="nav-item">Manage Users</a>
+    <a href="manage-positions.html" class="nav-item">Manage Positions</a>
+    <a href="manage-sources.html" class="nav-item">Manage Sources</a>
+    <a href="manage-clients.html" class="nav-item">Manage Clients</a>
+    <a href="manage-skills.html" class="nav-item">Manage Skills</a>
+    <a href="manage-certifications.html" class="nav-item">Manage Certifications</a>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main-content">
+    <div class="header-row">
+      <div class="page-title">
+        <h1>Manage Recruits</h1>
+        <p>View and manage candidate applications and recruitment lifecycles</p>
+      </div>
+      <!-- Add Recruit Button takes user to the creation page -->
+      <a href="add-recruit.html" class="btn-add">+ Add Recruit</a>
+    </div>
+
+    <!-- Recruits Table -->
+    <div class="table-card">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Candidate</th>
+            <th>Email / Contact</th>
+            <th>Role & Client</th>
+            <th>Recruiter</th>
+            <th>Stage</th>
+            <th>Date Added</th>
+          </tr>
+        </thead>
+        <tbody id="recruitsTableBody">
+          <tr>
+            <td colspan="6" style="text-align: center; color: #64748b; padding: 30px;">Loading recruits...</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const stageNames = {
+      1: 'Sourced',
+      2: 'In Discussion',
+      3: 'Screened',
+      4: 'CV Prepared',
+      5: 'Interviewed',
+      6: 'Offer Sent',
+      7: 'Hired'
+    };
+
+    document.addEventListener("DOMContentLoaded", async () => {
+      await fetchRecentRecruits();
+    });
+
+    async function fetchRecentRecruits() {
+      const tbody = document.getElementById('recruitsTableBody');
+      try {
+        const response = await fetch('/api/recruits?action=recent');
+        const data = await response.json();
+
+        if (!data || data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #64748b; padding: 30px;">No recruits found. Click "+ Add Recruit" to create one.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = data.map(r => `
+          <tr>
+            <td>
+              <strong>${r.FirstName || ''} ${r.Surname || ''}</strong>
+            </td>
+            <td>
+              ${r.Email || 'N/A'}<br>
+              <small style="color: #64748b;">${r.Phone || ''}</small>
+            </td>
+            <td>
+              ${r.PositionTitle ? `${r.PositionTitle} @ ${r.ClientName}` : 'Unassigned'}
+            </td>
+            <td>${r.RecruiterName || 'Unassigned'}</td>
+            <td>
+              <span class="badge badge-discussion">${stageNames[r.LifecycleStage] || 'In Discussion'}</span>
+            </td>
+            <td>${r.CreatedDate ? new Date(r.CreatedDate).toLocaleDateString() : 'N/A'}</td>
+          </tr>
+        `).join('');
+
+      } catch (err) {
+        console.error("Error loading recruits:", err);
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #ef4444; padding: 30px;">Failed to load recruits list.</td></tr>`;
+      }
+    }
+  </script>
+</body>
+</html>
