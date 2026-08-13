@@ -28,51 +28,34 @@ module.exports = async function (context, req) {
           r.CreatedDate,
           p.PositionTitle, 
           c.ClientName,
-          STRING_AGG(
-            CAST(
-              CONCAT(
-                LEFT(ISNULL(u.FirstName, ''), 1), 
-                LEFT(ISNULL(u.LastName, ''), 1)
-              ) AS NVARCHAR(10)
-            ), ','
-          ) AS RecruiterInitials,
-          STRING_AGG(CAST(u.UserID AS VARCHAR(10)), ',') AS RecruiterIDs
+          rec.RecruiterInitials,
+          rec.RecruiterIDs
         FROM dbo.Roles r
         LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
         LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
-        LEFT JOIN dbo.RoleRecruiters rr ON r.RoleID = rr.RoleID
-        LEFT JOIN dbo.Users u ON rr.UserID = u.UserID
+        OUTER APPLY (
+          SELECT 
+            STRING_AGG(
+              CAST(CONCAT(LEFT(ISNULL(u.FirstName, ''), 1), LEFT(ISNULL(u.LastName, ''), 1)) AS NVARCHAR(10)), 
+              ','
+            ) AS RecruiterInitials,
+            STRING_AGG(CAST(u.UserID AS VARCHAR(10)), ',') AS RecruiterIDs
+          FROM dbo.RoleRecruiters rr
+          JOIN dbo.Users u ON rr.UserID = u.UserID
+          WHERE rr.RoleID = r.RoleID
+        ) rec
       `;
 
       if (positionId && clientId) {
         query += ` WHERE r.PositionID = @PositionID AND r.ClientID = @ClientID`;
       }
 
-      query += `
-        GROUP BY 
-          r.RoleID, 
-          r.PositionID, 
-          r.ClientID, 
-          r.SeniorityLevel, 
-          r.MinEducation, 
-          r.FieldOfStudy, 
-          r.MinYearsExperience, 
-          r.Location, 
-          r.WorkModel, 
-          r.RateBudgetMin, 
-          r.RateBudgetMax, 
-          r.Status, 
-          r.CreatedByUserID, 
-          r.CreatedDate,
-          p.PositionTitle, 
-          c.ClientName
-        ORDER BY r.RoleID DESC
-      `;
+      query += ` ORDER BY r.RoleID DESC`;
 
       const request = pool.request();
       if (positionId && clientId) {
-        request.input('PositionID', sql.Int, positionId);
-        request.input('ClientID', sql.Int, clientId);
+        request.input('PositionID', sql.Int, parseInt(positionId));
+        request.input('ClientID', sql.Int, parseInt(clientId));
       }
 
       const result = await request.query(query);
