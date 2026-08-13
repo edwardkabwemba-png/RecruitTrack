@@ -1,112 +1,100 @@
 document.addEventListener('DOMContentLoaded', async () => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const roleId = urlParams.get('id');
-
-  if (!roleId) {
-    alert("No Role ID specified.");
-    window.location.href = "roles.html";
-    return;
-  }
-
-  await loadRoleDetails(roleId);
+  await fetchAndRenderRoles();
 });
 
-async function loadRoleDetails(roleId) {
+async function fetchAndRenderRoles() {
+  const tbody = document.getElementById('roles-table-body');
+  if (!tbody) return;
+
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
   try {
-    const res = await fetch(`/api/role-details/${roleId}`);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch role details (Status ${res.status})`);
-    }
-
-    const { role, recruiters, candidates } = await res.json();
-
-    // 1. Populate Headers & Badges
-    document.getElementById('role-title-text').textContent = `${role.PositionTitle || 'Unknown Role'} @ ${role.ClientName || 'Unknown Client'}`;
-    document.getElementById('role-id-tag').textContent = `#RL-${String(role.RoleID).padStart(4, '0')}`;
+    const res = await fetch('/api/roles');
     
-    const statusBadge = document.getElementById('role-status-badge');
-    if (statusBadge) {
-      statusBadge.textContent = role.Status || 'ACTIVE';
-      statusBadge.className = `status-badge badge-${(role.Status || 'active').toLowerCase()}`;
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.message || `Server error (Status: ${res.status})`);
     }
 
-    // 2. Populate Job Description Fields
-    document.getElementById('val-position').textContent = role.PositionTitle || 'N/A';
-    document.getElementById('val-client').textContent = role.ClientName || 'N/A';
-    document.getElementById('val-seniority').textContent = role.Seniority || 'N/A';
-    document.getElementById('val-education').textContent = role.MinEducation || 'N/A';
-    document.getElementById('val-experience').textContent = role.MinExperienceYears ? `${role.MinExperienceYears} years` : 'N/A';
-    document.getElementById('val-model').textContent = role.WorkModel || 'N/A';
+    const roles = await res.json();
 
-    const salaryText = (role.MinSalary && role.MaxSalary)
-      ? `R${Number(role.MinSalary).toLocaleString()} – R${Number(role.MaxSalary).toLocaleString()} / month`
-      : 'N/A';
-    document.getElementById('val-budget').textContent = salaryText;
-
-    document.getElementById('val-skills').textContent = role.RequiredSkills || 'None listed';
-    document.getElementById('val-nice-skills').textContent = role.NiceToHaveSkills || 'None listed';
-    document.getElementById('val-certs').textContent = role.RequiredCertifications || 'None required';
-
-    // 3. Populate Recruiters List
-    const recruitersContainer = document.getElementById('recruiters-container');
-    if (recruitersContainer) {
-      if (recruiters.length === 0) {
-        recruitersContainer.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8;">No recruiters assigned</span>';
-      } else {
-        recruitersContainer.innerHTML = recruiters.map(r => `
-          <span class="user-tag">
-            ${escapeHtml(r.FirstName)} ${escapeHtml(r.LastName ? r.LastName[0] + '.' : '')}
-            <span class="remove-tag" onclick="removeRecruiter(${r.UserID})">&times;</span>
-          </span>
-        `).join('') + `<button class="btn-add-tag">+ Add recruiter</button>`;
-      }
-    }
-
-    // 4. Populate Candidates Table
-    const candidatesBody = document.getElementById('candidates-table-body');
-    const candidateCountEl = document.getElementById('candidate-count');
-
-    if (candidateCountEl) candidateCountEl.textContent = candidates.length;
-
-    if (!candidatesBody) return;
-
-    if (candidates.length === 0) {
-      candidatesBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: #64748b;">No candidates associated with this role.</td></tr>`;
+    if (!Array.isArray(roles) || roles.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No roles found in database. Click "+ New Role" to create one.</td></tr>`;
       return;
     }
 
-    candidatesBody.innerHTML = candidates.map(c => {
-      const stagePillClass = getStagePillClass(c.Stage);
-      const docsText = c.TotalDocumentsRequired ? `${c.DocumentsCount}/${c.TotalDocumentsRequired}` : '—';
-      const progressText = c.ProgressPercentage ? `${c.ProgressPercentage}%` : '—';
+    tbody.innerHTML = roles.map(role => {
+      const roleIdNum = role.RoleID || 0;
+      const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
+      const status = role.Status || 'Active';
+      const statusClass = `badge-${status.toLowerCase()}`;
+      
+      const initialsList = role.RecruiterInitials ? role.RecruiterInitials.split(',').filter(Boolean) : [];
+      const idList = role.RecruiterIDs ? role.RecruiterIDs.split(',').map(Number).filter(Boolean) : [];
+
+      const recruitersHtml = initialsList.length > 0 
+        ? initialsList.map(i => `<span class="avatar">${i}</span>`).join('') 
+        : '-';
+
+      const isUserAssigned = user.id ? idList.includes(Number(user.id)) : false;
+      const canJoin = !isUserAssigned && idList.length < 2 && status !== 'Closed';
+
+      let actionsHtml = '';
+      if (status === 'Closed') {
+        actionsHtml = `<a href="role-details.html?id=${roleIdNum}" style="color: #94a3b8; font-style: italic; text-decoration: none;">View (archived)</a>`;
+      } else {
+        const freezeAction = status === 'Frozen' ? 'Unfreeze' : 'Freeze';
+
+        actionsHtml = `
+          <a href="role-details.html?id=${roleIdNum}" style="color: #2563eb; margin-right: 8px; font-weight: 500;">View</a>
+          <a href="#" onclick="handleRoleAction('${freezeAction}', ${roleIdNum}); return false;" style="color: #475569; margin-right: 8px;">${freezeAction}</a>
+          <a href="#" onclick="handleRoleAction('Close', ${roleIdNum}); return false;" style="color: #475569; margin-right: 8px;">Close</a>
+        `;
+
+        if (canJoin) {
+          actionsHtml += `<a href="#" onclick="handleRoleAction('Join', ${roleIdNum}); return false;" style="color: #1d4ed8; font-weight: bold;">Join as Co-Recruiter</a>`;
+        }
+      }
 
       return `
         <tr>
-          <td style="font-weight: 600;">${escapeHtml(c.CandidateName)}</td>
-          <td>${escapeHtml(c.RecruiterInitials || '-')}</td>
-          <td><span class="pill ${stagePillClass}">${escapeHtml(c.Stage)}</span></td>
-          <td>${progressText}</td>
-          <td>${docsText}</td>
+          <td><strong>${formattedId}</strong></td>
+          <td>${role.PositionTitle || 'N/A'}</td>
+          <td>${role.ClientName || 'N/A'}</td>
+          <td><span class="badge ${statusClass}">${status}</span></td>
+          <td>${recruitersHtml}</td>
+          <td>${actionsHtml}</td>
         </tr>
       `;
     }).join('');
 
   } catch (err) {
-    console.error("Error loading role details:", err);
-    alert("Unable to load role details. Returning to role list.");
+    console.error("Roles table render error:", err);
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding:20px;">Failed to load roles: ${err.message}</td></tr>`;
   }
 }
 
-function getStagePillClass(stage = '') {
-  const lower = stage.toLowerCase();
-  if (lower.includes('screen')) return 'pill-screened';
-  if (lower.includes('cv')) return 'pill-cv';
-  if (lower.includes('interview')) return 'pill-interview';
-  if (lower.includes('hire')) return 'pill-hired';
-  if (lower.includes('not successful') || lower.includes('reject')) return 'pill-rejected';
-  return 'pill-screened';
-}
+async function handleRoleAction(action, roleId) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-function escapeHtml(str) {
-  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  try {
+    const res = await fetch('/api/roles-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, roleId, userId: user.id || null })
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || 'Action failed.');
+      return;
+    }
+
+    await fetchAndRenderRoles();
+
+  } catch (err) {
+    console.error("Action error:", err);
+    alert('An error occurred executing this action.');
+  }
 }
