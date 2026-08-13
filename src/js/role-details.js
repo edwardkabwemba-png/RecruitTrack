@@ -3,162 +3,148 @@ document.addEventListener('DOMContentLoaded', async () => {
   const roleId = urlParams.get('id');
 
   if (!roleId) {
-    alert("No Role ID specified. Redirecting to Roles list.");
-    window.location.href = "roles.html";
+    alert('No Role ID provided in URL.');
+    window.location.href = 'roles.html';
     return;
   }
 
+  // Load Initial Role Details
   await loadRoleDetails(roleId);
 });
 
 async function loadRoleDetails(roleId) {
   try {
-    const res = await fetch(`/api/role-details/${roleId}`);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch role details (Status ${res.status})`);
-    }
-
-    const { role, recruiters, candidates } = await res.json();
-
-    // 1. Populate Headers & Badges
-    document.getElementById('role-title-text').textContent = `${role.PositionTitle || 'Unknown Role'} @ ${role.ClientName || 'Unknown Client'}`;
-    document.getElementById('role-id-tag').textContent = `#RL-${String(role.RoleID).padStart(4, '0')}`;
+    const res = await fetch(`/api/roles?id=${roleId}`);
+    if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     
-    const statusBadge = document.getElementById('role-status-badge');
-    if (statusBadge) {
-      statusBadge.textContent = role.Status || 'ACTIVE';
-      statusBadge.className = `status-badge badge-${(role.Status || 'active').toLowerCase()}`;
+    const data = await res.json();
+    const role = Array.isArray(data) ? data.find(r => r.RoleID == roleId) || data[0] : data;
+
+    if (!role) throw new Error('Role not found.');
+
+    renderRoleDetails(role);
+    setupActionButtons(role);
+
+  } catch (err) {
+    console.error('Error fetching role details:', err);
+    document.getElementById('role-title-text').innerText = 'Error Loading Role';
+  }
+}
+
+function renderRoleDetails(role) {
+  const roleIdNum = role.RoleID || 0;
+  const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
+  const status = role.Status || 'Active';
+
+  // Title and Header Tags
+  document.getElementById('role-title-text').innerText = role.PositionTitle || 'Role Details';
+  document.getElementById('role-id-tag').innerText = formattedId;
+
+  // Status Badge
+  const statusBadge = document.getElementById('role-status-badge');
+  if (statusBadge) {
+    statusBadge.innerText = status.toUpperCase();
+    statusBadge.className = `status-badge badge-${status.toLowerCase()}`;
+  }
+
+  // Job Details Grid
+  document.getElementById('val-position').innerText = role.PositionTitle || 'N/A';
+  document.getElementById('val-client').innerText = role.ClientName || 'N/A';
+  document.getElementById('val-seniority').innerText = role.SeniorityLevel || 'N/A';
+  document.getElementById('val-education').innerText = role.MinEducation || 'N/A';
+  document.getElementById('val-experience').innerText = role.MinYearsExperience ? `${role.MinYearsExperience} Years` : '0 Years';
+  document.getElementById('val-model').innerText = role.WorkModel || 'N/A';
+
+  const rateMin = role.RateBudgetMin ? `$${parseFloat(role.RateBudgetMin).toLocaleString()}` : 'N/A';
+  const rateMax = role.RateBudgetMax ? `$${parseFloat(role.RateBudgetMax).toLocaleString()}` : 'N/A';
+  document.getElementById('val-budget').innerText = `${rateMin} - ${rateMax}`;
+
+  // Skills & Certifications
+  document.getElementById('val-skills').innerText = role.RequiredSkills || 'None Specified';
+  document.getElementById('val-nice-skills').innerText = role.NiceToHaveSkills || 'None Specified';
+  document.getElementById('val-certs').innerText = role.RequiredCertifications || 'None Specified';
+
+  // Recruiters Tag Container
+  const recruitersContainer = document.getElementById('recruiters-container');
+  if (recruitersContainer) {
+    const initialsList = role.RecruiterInitials ? role.RecruiterInitials.split(',').filter(Boolean) : [];
+    
+    if (initialsList.length > 0) {
+      recruitersContainer.innerHTML = initialsList.map(init => `
+        <span class="user-tag">
+          <strong>${init}</strong>
+        </span>
+      `).join('');
+    } else {
+      recruitersContainer.innerHTML = `<span style="font-size:0.8rem; color:#94a3b8;">No recruiters assigned</span>`;
     }
+  }
+}
 
-    // 2. Populate Job Description Fields
-    document.getElementById('val-position').textContent = role.PositionTitle || 'N/A';
-    document.getElementById('val-client').textContent = role.ClientName || 'N/A';
-    document.getElementById('val-seniority').textContent = role.Seniority || 'N/A';
-    document.getElementById('val-education').textContent = role.MinEducation || 'N/A';
-    document.getElementById('val-experience').textContent = role.MinExperienceYears ? `${role.MinExperienceYears} years` : 'N/A';
-    document.getElementById('val-model').textContent = role.WorkModel || 'N/A';
+function setupActionButtons(role) {
+  const roleId = role.RoleID;
+  const status = role.Status || 'Active';
 
-    const salaryText = (role.MinSalary && role.MaxSalary)
-      ? `R${Number(role.MinSalary).toLocaleString()} – R${Number(role.MaxSalary).toLocaleString()} / month`
-      : 'N/A';
-    document.getElementById('val-budget').textContent = salaryText;
+  const editBtn = document.getElementById('btn-edit');
+  const freezeBtn = document.getElementById('btn-freeze');
+  const closeBtn = document.getElementById('btn-close');
 
-    document.getElementById('val-skills').textContent = role.RequiredSkills || 'None listed';
-    document.getElementById('val-nice-skills').textContent = role.NiceToHaveSkills || 'None listed';
-    document.getElementById('val-certs').textContent = role.RequiredCertifications || 'None required';
+  // Configure Freeze / Unfreeze Label
+  if (freezeBtn) {
+    freezeBtn.innerText = status === 'Frozen' ? 'Unfreeze' : 'Freeze';
+    freezeBtn.onclick = () => {
+      const nextAction = status === 'Frozen' ? 'Unfreeze' : 'Freeze';
+      executeRoleAction(nextAction, roleId);
+    };
+  }
 
-    // 3. Populate Recruiters List
-    const recruitersContainer = document.getElementById('recruiters-container');
-    if (recruitersContainer) {
-      if (recruiters.length === 0) {
-        recruitersContainer.innerHTML = '<span style="font-size:0.8rem; color:#94a3b8;">No recruiters assigned</span>';
-      } else {
-        recruitersContainer.innerHTML = recruiters.map(r => `
-          <span class="user-tag">
-            ${escapeHtml(r.FirstName)} ${escapeHtml(r.LastName ? r.LastName[0] + '.' : '')}
-            <span class="remove-tag" onclick="removeRecruiter(${r.UserID})">&times;</span>
-          </span>
-        `).join('') + `<button class="btn-add-tag">+ Add recruiter</button>`;
-      }
+  // Configure Close Button with Confirmation
+  if (closeBtn) {
+    if (status === 'Closed') {
+      closeBtn.disabled = true;
+      closeBtn.style.opacity = '0.5';
+      closeBtn.style.cursor = 'not-allowed';
+    } else {
+      closeBtn.onclick = () => {
+        const formattedId = `#RL-${String(roleId).padStart(4, '0')}`;
+        const confirmed = confirm(`Are you sure you want to close ticket ${formattedId}? This will archive the role.`);
+        if (confirmed) {
+          executeRoleAction('Close', roleId);
+        }
+      };
     }
+  }
 
-    // 4. Populate Candidates Table
-    const candidatesBody = document.getElementById('candidates-table-body');
-    const candidateCountEl = document.getElementById('candidate-count');
+  // Configure Edit Button
+  if (editBtn) {
+    editBtn.onclick = () => {
+      window.location.href = `edit-role.html?id=${roleId}`;
+    };
+  }
+}
 
-    if (candidateCountEl) candidateCountEl.textContent = candidates.length;
+async function executeRoleAction(action, roleId) {
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
 
-    if (!candidatesBody) return;
+  try {
+    const res = await fetch('/api/roles-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, roleId, userId: user.id || null })
+    });
 
-    if (candidates.length === 0) {
-      candidatesBody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding: 20px; color: #64748b;">No candidates associated with this role.</td></tr>`;
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.message || 'Action failed.');
       return;
     }
 
-    candidatesBody.innerHTML = candidates.map(c => {
-      const stagePillClass = getStagePillClass(c.Stage);
-      const docsText = c.TotalDocumentsRequired ? `${c.DocumentsCount}/${c.TotalDocumentsRequired}` : '—';
-      const progressText = c.ProgressPercentage ? `${c.ProgressPercentage}%` : '—';
-
-      return `
-        <tr>
-          <td style="font-weight: 600;">${escapeHtml(c.CandidateName)}</td>
-          <td>${escapeHtml(c.RecruiterInitials || '-')}</td>
-          <td><span class="pill ${stagePillClass}">${escapeHtml(c.Stage)}</span></td>
-          <td>${progressText}</td>
-          <td>${docsText}</td>
-        </tr>
-      `;
-    }).join('');
+    // Reload page details after successful action execution
+    await loadRoleDetails(roleId);
 
   } catch (err) {
-    console.error("Error loading role details:", err);
-    alert("Unable to load role details. Returning to role list.");
-  }
-}
-
-function getStagePillClass(stage = '') {
-  const lower = stage.toLowerCase();
-  if (lower.includes('screen')) return 'pill-screened';
-  if (lower.includes('cv')) return 'pill-cv';
-  if (lower.includes('interview')) return 'pill-interview';
-  if (lower.includes('hire')) return 'pill-hired';
-  if (lower.includes('not successful') || lower.includes('reject')) return 'pill-rejected';
-  return 'pill-screened';
-}
-
-function escapeHtml(str) {
-  return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Grab Role ID from URL parameters
-  const urlParams = new URLSearchParams(window.location.search);
-  const roleId = urlParams.get('id');
-
-  if (!roleId) return;
-
-  // Bind Freeze Button
-  const freezeBtn = document.getElementById('btn-freeze');
-  if (freezeBtn) {
-    freezeBtn.addEventListener('click', () => handleStatusChange(roleId, 'Frozen'));
-  }
-
-  // Bind Close Button with Confirmation
-  const closeBtn = document.getElementById('btn-close');
-  if (closeBtn) {
-    closeBtn.addEventListener('click', () => {
-      if (confirm(`Are you sure you want to close Role #${roleId}?`)) {
-        handleStatusChange(roleId, 'Closed');
-      }
-    });
-  }
-
-  // Bind Edit Button
-  const editBtn = document.getElementById('btn-edit');
-  if (editBtn) {
-    editBtn.addEventListener('click', () => {
-      // Redirect or trigger edit modal
-      window.location.href = `/edit-role.html?id=${roleId}`;
-    });
-  }
-});
-
-// Helper function to update role status
-async function handleStatusChange(roleId, newStatus) {
-  try {
-    const response = await fetch(`/api/roles/${roleId}/status`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: newStatus })
-    });
-
-    if (!response.ok) throw new Error(`Failed to update status to ${newStatus}`);
-
-    // Reload role details to reflect updated status badge
-    location.reload();
-  } catch (error) {
-    console.error(`Error updating role status:`, error);
-    alert(`Failed to change role status to ${newStatus}.`);
+    console.error(`Error executing action ${action}:`, err);
+    alert('An error occurred executing this action.');
   }
 }
