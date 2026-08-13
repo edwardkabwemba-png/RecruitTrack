@@ -24,7 +24,6 @@ module.exports = async function (context, req) {
       const { SourceName, sourceName } = req.body || {};
       const nameToSave = (SourceName || sourceName || '').trim();
 
-      // Required Field Validation
       if (!nameToSave) {
         context.res.status = 400;
         context.res.body = JSON.stringify({ message: "SourceName is required and cannot be empty." });
@@ -40,6 +39,35 @@ module.exports = async function (context, req) {
 
       context.res.status = 201;
       context.res.body = JSON.stringify({ message: "Source added successfully." });
+      return;
+    }
+
+    // DELETE Request: Delete source by ID
+    if (req.method === 'DELETE') {
+      // Extract ID from route parameter context.bindingData.id or URL query string
+      const sourceId = context.bindingData.id || req.query.id;
+
+      if (!sourceId) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ message: "Source ID is required for deletion." });
+        return;
+      }
+
+      const result = await pool.request()
+        .input('SourceID', sql.Int, sourceId)
+        .query(`
+          DELETE FROM dbo.Sources 
+          WHERE SourceID = @SourceID
+        `);
+
+      if (result.rowsAffected[0] === 0) {
+        context.res.status = 404;
+        context.res.body = JSON.stringify({ message: "Source record not found." });
+        return;
+      }
+
+      context.res.status = 200;
+      context.res.body = JSON.stringify({ message: "Source deleted successfully." });
       return;
     }
 
