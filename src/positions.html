@@ -4,34 +4,56 @@
   <meta charset="UTF-8">
   <title>TalentCoPilot - Manage Positions</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
-    body { display: flex; min-height: 100vh; background: #f1f5f9; color: #334155; }
-    .sidebar { width: 240px; background: #1e293b; color: #94a3b8; padding: 20px 0; }
-    .brand { padding: 0 20px 20px; font-weight: bold; color: #fff; }
-    .nav-item { display: block; padding: 10px 20px; color: #94a3b8; text-decoration: none; }
-    .nav-item.active { background: #334155; color: #fff; border-left: 4px solid #3b82f6; }
-    .main-content { flex: 1; padding: 25px 35px; }
-    .card { background: #fff; padding: 20px; border-radius: 8px; border: 1px solid #cbd5e1; margin-top: 20px; }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { padding: 12px; border-bottom: 1px solid #e2e8f0; text-align: left; }
-    .btn-primary { background: #1d4ed8; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; height: 100vh; background-color: #f4f6f8; color: #333; }
+    
+    /* Fixed Sidebar Styles */
+    .sidebar { width: 240px; background-color: #1e293b; color: #94a3b8; display: flex; flex-direction: column; padding: 20px 0; flex-shrink: 0; }
+    .brand { padding: 0 20px 20px; font-weight: bold; color: #fff; font-size: 1.2rem; }
+    .brand span { display: block; font-size: 0.75rem; color: #64748b; font-weight: normal; }
+    .nav-section { margin-top: 15px; }
+    .nav-title { font-size: 0.65rem; text-transform: uppercase; color: #475569; padding: 0 20px 8px; font-weight: 700; }
+    .nav-item { display: flex; align-items: center; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    .nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; border-left: 4px solid #3b82f6; }
+
+    /* Page Content & Component Styles */
+    .main-content { flex: 1; overflow-y: auto; padding: 25px 35px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .btn-primary { background-color: #1d4ed8; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.9rem; border: none; cursor: pointer; }
+    
+    .filter-bar { display: flex; justify-content: space-between; margin-bottom: 15px; background: #fff; padding: 12px; border-radius: 6px; border: 1px solid #e2e8f0; }
+    .filter-bar input { width: 300px; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    
+    .table-card { background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+    th { background: #f8fafc; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase; }
+    td { padding: 14px 16px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+
+    /* Modal Component Styles */
     .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
-    .modal-content { background: #fff; padding: 20px; border-radius: 8px; width: 400px; }
+    .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 400px; }
+    .form-group { margin-bottom: 15px; }
+    .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
+    .form-group input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+    .btn-secondary { background: #e2e8f0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
   </style>
 </head>
 <body>
+
   <aside class="sidebar">
     <div class="brand">TalentCoPilot <span>Recruitment Portal</span></div>
     <div class="nav-section">
       <div class="nav-title">MAIN</div>
-      <a href="/dashboard.html" class="nav-item">Dashboard</a>
-      <a href="/roles.html" class="nav-item">Manage Roles</a>
+      <a href="dashboard.html" class="nav-item">Dashboard</a>
+      <a href="#" class="nav-item">Add Recruit</a>
+      <a href="roles.html" class="nav-item">Manage Roles</a>
     </div>
     <div class="nav-section">
       <div class="nav-title">ADMIN</div>
       <a href="users.html" class="nav-item">Manage Users</a>
-      <a href="positions.html" class="nav-item">Manage Positions</a>
-      <a href="#" class="nav-item">Manage Sources</a>
+      <a href="positions.html" class="nav-item active">Manage Positions</a>
+      <a href="sources.html" class="nav-item">Manage Sources</a>
       <a href="clients.html" class="nav-item">Manage Clients</a>
       <a href="skills.html" class="nav-item">Manage Skills</a>
       <a href="certifications.html" class="nav-item">Manage Certifications</a>
@@ -40,28 +62,47 @@
   </aside>
 
   <main class="main-content">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-      <h2>Manage Positions</h2>
+    <div class="top-bar">
+      <div>
+        <h2>Manage Positions</h2>
+        <p style="font-size: 0.8rem; color: #64748b;">Job Positions & Vacancy Tracking</p>
+      </div>
       <button class="btn-primary" onclick="openModal()">+ Add Position</button>
     </div>
 
-    <div class="card">
+    <div class="filter-bar">
+      <input type="text" id="search-position" placeholder="🔍 Search positions...">
+    </div>
+
+    <div class="table-card">
       <table>
         <thead>
-          <tr><th>Position ID</th><th>Position Title</th><th>Status</th></tr>
+          <tr>
+            <th style="width: 120px;">Position ID</th>
+            <th>Position Title</th>
+            <th style="width: 100px;">Status</th>
+          </tr>
         </thead>
-        <tbody id="positionTableBody"></tbody>
+        <tbody id="positionTableBody">
+          <tr><td colspan="3" style="text-align: center;">Loading positions...</td></tr>
+        </tbody>
       </table>
     </div>
   </main>
 
+  <!-- Modal for Adding Position -->
   <div class="modal" id="positionModal">
     <div class="modal-content">
       <h3>Add New Position</h3>
-      <form id="addPositionForm" style="margin-top:15px;">
-        <input type="text" id="positionTitleInput" placeholder="Position Title" required style="width:100%; padding:8px; margin-bottom:15px;">
-        <button type="submit" class="btn-primary">Save</button>
-        <button type="button" onclick="closeModal()" style="padding:8px 16px;">Cancel</button>
+      <form id="addPositionForm">
+        <div class="form-group" style="margin-top: 15px;">
+          <label for="positionTitleInput">Position Title <span style="color: #dc2626;">*</span></label>
+          <input type="text" id="positionTitleInput" placeholder="e.g. Senior Software Engineer" required>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save Position</button>
+        </div>
       </form>
     </div>
   </div>
@@ -70,16 +111,24 @@
     document.addEventListener('DOMContentLoaded', fetchPositions);
 
     async function fetchPositions() {
-      const res = await fetch('/api/positions');
-      const data = await res.json();
-      const tbody = document.getElementById('positionTableBody');
-      tbody.innerHTML = data.map(p => `
-        <tr>
-          <td>#PS-${String(p.PositionID).padStart(4, '0')}</td>
-          <td>${p.PositionTitle}</td>
-          <td>${p.IsActive ? 'Active' : 'Inactive'}</td>
-        </tr>
-      `).join('');
+      try {
+        const res = await fetch('/api/positions');
+        const data = await res.json();
+        const tbody = document.getElementById('positionTableBody');
+        if (!data || data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No positions found.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = data.map(p => `
+          <tr>
+            <td style="font-weight: 600; color: #64748b;">#PS-${String(p.PositionID).padStart(4, '0')}</td>
+            <td style="font-weight: 500;">${p.PositionTitle}</td>
+            <td><span style="color: ${p.IsActive ? '#16a34a' : '#dc2626'}; font-weight: 600;">${p.IsActive ? 'Active' : 'Inactive'}</span></td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        console.error('Error loading positions:', err);
+      }
     }
 
     function openModal() { document.getElementById('positionModal').style.display = 'flex'; }
@@ -88,10 +137,13 @@
     document.getElementById('addPositionForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const positionTitle = document.getElementById('positionTitleInput').value;
+      
+      if (!positionTitle.trim()) return;
+
       await fetch('/api/positions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positionTitle })
+        body: JSON.stringify({ positionTitle: positionTitle.trim() })
       });
       closeModal();
       document.getElementById('positionTitleInput').value = '';
