@@ -12,18 +12,55 @@ module.exports = async function (context, req) {
 
       let query = `
         SELECT 
-          r.RoleID, r.PositionID, r.ClientID, r.SeniorityLevel, r.MinEducation, 
-          r.FieldOfStudy, r.MinYearsExperience, r.Location, r.WorkModel, 
-          r.RateBudgetMin, r.RateBudgetMax, r.Status, r.CreatedByUserID, r.CreatedDate,
-          p.PositionTitle, c.ClientName
+          r.RoleID, 
+          r.PositionID, 
+          r.ClientID, 
+          r.SeniorityLevel, 
+          r.MinEducation, 
+          r.FieldOfStudy, 
+          r.MinYearsExperience, 
+          r.Location, 
+          r.WorkModel, 
+          r.RateBudgetMin, 
+          r.RateBudgetMax, 
+          r.Status, 
+          r.CreatedByUserID, 
+          r.CreatedDate,
+          p.PositionTitle, 
+          c.ClientName,
+          STRING_AGG(CONCAT(LEFT(u.FirstName, 1), LEFT(u.LastName, 1)), ',') AS RecruiterInitials,
+          STRING_AGG(CAST(u.UserID AS VARCHAR(10)), ',') AS RecruiterIDs
         FROM dbo.Roles r
         LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
         LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
+        LEFT JOIN dbo.RoleRecruiters rr ON r.RoleID = rr.RoleID
+        LEFT JOIN dbo.Users u ON rr.UserID = u.UserID
       `;
 
       if (positionId && clientId) {
         query += ` WHERE r.PositionID = @PositionID AND r.ClientID = @ClientID`;
       }
+
+      query += `
+        GROUP BY 
+          r.RoleID, 
+          r.PositionID, 
+          r.ClientID, 
+          r.SeniorityLevel, 
+          r.MinEducation, 
+          r.FieldOfStudy, 
+          r.MinYearsExperience, 
+          r.Location, 
+          r.WorkModel, 
+          r.RateBudgetMin, 
+          r.RateBudgetMax, 
+          r.Status, 
+          r.CreatedByUserID, 
+          r.CreatedDate,
+          p.PositionTitle, 
+          c.ClientName
+        ORDER BY r.RoleID DESC
+      `;
 
       const request = pool.request();
       if (positionId && clientId) {
