@@ -55,8 +55,8 @@ function renderRoleDetails(role) {
   document.getElementById('val-experience').innerText = role.MinYearsExperience ? `${role.MinYearsExperience} Years` : '0 Years';
   document.getElementById('val-model').innerText = role.WorkModel || 'N/A';
 
-  const rateMin = role.RateBudgetMin ? `$${parseFloat(role.RateBudgetMin).toLocaleString()}` : 'N/A';
-  const rateMax = role.RateBudgetMax ? `$${parseFloat(role.RateBudgetMax).toLocaleString()}` : 'N/A';
+const rateMin = role.RateBudgetMin ? `R ${parseFloat(role.RateBudgetMin).toLocaleString()}` : 'N/A';
+const rateMax = role.RateBudgetMax ? `R ${parseFloat(role.RateBudgetMax).toLocaleString()}` : 'N/A';
   document.getElementById('val-budget').innerText = `${rateMin} - ${rateMax}`;
 
   // Skills & Certifications

@@ -6,9 +6,11 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
+    // ==========================================
     // GET ROLES
+    // ==========================================
     if (req.method === 'GET') {
-      const { positionId, clientId } = req.query;
+      const { positionId, clientId, id } = req.query;
 
       let query = 
         'SELECT ' +
@@ -29,10 +31,14 @@ module.exports = async function (context, req) {
         '  p.PositionTitle, ' +
         '  c.ClientName, ' +
         '  rec.RecruiterInitials, ' +
-        '  rec.RecruiterIDs ' +
+        '  rec.RecruiterIDs, ' +
+        '  skReq.RequiredSkills, ' +
+        '  skNice.NiceToHaveSkills, ' +
+        '  cert.RequiredCertifications ' +
         'FROM dbo.Roles r ' +
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
+        
         'OUTER APPLY ( ' +
         '  SELECT ' +
         '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
@@ -40,18 +46,44 @@ module.exports = async function (context, req) {
         '  FROM dbo.RoleRecruiters rr ' +
         '  JOIN dbo.Users u ON rr.UserID = u.UserID ' +
         '  WHERE rr.RoleID = r.RoleID ' +
-        ') rec ';
+        ') rec ' +
 
-      if (positionId && clientId) {
-        query += 'WHERE r.PositionID = @PositionID AND r.ClientID = @ClientID ';
+        'OUTER APPLY ( ' +
+        '  SELECT STRING_AGG(SkillName, \', \') AS RequiredSkills ' +
+        '  FROM dbo.RoleSkills WHERE RoleID = r.RoleID AND IsRequired = 1 ' +
+        ') skReq ' +
+
+        'OUTER APPLY ( ' +
+        '  SELECT STRING_AGG(SkillName, \', \') AS NiceToHaveSkills ' +
+        '  FROM dbo.RoleSkills WHERE RoleID = r.RoleID AND IsRequired = 0 ' +
+        ') skNice ' +
+
+        'OUTER APPLY ( ' +
+        '  SELECT STRING_AGG(CertificationName, \', \') AS RequiredCertifications ' +
+        '  FROM dbo.RoleCertifications WHERE RoleID = r.RoleID ' +
+        ') cert ';
+
+      let whereConditions = [];
+
+      if (id) {
+        whereConditions.push('r.RoleID = @RoleID');
+      } else {
+        if (positionId) whereConditions.push('r.PositionID = @PositionID');
+        if (clientId) whereConditions.push('r.ClientID = @ClientID');
+      }
+
+      if (whereConditions.length > 0) {
+        query += 'WHERE ' + whereConditions.join(' AND ') + ' ';
       }
 
       query += 'ORDER BY r.RoleID DESC';
 
       const request = pool.request();
-      if (positionId && clientId) {
-        request.input('PositionID', sql.Int, parseInt(positionId, 10));
-        request.input('ClientID', sql.Int, parseInt(clientId, 10));
+      if (id) {
+        request.input('RoleID', sql.Int, parseInt(id, 10));
+      } else {
+        if (positionId) request.input('PositionID', sql.Int, parseInt(positionId, 10));
+        if (clientId) request.input('ClientID', sql.Int, parseInt(clientId, 10));
       }
 
       const result = await request.query(query);
@@ -60,12 +92,14 @@ module.exports = async function (context, req) {
       return;
     }
 
+    // ==========================================
     // POST NEW ROLE
+    // ==========================================
     if (req.method === 'POST') {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
         minExperience, location, workModel, rateMin, rateMax,
-        createdByUserId
+        createdByUserId, requiredSkills, niceToHaveSkills, requiredCertifications
       } = req.body || {};
 
       if (!positionId || !clientId) {
@@ -98,6 +132,37 @@ module.exports = async function (context, req) {
         .query(insertQuery);
 
       const newRoleId = result.recordset[0].RoleID;
+
+      // Optional: Insert skills if array provided
+      if (Array.isArray(requiredSkills) && requiredSkills.length > 0) {
+        for (const skill of requiredSkills) {
+          await pool.request()
+            .input('RoleID', sql.Int, newRoleId)
+            .input('SkillName', sql.NVarChar(150), skill)
+            .input('IsRequired', sql.Bit, 1)
+            .query('INSERT INTO dbo.RoleSkills (RoleID, SkillName, IsRequired) VALUES (@RoleID, @SkillName, @IsRequired)');
+        }
+      }
+
+      if (Array.isArray(niceToHaveSkills) && niceToHaveSkills.length > 0) {
+        for (const skill of niceToHaveSkills) {
+          await pool.request()
+            .input('RoleID', sql.Int, newRoleId)
+            .input('SkillName', sql.NVarChar(150), skill)
+            .input('IsRequired', sql.Bit, 0)
+            .query('INSERT INTO dbo.RoleSkills (RoleID, SkillName, IsRequired) VALUES (@RoleID, @SkillName, @IsRequired)');
+        }
+      }
+
+      // Optional: Insert certs if array provided
+      if (Array.isArray(requiredCertifications) && requiredCertifications.length > 0) {
+        for (const cert of requiredCertifications) {
+          await pool.request()
+            .input('RoleID', sql.Int, newRoleId)
+            .input('CertificationName', sql.NVarChar(150), cert)
+            .query('INSERT INTO dbo.RoleCertifications (RoleID, CertificationName) VALUES (@RoleID, @CertificationName)');
+        }
+      }
 
       context.res.status = 201;
       context.res.body = JSON.stringify({ message: "Role created successfully", roleId: newRoleId });
