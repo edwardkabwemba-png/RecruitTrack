@@ -32,13 +32,14 @@ module.exports = async function (context, req) {
         '  c.ClientName, ' +
         '  rec.RecruiterInitials, ' +
         '  rec.RecruiterIDs, ' +
-        '  \'\' AS RequiredSkills, ' +
-        '  \'\' AS NiceToHaveSkills, ' +
-        '  \'\' AS RequiredCertifications ' +
+        '  skReq.RequiredSkills, ' +
+        '  skNice.NiceToHaveSkills, ' +
+        '  cert.RequiredCertifications ' +
         'FROM dbo.Roles r ' +
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
         
+        // Recruiters Aggregation
         'OUTER APPLY ( ' +
         '  SELECT ' +
         '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
@@ -46,7 +47,30 @@ module.exports = async function (context, req) {
         '  FROM dbo.RoleRecruiters rr ' +
         '  JOIN dbo.Users u ON rr.UserID = u.UserID ' +
         '  WHERE rr.RoleID = r.RoleID ' +
-        ') rec ';
+        ') rec ' +
+
+        // Required Skills Aggregation (JOINs RoleSkills -> SkillLibrary)
+        'OUTER APPLY ( ' +
+        '  SELECT STRING_AGG(sl.SkillName, \', \') AS RequiredSkills ' +
+        '  FROM dbo.RoleSkills rs ' +
+        '  JOIN dbo.SkillLibrary sl ON rs.SkillID = sl.SkillID ' +
+        '  WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1 ' +
+        ') skReq ' +
+
+        // Nice-To-Have Skills Aggregation (JOINs RoleSkills -> SkillLibrary)
+        'OUTER APPLY ( ' +
+        '  SELECT STRING_AGG(sl.SkillName, \', \') AS NiceToHaveSkills ' +
+        '  FROM dbo.RoleSkills rs ' +
+        '  JOIN dbo.SkillLibrary sl ON rs.SkillID = sl.SkillID ' +
+        '  WHERE rs.RoleID = r.RoleID AND (rs.IsRequired = 0 OR rs.IsRequired IS NULL) ' +
+        ') skNice ' +
+
+        // Certifications Aggregation (From RoleCertifications)
+        'OUTER APPLY ( ' +
+        '  SELECT STRING_AGG(rc.CertificationName, \', \') AS RequiredCertifications ' +
+        '  FROM dbo.RoleCertifications rc ' +
+        '  WHERE rc.RoleID = r.RoleID ' +
+        ') cert ';
 
       let whereConditions = [];
 
