@@ -10,52 +10,48 @@ module.exports = async function (context, req) {
     if (req.method === 'GET') {
       const { positionId, clientId } = req.query;
 
-      let query = `
-        SELECT 
-          r.RoleID, 
-          r.PositionID, 
-          r.ClientID, 
-          r.SeniorityLevel, 
-          r.MinEducation, 
-          r.FieldOfStudy, 
-          r.MinYearsExperience, 
-          r.Location, 
-          r.WorkModel, 
-          r.RateBudgetMin, 
-          r.RateBudgetMax, 
-          r.Status, 
-          r.CreatedByUserID, 
-          r.CreatedDate,
-          p.PositionTitle, 
-          c.ClientName,
-          rec.RecruiterInitials,
-          rec.RecruiterIDs
-        FROM dbo.Roles r
-        LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
-        LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
-        OUTER APPLY (
-          SELECT 
-            STRING_AGG(
-              CAST(CONCAT(LEFT(ISNULL(u.FirstName, ''), 1), LEFT(ISNULL(u.LastName, ''), 1)) AS NVARCHAR(10)), 
-              ','
-            ) AS RecruiterInitials,
-            STRING_AGG(CAST(u.UserID AS VARCHAR(10)), ',') AS RecruiterIDs
-          FROM dbo.RoleRecruiters rr
-          JOIN dbo.Users u ON rr.UserID = u.UserID
-          WHERE rr.RoleID = r.RoleID
-        ) rec
-      `;
+      let query = 
+        'SELECT ' +
+        '  r.RoleID, ' +
+        '  r.PositionID, ' +
+        '  r.ClientID, ' +
+        '  r.SeniorityLevel, ' +
+        '  r.MinEducation, ' +
+        '  r.FieldOfStudy, ' +
+        '  r.MinYearsExperience, ' +
+        '  r.Location, ' +
+        '  r.WorkModel, ' +
+        '  r.RateBudgetMin, ' +
+        '  r.RateBudgetMax, ' +
+        '  r.Status, ' +
+        '  r.CreatedByUserID, ' +
+        '  r.CreatedDate, ' +
+        '  p.PositionTitle, ' +
+        '  c.ClientName, ' +
+        '  rec.RecruiterInitials, ' +
+        '  rec.RecruiterIDs ' +
+        'FROM dbo.Roles r ' +
+        'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
+        'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
+        'OUTER APPLY ( ' +
+        '  SELECT ' +
+        '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
+        '    STRING_AGG(CAST(u.UserID AS VARCHAR(10)), \',\') AS RecruiterIDs ' +
+        '  FROM dbo.RoleRecruiters rr ' +
+        '  JOIN dbo.Users u ON rr.UserID = u.UserID ' +
+        '  WHERE rr.RoleID = r.RoleID ' +
+        ') rec ';
 
       if (positionId && clientId) {
-        query += ` WHERE r.PositionID = @PositionID AND r.ClientID = @ClientID`;
+        query += 'WHERE r.PositionID = @PositionID AND r.ClientID = @ClientID ';
       }
 
-      query += ` ORDER BY r.RoleID DESC`;
+      query += 'ORDER BY r.RoleID DESC';
 
       const request = pool.request();
       if (positionId && clientId) {
-        request.input('PositionID', sql.Int, parseInt(positionId));
-        request.input('ClientID', sql.Int, parseInt(clientId));
+        request.input('PositionID', sql.Int, parseInt(positionId, 10));
+        request.input('ClientID', sql.Int, parseInt(clientId, 10));
       }
 
       const result = await request.query(query);
@@ -78,27 +74,28 @@ module.exports = async function (context, req) {
         return;
       }
 
+      const insertQuery = 
+        'INSERT INTO dbo.Roles ' +
+        '  (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate) ' +
+        'OUTPUT INSERTED.RoleID ' +
+        'VALUES ' +
+        '  (@PositionID, @ClientID, @SeniorityLevel, @MinEducation, @FieldOfStudy, @MinYearsExperience, @Location, @WorkModel, @RateBudgetMin, @RateBudgetMax, @Status, @CreatedByUserID, @CreatedDate)';
+
       const result = await pool.request()
-        .input('PositionID', sql.Int, parseInt(positionId))
-        .input('ClientID', sql.Int, parseInt(clientId))
+        .input('PositionID', sql.Int, parseInt(positionId, 10))
+        .input('ClientID', sql.Int, parseInt(clientId, 10))
         .input('SeniorityLevel', sql.NVarChar(100), seniority || 'Mid')
-        .input('MinEducation', sql.NVarChar(100), education || 'None')
-        .input('FieldOfStudy', sql.NVarChar(150), fieldOfStudy || null)
-        .input('MinYearsExperience', sql.Int, minExperience ? parseInt(minExperience) : 0)
-        .input('Location', sql.NVarChar(150), location || null)
-        .input('WorkModel', sql.NVarChar(50), workModel || 'Hybrid')
-        .input('RateBudgetMin', sql.Decimal(18, 2), rateMin ? parseFloat(rateMin) : null)
-        .input('RateBudgetMax', sql.Decimal(18, 2), rateMax ? parseFloat(rateMax) : null)
-        .input('Status', sql.NVarChar(50), 'Active')
-        .input('CreatedByUserID', sql.Int, createdByUserId ? parseInt(createdByUserId) : 1)
+        .input('MinEducation', sql.NVarChar(200), education || 'None')
+        .input('FieldOfStudy', sql.NVarChar(300), fieldOfStudy || null)
+        .input('MinYearsExperience', sql.Int, minExperience ? parseInt(minExperience, 10) : 0)
+        .input('Location', sql.NVarChar(300), location || null)
+        .input('WorkModel', sql.NVarChar(100), workModel || 'Hybrid')
+        .input('RateBudgetMin', sql.Decimal(9, 2), rateMin ? parseFloat(rateMin) : null)
+        .input('RateBudgetMax', sql.Decimal(9, 2), rateMax ? parseFloat(rateMax) : null)
+        .input('Status', sql.NVarChar(40), 'Active')
+        .input('CreatedByUserID', sql.Int, createdByUserId ? parseInt(createdByUserId, 10) : 1)
         .input('CreatedDate', sql.DateTime, new Date())
-        .query(`
-          INSERT INTO dbo.Roles 
-            (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate)
-          OUTPUT INSERTED.RoleID
-          VALUES 
-            (@PositionID, @ClientID, @SeniorityLevel, @MinEducation, @FieldOfStudy, @MinYearsExperience, @Location, @WorkModel, @RateBudgetMin, @RateBudgetMax, @Status, @CreatedByUserID, @CreatedDate)
-        `);
+        .query(insertQuery);
 
       const newRoleId = result.recordset[0].RoleID;
 
@@ -110,6 +107,9 @@ module.exports = async function (context, req) {
   } catch (error) {
     context.log.error("Roles API Error:", error);
     context.res.status = 500;
-    context.res.body = JSON.stringify({ message: "Server error", error: error.message });
+    context.res.body = JSON.stringify({ 
+      message: "Server error", 
+      error: error.message 
+    });
   }
 };
