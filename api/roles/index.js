@@ -39,6 +39,7 @@ module.exports = async function (context, req) {
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
         
+        // Recruiters Aggregation
         'OUTER APPLY ( ' +
         '  SELECT ' +
         '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
@@ -48,19 +49,28 @@ module.exports = async function (context, req) {
         '  WHERE rr.RoleID = r.RoleID ' +
         ') rec ' +
 
+        // Required Skills Aggregation (JOINs with dbo.Skills)
         'OUTER APPLY ( ' +
-        '  SELECT STRING_AGG(SkillName, \', \') AS RequiredSkills ' +
-        '  FROM dbo.RoleSkills WHERE RoleID = r.RoleID AND IsRequired = 1 ' +
+        '  SELECT STRING_AGG(s.SkillName, \', \') AS RequiredSkills ' +
+        '  FROM dbo.RoleSkills rs ' +
+        '  JOIN dbo.Skills s ON rs.SkillID = s.SkillID ' +
+        '  WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1 ' +
         ') skReq ' +
 
+        // Nice-To-Have Skills Aggregation (JOINs with dbo.Skills)
         'OUTER APPLY ( ' +
-        '  SELECT STRING_AGG(SkillName, \', \') AS NiceToHaveSkills ' +
-        '  FROM dbo.RoleSkills WHERE RoleID = r.RoleID AND IsRequired = 0 ' +
+        '  SELECT STRING_AGG(s.SkillName, \', \') AS NiceToHaveSkills ' +
+        '  FROM dbo.RoleSkills rs ' +
+        '  JOIN dbo.Skills s ON rs.SkillID = s.SkillID ' +
+        '  WHERE rs.RoleID = r.RoleID AND (rs.IsRequired = 0 OR rs.IsRequired IS NULL) ' +
         ') skNice ' +
 
+        // Certifications Aggregation (Supports RoleCertifications joining Certifications)
         'OUTER APPLY ( ' +
-        '  SELECT STRING_AGG(CertificationName, \', \') AS RequiredCertifications ' +
-        '  FROM dbo.RoleCertifications WHERE RoleID = r.RoleID ' +
+        '  SELECT STRING_AGG(c.CertificationName, \', \') AS RequiredCertifications ' +
+        '  FROM dbo.RoleCertifications rc ' +
+        '  JOIN dbo.Certifications c ON rc.CertificationID = c.CertificationID ' +
+        '  WHERE rc.RoleID = r.RoleID ' +
         ') cert ';
 
       let whereConditions = [];
@@ -99,7 +109,7 @@ module.exports = async function (context, req) {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
         minExperience, location, workModel, rateMin, rateMax,
-        createdByUserId, requiredSkills, niceToHaveSkills, requiredCertifications
+        createdByUserId
       } = req.body || {};
 
       if (!positionId || !clientId) {
@@ -132,37 +142,6 @@ module.exports = async function (context, req) {
         .query(insertQuery);
 
       const newRoleId = result.recordset[0].RoleID;
-
-      // Optional: Insert skills if array provided
-      if (Array.isArray(requiredSkills) && requiredSkills.length > 0) {
-        for (const skill of requiredSkills) {
-          await pool.request()
-            .input('RoleID', sql.Int, newRoleId)
-            .input('SkillName', sql.NVarChar(150), skill)
-            .input('IsRequired', sql.Bit, 1)
-            .query('INSERT INTO dbo.RoleSkills (RoleID, SkillName, IsRequired) VALUES (@RoleID, @SkillName, @IsRequired)');
-        }
-      }
-
-      if (Array.isArray(niceToHaveSkills) && niceToHaveSkills.length > 0) {
-        for (const skill of niceToHaveSkills) {
-          await pool.request()
-            .input('RoleID', sql.Int, newRoleId)
-            .input('SkillName', sql.NVarChar(150), skill)
-            .input('IsRequired', sql.Bit, 0)
-            .query('INSERT INTO dbo.RoleSkills (RoleID, SkillName, IsRequired) VALUES (@RoleID, @SkillName, @IsRequired)');
-        }
-      }
-
-      // Optional: Insert certs if array provided
-      if (Array.isArray(requiredCertifications) && requiredCertifications.length > 0) {
-        for (const cert of requiredCertifications) {
-          await pool.request()
-            .input('RoleID', sql.Int, newRoleId)
-            .input('CertificationName', sql.NVarChar(150), cert)
-            .query('INSERT INTO dbo.RoleCertifications (RoleID, CertificationName) VALUES (@RoleID, @CertificationName)');
-        }
-      }
 
       context.res.status = 201;
       context.res.body = JSON.stringify({ message: "Role created successfully", roleId: newRoleId });
