@@ -28,7 +28,14 @@ module.exports = async function (context, req) {
           r.CreatedDate,
           p.PositionTitle, 
           c.ClientName,
-          STRING_AGG(CONCAT(LEFT(u.FirstName, 1), LEFT(u.LastName, 1)), ',') AS RecruiterInitials,
+          STRING_AGG(
+            CAST(
+              CONCAT(
+                LEFT(ISNULL(u.FirstName, ''), 1), 
+                LEFT(ISNULL(u.LastName, ''), 1)
+              ) AS NVARCHAR(10)
+            ), ','
+          ) AS RecruiterInitials,
           STRING_AGG(CAST(u.UserID AS VARCHAR(10)), ',') AS RecruiterIDs
         FROM dbo.Roles r
         LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
