@@ -32,14 +32,13 @@ module.exports = async function (context, req) {
         '  c.ClientName, ' +
         '  rec.RecruiterInitials, ' +
         '  rec.RecruiterIDs, ' +
-        '  skReq.RequiredSkills, ' +
-        '  skNice.NiceToHaveSkills, ' +
-        '  cert.RequiredCertifications ' +
+        '  \'\' AS RequiredSkills, ' +
+        '  \'\' AS NiceToHaveSkills, ' +
+        '  \'\' AS RequiredCertifications ' +
         'FROM dbo.Roles r ' +
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
         
-        // Recruiters Aggregation
         'OUTER APPLY ( ' +
         '  SELECT ' +
         '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
@@ -47,28 +46,7 @@ module.exports = async function (context, req) {
         '  FROM dbo.RoleRecruiters rr ' +
         '  JOIN dbo.Users u ON rr.UserID = u.UserID ' +
         '  WHERE rr.RoleID = r.RoleID ' +
-        ') rec ' +
-
-        // Required Skills (JOINs with dbo.Skills using SkillID)
-        'OUTER APPLY ( ' +
-        '  SELECT STRING_AGG(s.SkillName, \', \') AS RequiredSkills ' +
-        '  FROM dbo.RoleSkills rs ' +
-        '  JOIN dbo.Skills s ON rs.SkillID = s.SkillID ' +
-        '  WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1 ' +
-        ') skReq ' +
-
-        // Nice-To-Have Skills (JOINs with dbo.Skills using SkillID)
-        'OUTER APPLY ( ' +
-        '  SELECT STRING_AGG(s.SkillName, \', \') AS NiceToHaveSkills ' +
-        '  FROM dbo.RoleSkills rs ' +
-        '  JOIN dbo.Skills s ON rs.SkillID = s.SkillID ' +
-        '  WHERE rs.RoleID = r.RoleID AND (rs.IsRequired = 0 OR rs.IsRequired IS NULL) ' +
-        ') skNice ' +
-
-        // Safe Fallback for Certifications to prevent 500 crashes
-        'OUTER APPLY ( ' +
-        '  SELECT \'\' AS RequiredCertifications ' +
-        ') cert ';
+        ') rec ';
 
       let whereConditions = [];
 
@@ -106,7 +84,7 @@ module.exports = async function (context, req) {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
         minExperience, location, workModel, rateMin, rateMax,
-        createdByUserId, requiredSkills, niceToHaveSkills, requiredCertifications
+        createdByUserId
       } = req.body || {};
 
       if (!positionId || !clientId) {
