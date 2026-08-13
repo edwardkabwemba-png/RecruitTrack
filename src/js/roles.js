@@ -48,7 +48,7 @@ async function fetchAndRenderRoles() {
         actionsHtml = `
           <a href="role-details.html?id=${roleIdNum}" style="color: #2563eb; margin-right: 8px; font-weight: 500;">View</a>
           <a href="#" onclick="handleRoleAction('${freezeAction}', ${roleIdNum}); return false;" style="color: #475569; margin-right: 8px;">${freezeAction}</a>
-          <a href="#" onclick="handleRoleAction('Close', ${roleIdNum}); return false;" style="color: #475569; margin-right: 8px;">Close</a>
+          <a href="#" onclick="handleRoleAction('Close', ${roleIdNum}); return false;" style="color: #dc2626; margin-right: 8px;">Close</a>
         `;
 
         if (canJoin) {
@@ -75,6 +75,13 @@ async function fetchAndRenderRoles() {
 }
 
 async function handleRoleAction(action, roleId) {
+  // Confirm with user if attempting to close the ticket/role
+  if (action === 'Close') {
+    const formattedId = `#RL-${String(roleId).padStart(4, '0')}`;
+    const confirmed = confirm(`Are you sure you want to close ticket ${formattedId}? This will archive the role.`);
+    if (!confirmed) return;
+  }
+
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   try {

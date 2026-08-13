@@ -110,3 +110,55 @@ function getStagePillClass(stage = '') {
 function escapeHtml(str) {
   return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Grab Role ID from URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const roleId = urlParams.get('id');
+
+  if (!roleId) return;
+
+  // Bind Freeze Button
+  const freezeBtn = document.getElementById('btn-freeze');
+  if (freezeBtn) {
+    freezeBtn.addEventListener('click', () => handleStatusChange(roleId, 'Frozen'));
+  }
+
+  // Bind Close Button with Confirmation
+  const closeBtn = document.getElementById('btn-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      if (confirm(`Are you sure you want to close Role #${roleId}?`)) {
+        handleStatusChange(roleId, 'Closed');
+      }
+    });
+  }
+
+  // Bind Edit Button
+  const editBtn = document.getElementById('btn-edit');
+  if (editBtn) {
+    editBtn.addEventListener('click', () => {
+      // Redirect or trigger edit modal
+      window.location.href = `/edit-role.html?id=${roleId}`;
+    });
+  }
+});
+
+// Helper function to update role status
+async function handleStatusChange(roleId, newStatus) {
+  try {
+    const response = await fetch(`/api/roles/${roleId}/status`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus })
+    });
+
+    if (!response.ok) throw new Error(`Failed to update status to ${newStatus}`);
+
+    // Reload role details to reflect updated status badge
+    location.reload();
+  } catch (error) {
+    console.error(`Error updating role status:`, error);
+    alert(`Failed to change role status to ${newStatus}.`);
+  }
+}
