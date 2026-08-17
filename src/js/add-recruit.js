@@ -1,152 +1,82 @@
-let currentStage = 2; // Default: 'In Discussion'
-const stages = ["Sourced", "In Discussion", "Screened", "CV Prepared", "Interviewed", "Offer Sent", "Hired"];
-let selectedSkills = [];
-let selectedCerts = [];
-let uploadedUrls = {};
-
-document.addEventListener("DOMContentLoaded", async () => {
-  // Set default Sourced Date to Today (YYYY-MM-DD)
-  document.getElementById("dateSourced").value = new Date().toISOString().split('T')[0];
-
-  // Load Dropdowns
-  await loadDropdowns();
-
-  // Set initial Advance Stage button text
-  updateStageUI();
+document.addEventListener('DOMContentLoaded', async () => {
+  await Promise.all([
+    loadRecruiters(),
+    loadSources(),
+    loadRoles()
+  ]);
 });
 
-async function loadDropdowns() {
-  try {
-    const res = await fetch('/api/recruits?action=dropdowns');
-    const data = await res.json();
-
-    // Populate Recruiters
-    const recSelect = document.getElementById('recruiterSelect');
-    recSelect.innerHTML = '<option value="">Select Recruiter...</option>' + 
-      data.recruiters.map(u => `<option value="${u.UserID}">${u.FullName}</option>`).join('');
-
-    // Populate Sources
-    const srcSelect = document.getElementById('sourceSelect');
-    srcSelect.innerHTML = '<option value="">Select Source...</option>' + 
-      data.sources.map(s => `<option value="${s.SourceID}">${s.SourceName}</option>`).join('');
-
-    // Populate Roles
-    const roleSelect = document.getElementById('roleSelect');
-    roleSelect.innerHTML = '<option value="">Select Role...</option>' + 
-      data.roles.map(r => `<option value="${r.RoleID}">${r.RoleTitle}</option>`).join('');
-
-    // Populate Skills Dropdown
-    const skillSelect = document.getElementById('skillDropdown');
-    skillSelect.innerHTML = data.skills.map(s => `<option value="${s.SkillName}">${s.SkillName}</option>`).join('');
-
-    // Populate Certifications Dropdown
-    const certSelect = document.getElementById('certDropdown');
-    certSelect.innerHTML = data.certifications.map(c => `<option value="${c.CertName}">${c.CertName}</option>`).join('');
-
-  } catch (err) {
-    console.error("Error loading dropdowns:", err);
-  }
-}
-
-// Add Skill Tag
-function addSkillTag() {
-  const skill = document.getElementById('skillDropdown').value;
-  const yrs = document.getElementById('skillYears').value || 1;
-  const tagStr = `${skill} — ${yrs} yrs`;
-
-  if (!selectedSkills.includes(tagStr)) {
-    selectedSkills.push(tagStr);
-    renderTags('skillsContainer', selectedSkills, removeSkillTag);
-  }
-}
-
-function removeSkillTag(index) {
-  selectedSkills.splice(index, 1);
-  renderTags('skillsContainer', selectedSkills, removeSkillTag);
-}
-
-// Add Certification Tag
-function addCertTag() {
-  const cert = document.getElementById('certDropdown').value;
-  if (!selectedCerts.includes(cert)) {
-    selectedCerts.push(cert);
-    renderTags('certsContainer', selectedCerts, removeCertTag);
-  }
-}
-
-function removeCertTag(index) {
-  selectedCerts.splice(index, 1);
-  renderTags('certsContainer', selectedCerts, removeCertTag);
-}
-
-function renderTags(containerId, list, removeCallback) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = list.map((item, idx) => `
-    <span class="tag-badge">${item} <span class="remove-btn" onclick="${removeCallback.name}(${idx})">×</span></span>
-  `).join('');
-}
-
-// Section D Stage Advance Button
-function updateStageUI() {
-  const btn = document.getElementById("advanceStageBtn");
-  if (currentStage < stages.length) {
-    btn.innerText = `Advance to ${stages[currentStage]}`;
-  } else {
-    btn.innerText = "Completed (Hired)";
-    btn.disabled = true;
-  }
-}
-
-function advanceStage() {
-  if (currentStage < stages.length) {
-    currentStage++;
-    updateStageUI();
-  }
-}
-
-// Section E Upload Files to Azure Blob
-async function uploadDoc(docType, inputId, statusSpanId) {
-  const fileInput = document.getElementById(inputId);
-  if (!fileInput.files.length) return;
-
-  const fname = `${document.getElementById('firstName').value} ${document.getElementById('surname').value}`.trim() || 'Candidate';
-  const formData = new FormData();
-  formData.append('file', fileInput.files[0]);
-
-  const span = document.getElementById(statusSpanId);
-  span.innerText = "Uploading...";
+// 1. Fetch Recruiters from /api/users
+async function loadRecruiters() {
+  const select = document.getElementById('recruiterSelect') || document.querySelector('select[name="recruiter"]');
+  if (!select) return;
 
   try {
-    const res = await fetch(`/api/upload-document?fullName=${encodeURIComponent(fname)}&docType=${docType}`, {
-      method: 'POST',
-      body: formData
-    });
+    const res = await fetch('/api/users');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
-    const result = await res.json();
-    if (res.ok) {
-      span.innerText = "Received";
-      span.className = "status-badge badge-received";
-      uploadedUrls[docType] = result.blobUrl;
-    } else {
-      span.innerText = "Upload Failed";
+    const users = await res.json();
+    select.innerHTML = '<option value="">Select Recruiter...</option>';
+
+    if (Array.isArray(users)) {
+      users.forEach(u => {
+        const name = u.FullName || u.fullName || u.Email || u.email;
+        const id = u.UserID || u.id;
+        select.appendChild(new Option(name, id));
+      });
     }
   } catch (err) {
-    console.error("Upload Error:", err);
-    span.innerText = "Error";
+    console.error("Error loading recruiters:", err.message);
+    select.innerHTML = '<option value="">Failed to load recruiters</option>';
   }
 }
 
-async function uploadMultiDocs(docType, inputId, statusSpanId, maxLimit) {
-  const fileInput = document.getElementById(inputId);
-  const count = fileInput.files.length;
-  if (count === 0) return;
+// 2. Fetch Sources from /api/sources
+async function loadSources() {
+  const select = document.getElementById('sourceSelect') || document.querySelector('select[name="source"]');
+  if (!select) return;
 
-  if (count > maxLimit) {
-    alert(`Maximum ${maxLimit} files allowed.`);
-    return;
+  try {
+    const res = await fetch('/api/sources');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const sources = await res.json();
+    select.innerHTML = '<option value="">Select Source...</option>';
+
+    if (Array.isArray(sources)) {
+      sources.forEach(s => {
+        const name = s.SourceName;
+        const id = s.SourceID;
+        select.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading sources:", err.message);
+    select.innerHTML = '<option value="">Failed to load sources</option>';
   }
+}
 
-  const span = document.getElementById(statusSpanId);
-  span.innerText = `${count} of ${maxLimit} Received`;
-  span.className = "status-badge badge-received";
+// 3. Fetch Roles from /api/roles
+async function loadRoles() {
+  const select = document.getElementById('roleSelect') || document.querySelector('select[name="role"]');
+  if (!select) return;
+
+  try {
+    const res = await fetch('/api/roles');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const roles = await res.json();
+    select.innerHTML = '<option value="">Select a Role...</option>';
+
+    if (Array.isArray(roles)) {
+      roles.forEach(r => {
+        // Format display name as "PositionTitle @ ClientName (#RL-000X)"
+        const roleLabel = `${r.PositionTitle || 'Role'} @ ${r.ClientName || 'Client'} (#RL-${String(r.RoleID).padStart(4, '0')})`;
+        select.appendChild(new Option(roleLabel, r.RoleID));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading roles:", err.message);
+    select.innerHTML = '<option value="">Failed to load roles</option>';
+  }
 }
