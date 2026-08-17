@@ -25,6 +25,7 @@ async function handleCandidateSubmit(e) {
     firstName: document.getElementById('firstName')?.value,
     lastName: document.getElementById('lastName')?.value,
     sourceId: document.getElementById('sourceSelect')?.value,
+    countryOfResidence: document.getElementById('countrySelect')?.value,
     noticePeriod: document.getElementById('noticePeriod')?.value,
     currentRate: document.getElementById('currentRate')?.value,
     expectedRate: document.getElementById('expectedRate')?.value,
