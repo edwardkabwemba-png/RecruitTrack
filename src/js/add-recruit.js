@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadSkills(),
     loadCertifications()
   ]);
-});
+
 
   const candidateForm = document.getElementById('addCandidateForm') || document.querySelector('form');
   if (candidateForm) {
@@ -179,4 +179,3 @@ async function loadCertifications() {
     select.innerHTML = '<option value="">Failed to load certifications</option>';
   }
 }
-
