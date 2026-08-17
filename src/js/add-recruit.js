@@ -1,10 +1,56 @@
+// Add form submit listener inside DOMContentLoaded
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
     loadRecruiters(),
     loadSources(),
     loadRoles()
   ]);
+
+  const candidateForm = document.getElementById('addCandidateForm') || document.querySelector('form');
+  if (candidateForm) {
+    candidateForm.addEventListener('submit', handleCandidateSubmit);
+  }
 });
+
+// Form Submission Function
+async function handleCandidateSubmit(e) {
+  e.preventDefault();
+
+  const payload = {
+    recruiterId: document.getElementById('recruiterSelect')?.value,
+    dateSourced: document.getElementById('dateSourced')?.value,
+    firstName: document.getElementById('firstName')?.value,
+    lastName: document.getElementById('lastName')?.value,
+    sourceId: document.getElementById('sourceSelect')?.value,
+    noticePeriod: document.getElementById('noticePeriod')?.value,
+    currentRate: document.getElementById('currentRate')?.value,
+    expectedRate: document.getElementById('expectedRate')?.value,
+    email: document.getElementById('email')?.value,
+    contactNumber: document.getElementById('contactNumber')?.value,
+    idType: document.getElementById('idType')?.value,
+    idNumber: document.getElementById('idNumber')?.value,
+    roleId: document.getElementById('roleSelect')?.value
+  };
+
+  try {
+    const res = await fetch('/api/recruits', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.message || 'Failed to save candidate');
+    }
+
+    alert('Candidate saved successfully!');
+    window.location.href = '/recruits.html'; // Redirect to candidate management list
+  } catch (err) {
+    console.error("Submission error:", err);
+    alert(`Error: ${err.message}`);
+  }
+}
 
 // 1. Fetch Recruiters from /api/users
 async function loadRecruiters() {
@@ -80,3 +126,4 @@ async function loadRoles() {
     select.innerHTML = '<option value="">Failed to load roles</option>';
   }
 }
+
