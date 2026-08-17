@@ -3,8 +3,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
     loadRecruiters(),
     loadSources(),
-    loadRoles()
+    loadRoles(),
+    loadSkills(),
+    loadCertifications()
   ]);
+});
 
   const candidateForm = document.getElementById('addCandidateForm') || document.querySelector('form');
   if (candidateForm) {
@@ -124,6 +127,56 @@ async function loadRoles() {
   } catch (err) {
     console.error("Error loading roles:", err.message);
     select.innerHTML = '<option value="">Failed to load roles</option>';
+  }
+}
+
+// 1. Fetch Skills from /api/skills
+async function loadSkills() {
+  const select = document.getElementById('skillSelect') || document.querySelector('select[name="skills"]');
+  if (!select) return;
+
+  try {
+    const res = await fetch('/api/skills');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const skills = await res.json();
+    select.innerHTML = '<option value="">Select Skill...</option>';
+
+    if (Array.isArray(skills)) {
+      skills.forEach(s => {
+        const name = s.SkillName || s.name;
+        const id = s.SkillID || s.id;
+        select.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading skills:", err.message);
+    select.innerHTML = '<option value="">Failed to load skills</option>';
+  }
+}
+
+// 2. Fetch Certifications from /api/certifications
+async function loadCertifications() {
+  const select = document.getElementById('certSelect') || document.querySelector('select[name="certifications"]');
+  if (!select) return;
+
+  try {
+    const res = await fetch('/api/certifications');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const certs = await res.json();
+    select.innerHTML = '<option value="">Select Certification...</option>';
+
+    if (Array.isArray(certs)) {
+      certs.forEach(c => {
+        const name = c.CertName || c.CertificationName || c.name;
+        const id = c.CertID || c.CertificationID || c.id;
+        select.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading certifications:", err.message);
+    select.innerHTML = '<option value="">Failed to load certifications</option>';
   }
 }
 
