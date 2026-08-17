@@ -192,20 +192,23 @@
         
         <div class="full-width">
           <label>Skills Held (Select Skill & Years)</label>
-          <div class="input-action-row">
-            <select id="skillDropdown" style="flex: 3;"></select>
-            <input type="number" id="skillYears" placeholder="Yrs" style="flex: 1;" min="0">
-            <button type="button" class="btn btn-secondary" onclick="addSkillTag()">+ Add Skill</button>
-          </div>
+          <div class="form-group">
+  <label for="skillSelect">Skills</label>
+  <select id="skillSelect" name="skills">
+    <option value="">Loading skills...</option>
+  </select>
+</div>
           <div id="skillsContainer" class="tag-container"></div>
         </div>
 
         <div class="full-width">
           <label>Certifications Held</label>
-          <div class="input-action-row">
-            <select id="certDropdown" style="flex: 3;"></select>
-            <button type="button" class="btn btn-secondary" onclick="addCertTag()">+ Add Certification</button>
-          </div>
+          <div class="form-group">
+  <label for="certSelect">Certifications</label>
+  <select id="certSelect" name="certifications">
+    <option value="">Loading certifications...</option>
+  </select>
+</div>
           <div id="certsContainer" class="tag-container"></div>
         </div>
 
