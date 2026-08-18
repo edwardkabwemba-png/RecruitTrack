@@ -80,7 +80,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Use a SQL Transaction so both Recruits and Applications save together
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
 
@@ -95,8 +94,8 @@ module.exports = async function (context, req) {
           .input('CountryOfResidency', sql.NVarChar(100), countryOfResidence || 'South Africa')
           .input('IdType', sql.NVarChar(50), idType || null)
           .input('IdNumber', sql.NVarChar(100), idNumber || null)
-          .input('CurrentRate', sql.Decimal(18, 2), currentRate ? parseFloat(currentRate) : null)
-          .input('ExpectedRate', sql.Decimal(18, 2), expectedRate ? parseFloat(expectedRate) : 0)
+          .input('CurrentRate', sql.Decimal(18, 2), currentRate && !isNaN(currentRate) ? parseFloat(currentRate) : null)
+          .input('ExpectedRate', sql.Decimal(18, 2), expectedRate && !isNaN(expectedRate) ? parseFloat(expectedRate) : 0)
           .input('CreatedDate', sql.DateTime, new Date())
           .query(`
             INSERT INTO dbo.Recruits 
@@ -108,15 +107,22 @@ module.exports = async function (context, req) {
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // 2. Link Candidate to Role inside dbo.Applications
-        if (roleId) {
+        // 2. Safely parse integer parameters before Application insert
+        const parsedRoleId = parseInt(roleId, 10);
+        
+        // Link Candidate to Role inside dbo.Applications if roleId is provided and valid
+        if (!isNaN(parsedRoleId)) {
+          const parsedRecruiterId = parseInt(recruiterId, 10);
+          const parsedSourceId = parseInt(sourceId, 10);
+          const parsedDate = dateSourced ? new Date(dateSourced) : new Date();
+
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, newRecruitId)
-            .input('RoleID', sql.Int, parseInt(roleId))
-            .input('RecruiterUserID', sql.Int, recruiterId ? parseInt(recruiterId) : null)
-            .input('SourceID', sql.Int, sourceId ? parseInt(sourceId) : null)
-            .input('DateSourced', sql.Date, dateSourced || new Date())
+            .input('RoleID', sql.Int, parsedRoleId)
+            .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
+            .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
+            .input('DateSourced', sql.Date, parsedDate)
             .input('NoticePeriod', sql.NVarChar(50), noticePeriod || '30 Days')
             .input('LifecycleStage', sql.NVarChar(50), 'In Discussion')
             .query(`
@@ -131,14 +137,17 @@ module.exports = async function (context, req) {
 
         context.res.status = 201;
         context.res.body = JSON.stringify({
-          message: "Candidate and Application created successfully.",
+          message: "Candidate created successfully.",
           recruitId: newRecruitId
         });
         return;
 
       } catch (txError) {
         await transaction.rollback();
-        throw txError;
+        context.log.error("Transaction Error:", txError.message);
+        context.res.status = 500;
+        context.res.body = JSON.stringify({ message: "Database insert error", error: txError.message });
+        return;
       }
     }
 

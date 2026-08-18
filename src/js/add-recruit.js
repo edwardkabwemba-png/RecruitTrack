@@ -189,3 +189,52 @@ async function loadCertifications() {
     select.innerHTML = '<option value="">Failed to load certifications</option>';
   }
 }
+
+// Upload a single document (CV, ID, etc.)
+async function uploadDoc(inputElement, docType) {
+  const file = inputElement.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('docType', docType);
+
+  try {
+    const res = await fetch('/api/upload-document', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    alert(`${docType} uploaded successfully.`);
+  } catch (err) {
+    console.error(`Error uploading ${docType}:`, err);
+    alert(`Failed to upload ${docType}.`);
+  }
+}
+
+// Upload multiple supporting documents
+async function uploadMultiDocs(inputElement) {
+  const files = inputElement.files;
+  if (!files.length) return;
+
+  const formData = new FormData();
+  for (let i = 0; i < files.length; i++) {
+    formData.append('files', files[i]);
+  }
+
+  try {
+    const res = await fetch('/api/upload-document', {
+      method: 'POST',
+      body: formData
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    alert('Supporting documents uploaded successfully.');
+  } catch (err) {
+    console.error('Error uploading documents:', err);
+    alert('Failed to upload supporting documents.');
+  }
+}
+
+// Attach to window so HTML inline onchange handlers can reach them
+window.uploadDoc = uploadDoc;
+window.uploadMultiDocs = uploadMultiDocs;
