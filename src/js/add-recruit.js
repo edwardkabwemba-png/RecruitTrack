@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// Form Submission Function
+// Add or update handleCandidateSubmit in js/add-recruit.js
 async function handleCandidateSubmit(e) {
   e.preventDefault();
 
@@ -23,14 +23,14 @@ async function handleCandidateSubmit(e) {
     recruiterId: document.getElementById('recruiterSelect')?.value,
     dateSourced: document.getElementById('dateSourced')?.value,
     firstName: document.getElementById('firstName')?.value,
-    lastName: document.getElementById('lastName')?.value,
+    surname: document.getElementById('surname')?.value, // Must be 'surname' to match backend expectation
     sourceId: document.getElementById('sourceSelect')?.value,
     countryOfResidence: document.getElementById('countrySelect')?.value,
     noticePeriod: document.getElementById('noticePeriod')?.value,
     currentRate: document.getElementById('currentRate')?.value,
     expectedRate: document.getElementById('expectedRate')?.value,
     email: document.getElementById('email')?.value,
-    contactNumber: document.getElementById('contactNumber')?.value,
+    phone: document.getElementById('phone')?.value,
     idType: document.getElementById('idType')?.value,
     idNumber: document.getElementById('idNumber')?.value,
     roleId: document.getElementById('roleSelect')?.value
@@ -43,18 +43,27 @@ async function handleCandidateSubmit(e) {
       body: JSON.stringify(payload)
     });
 
+    const data = await res.json();
+
     if (!res.ok) {
-      const errData = await res.json();
-      throw new Error(errData.message || 'Failed to save candidate');
+      throw new Error(data.message || 'Failed to save recruit');
     }
 
     alert('Candidate saved successfully!');
-    window.location.href = '/recruits.html'; // Redirect to candidate management list
+    window.location.href = '/recruits.html';
   } catch (err) {
     console.error("Submission error:", err);
     alert(`Error: ${err.message}`);
   }
 }
+
+// Ensure event listener is properly attached
+document.addEventListener('DOMContentLoaded', () => {
+  const form = document.getElementById('addRecruitForm');
+  if (form) {
+    form.addEventListener('submit', handleCandidateSubmit);
+  }
+});
 
 // 1. Fetch Recruiters from /api/users
 async function loadRecruiters() {
