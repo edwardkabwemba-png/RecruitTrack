@@ -96,13 +96,14 @@ module.exports = async function (context, req) {
           .input('IdNumber', sql.NVarChar(100), idNumber || null)
           .input('CurrentRate', sql.Decimal(18, 2), currentRate && !isNaN(currentRate) ? parseFloat(currentRate) : null)
           .input('ExpectedRate', sql.Decimal(18, 2), expectedRate && !isNaN(expectedRate) ? parseFloat(expectedRate) : 0)
+          .input('NoticePeriod', sql.NVarChar(50), noticePeriod || '30 Days')
           .input('CreatedDate', sql.DateTime, new Date())
           .query(`
             INSERT INTO dbo.Recruits 
-  (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, CreatedDate)
-OUTPUT INSERTED.RecruitID
-VALUES 
-  (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @CreatedDate);
+              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, CreatedDate)
+            OUTPUT INSERTED.RecruitID
+            VALUES 
+              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @CreatedDate);
           `);
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
@@ -129,7 +130,7 @@ VALUES
               INSERT INTO dbo.Applications 
                 (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, NoticePeriod, LifecycleStage)
               VALUES 
-                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @NoticePeriod, @LifecycleStage)
+                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @NoticePeriod, @LifecycleStage);
             `);
         }
 
