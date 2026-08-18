@@ -1,4 +1,5 @@
 const { BlobServiceClient } = require('@azure/storage-blob');
+const parseMultipart = require('parse-multipart-data');
 
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
@@ -17,90 +18,61 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
-    if (!boundaryMatch) {
+    // Extract boundary string
+    const boundary = parseMultipart.getBoundary(contentType);
+    if (!boundary) {
       context.res.status = 400;
       context.res.body = JSON.stringify({ message: 'Missing boundary in header' });
       return;
     }
 
-    let rawBody = req.body;
-    if (typeof rawBody === 'string') {
-      rawBody = Buffer.from(rawBody, req.isRaw ? 'binary' : 'utf8');
+    // Standardize body into Buffer format
+    let bodyBuffer = req.body;
+    if (typeof bodyBuffer === 'string') {
+      bodyBuffer = Buffer.from(bodyBuffer, req.isRaw ? 'binary' : 'base64');
     }
 
-    const parsedData = parseMultipartContent(rawBody, boundaryMatch[1] || boundaryMatch[2]);
-    if (parsedData.files.length === 0) {
+    // Robust parsing using parse-multipart-data
+    const parts = parseMultipart.parse(bodyBuffer, boundary);
+    if (!parts || parts.length === 0) {
       context.res.status = 400;
       context.res.body = JSON.stringify({ message: 'No file found in request' });
       return;
     }
 
-    const uploadedFile = parsedData.files[0];
+    const uploadedFile = parts[0];
 
-    // Upload to Azure Blob Storage
-    const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.AzureWebJobsStorage);
+    // Connect to Blob Storage
+    const connStr = process.env.AzureWebJobsStorage;
+    if (!connStr) {
+      throw new Error("AzureWebJobsStorage connection string is missing.");
+    }
+
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
     const containerClient = blobServiceClient.getContainerClient('documents');
-    await containerClient.createIfNotExists({ access: 'container' });
+    
+    // Use public blob access (safe for reading documents via URL)
+    await containerClient.createIfNotExists({ access: 'blob' });
 
-    const blobName = `${Date.now()}-${uploadedFile.filename}`;
+    const cleanFilename = (uploadedFile.filename || 'file.pdf').replace(/[^a-zA-Z0-9.-]/g, '_');
+    const blobName = `${Date.now()}-${cleanFilename}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    await blockBlobClient.uploadData(uploadedFile.buffer, {
-      blobHTTPHeaders: { blobContentType: uploadedFile.mimeType }
+    // Upload raw binary data
+    await blockBlobClient.uploadData(uploadedFile.data, {
+      blobHTTPHeaders: { blobContentType: uploadedFile.type || 'application/octet-stream' }
     });
 
-    // Return the permanent URL to frontend
     context.res.status = 200;
     context.res.body = JSON.stringify({
       message: 'Upload successful',
       fileUrl: blockBlobClient.url,
-      filename: uploadedFile.filename
+      filename: cleanFilename
     });
 
   } catch (err) {
-    context.log.error('Upload Error:', err.message);
+    context.log.error('Upload Error:', err);
     context.res.status = 500;
     context.res.body = JSON.stringify({ message: 'File upload failed', error: err.message });
   }
 };
-
-function parseMultipartContent(buffer, boundary) {
-  const files = [];
-  const fields = {};
-  const boundaryBuffer = Buffer.from(`--${boundary}`);
-  
-  let start = 0;
-  while (start < buffer.length) {
-    const boundaryIdx = buffer.indexOf(boundaryBuffer, start);
-    if (boundaryIdx === -1) break;
-
-    const nextBoundaryIdx = buffer.indexOf(boundaryBuffer, boundaryIdx + boundaryBuffer.length);
-    if (nextBoundaryIdx === -1) break;
-
-    const part = buffer.slice(boundaryIdx + boundaryBuffer.length, nextBoundaryIdx);
-    const headerEndIdx = part.indexOf('\r\n\r\n');
-
-    if (headerEndIdx !== -1) {
-      const headerText = part.slice(0, headerEndIdx).toString('utf8');
-      const body = part.slice(headerEndIdx + 4, part.length - 2);
-
-      const nameMatch = headerText.match(/name="([^"]+)"/);
-      const filenameMatch = headerText.match(/filename="([^"]+)"/);
-      const mimeMatch = headerText.match(/Content-Type:\s*([^\r\n]+)/i);
-
-      if (filenameMatch) {
-        files.push({
-          fieldname: nameMatch ? nameMatch[1] : 'file',
-          filename: filenameMatch[1],
-          mimeType: mimeMatch ? mimeMatch[1] : 'application/octet-stream',
-          buffer: body
-        });
-      } else if (nameMatch) {
-        fields[nameMatch[1]] = body.toString('utf8');
-      }
-    }
-    start = nextBoundaryIdx;
-  }
-  return { files, fields };
-}

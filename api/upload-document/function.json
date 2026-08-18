@@ -6,7 +6,6 @@
       "direction": "in",
       "name": "req",
       "methods": ["post"],
-      "route": "upload-document",
       "dataType": "binary"
     },
     {
