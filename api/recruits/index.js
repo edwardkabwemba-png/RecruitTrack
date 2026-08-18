@@ -6,8 +6,11 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
+    // ==========================================
+    // GET REQUESTS
+    // ==========================================
     if (req.method === 'GET') {
-      const { action, id } = req.query;
+      const { action } = req.query;
 
       // 1. Fetch Top 10 Recruits for Management Page
       if (action === 'recent') {
@@ -58,6 +61,84 @@ module.exports = async function (context, req) {
           certifications: certs.recordset
         });
         return;
+      }
+    }
+
+    // ==========================================
+    // POST REQUEST (CREATE RECRUIT & APPLICATION)
+    // ==========================================
+    if (req.method === 'POST') {
+      const {
+        recruiterId, dateSourced, firstName, surname, sourceId,
+        countryOfResidence, noticePeriod, currentRate, expectedRate,
+        email, phone, idType, idNumber, roleId
+      } = req.body || {};
+
+      if (!firstName || !surname || !email) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ message: "First Name, Surname, and Email are required." });
+        return;
+      }
+
+      // Use a SQL Transaction so both Recruits and Applications save together
+      const transaction = new sql.Transaction(pool);
+      await transaction.begin();
+
+      try {
+        // 1. Insert Candidate into dbo.Recruits
+        const recruitReq = new sql.Request(transaction);
+        const recruitResult = await recruitReq
+          .input('FirstName', sql.NVarChar(100), firstName)
+          .input('Surname', sql.NVarChar(100), surname)
+          .input('Email', sql.NVarChar(150), email)
+          .input('Phone', sql.NVarChar(50), phone || null)
+          .input('CountryOfResidency', sql.NVarChar(100), countryOfResidence || 'South Africa')
+          .input('IdType', sql.NVarChar(50), idType || null)
+          .input('IdNumber', sql.NVarChar(100), idNumber || null)
+          .input('CurrentRate', sql.Decimal(18, 2), currentRate ? parseFloat(currentRate) : null)
+          .input('ExpectedRate', sql.Decimal(18, 2), expectedRate ? parseFloat(expectedRate) : 0)
+          .input('CreatedDate', sql.DateTime, new Date())
+          .query(`
+            INSERT INTO dbo.Recruits 
+              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, CreatedDate)
+            OUTPUT INSERTED.RecruitID
+            VALUES 
+              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @CreatedDate)
+          `);
+
+        const newRecruitId = recruitResult.recordset[0].RecruitID;
+
+        // 2. Link Candidate to Role inside dbo.Applications
+        if (roleId) {
+          const appReq = new sql.Request(transaction);
+          await appReq
+            .input('RecruitID', sql.Int, newRecruitId)
+            .input('RoleID', sql.Int, parseInt(roleId))
+            .input('RecruiterUserID', sql.Int, recruiterId ? parseInt(recruiterId) : null)
+            .input('SourceID', sql.Int, sourceId ? parseInt(sourceId) : null)
+            .input('DateSourced', sql.Date, dateSourced || new Date())
+            .input('NoticePeriod', sql.NVarChar(50), noticePeriod || '30 Days')
+            .input('LifecycleStage', sql.NVarChar(50), 'In Discussion')
+            .query(`
+              INSERT INTO dbo.Applications 
+                (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, NoticePeriod, LifecycleStage)
+              VALUES 
+                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @NoticePeriod, @LifecycleStage)
+            `);
+        }
+
+        await transaction.commit();
+
+        context.res.status = 201;
+        context.res.body = JSON.stringify({
+          message: "Candidate and Application created successfully.",
+          recruitId: newRecruitId
+        });
+        return;
+
+      } catch (txError) {
+        await transaction.rollback();
+        throw txError;
       }
     }
 
