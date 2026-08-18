@@ -185,7 +185,6 @@ async function loadCertifications() {
   }
 }
 
-// Step 3: Upload single document (CV, ID) & capture output URL
 async function uploadDoc(docType, inputId, statusId) {
   const inputEl = document.getElementById(inputId);
   const statusEl = document.getElementById(statusId);
@@ -208,11 +207,17 @@ async function uploadDoc(docType, inputId, statusId) {
       body: formData
     });
 
-    const data = await res.json();
+    // Handle non-JSON server error responses safely
+    let data = {};
+    const textRes = await res.text();
+    try {
+      data = JSON.parse(textRes);
+    } catch (_) {
+      throw new Error(`Server returned status ${res.status}: ${textRes || 'Internal Server Error'}`);
+    }
 
     if (!res.ok) throw new Error(data.message || 'Upload failed');
 
-    // Store the returned file URL globally
     if (data.fileUrl) {
       uploadedDocumentUrl = data.fileUrl;
     }
@@ -222,12 +227,12 @@ async function uploadDoc(docType, inputId, statusId) {
       statusEl.className = 'status-badge badge-success';
     }
   } catch (err) {
-    console.error(`Error uploading ${docType}:`, err);
+    console.error(`Error uploading ${docType}:`, err.message);
     if (statusEl) {
       statusEl.textContent = 'Error';
       statusEl.className = 'status-badge badge-error';
     }
-    alert(`Failed to upload ${docType}.`);
+    alert(`Failed to upload ${docType}: ${err.message}`);
   }
 }
 
