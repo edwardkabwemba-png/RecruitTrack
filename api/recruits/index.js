@@ -68,11 +68,17 @@ module.exports = async function (context, req) {
     // POST REQUEST (CREATE RECRUIT & APPLICATION)
     // ==========================================
     if (req.method === 'POST') {
+      const body = req.body || {};
+
+      // Map notice period flexible to UI payload key variations
       const {
         recruiterId, dateSourced, firstName, surname, sourceId,
-        countryOfResidence, noticePeriod, currentRate, expectedRate,
+        countryOfResidence, currentRate, expectedRate,
         email, phone, idType, idNumber, roleId
-      } = req.body || {};
+      } = body;
+
+      // Extract notice period matching frontend variations
+      const rawNotice = body.noticePeriod || body.notice || body.noticePeriodDays || '30 Days';
 
       if (!firstName || !surname || !email) {
         context.res.status = 400;
@@ -84,6 +90,9 @@ module.exports = async function (context, req) {
       await transaction.begin();
 
       try {
+        const parsedRoleId = parseInt(roleId, 10);
+        const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
+
         // 1. Insert Candidate into dbo.Recruits
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
@@ -95,24 +104,22 @@ module.exports = async function (context, req) {
           .input('IdType', sql.NVarChar(50), idType || null)
           .input('IdNumber', sql.NVarChar(100), idNumber || null)
           .input('CurrentRate', sql.Decimal(18, 2), currentRate && !isNaN(currentRate) ? parseFloat(currentRate) : null)
-          .input('ExpectedRate', sql.Decimal(18, 2), expectedRate && !isNaN(expectedRate) ? parseFloat(expectedRate) : 0)
-          .input('NoticePeriod', sql.NVarChar(50), noticePeriod || '30 Days')
+          .input('ExpectedRate', sql.Decimal(18, 2), expectedRate && !isNaN(expectedRate) ? parseFloat(expectedRate) : 0.00)
+          .input('NoticePeriod', sql.NVarChar(50), rawNotice)
+          .input('RoleID', sql.Int, validRoleId)
           .input('CreatedDate', sql.DateTime, new Date())
           .query(`
             INSERT INTO dbo.Recruits 
-              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, CreatedDate)
+              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, CreatedDate)
             OUTPUT INSERTED.RecruitID
             VALUES 
-              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @CreatedDate);
+              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @CreatedDate);
           `);
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // 2. Safely parse integer parameters before Application insert
-        const parsedRoleId = parseInt(roleId, 10);
-        
-        // Link Candidate to Role inside dbo.Applications if roleId is provided and valid
-        if (!isNaN(parsedRoleId)) {
+        // 2. Link Candidate to Role inside dbo.Applications
+        if (validRoleId) {
           const parsedRecruiterId = parseInt(recruiterId, 10);
           const parsedSourceId = parseInt(sourceId, 10);
           const parsedDate = dateSourced ? new Date(dateSourced) : new Date();
@@ -120,11 +127,11 @@ module.exports = async function (context, req) {
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, newRecruitId)
-            .input('RoleID', sql.Int, parsedRoleId)
+            .input('RoleID', sql.Int, validRoleId)
             .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
             .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
             .input('DateSourced', sql.Date, parsedDate)
-            .input('NoticePeriod', sql.NVarChar(50), noticePeriod || '30 Days')
+            .input('NoticePeriod', sql.NVarChar(50), rawNotice)
             .input('LifecycleStage', sql.NVarChar(50), 'In Discussion')
             .query(`
               INSERT INTO dbo.Applications 
