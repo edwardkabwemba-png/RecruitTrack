@@ -99,10 +99,10 @@ module.exports = async function (context, req) {
           .input('CreatedDate', sql.DateTime, new Date())
           .query(`
             INSERT INTO dbo.Recruits 
-              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, CreatedDate)
-            OUTPUT INSERTED.RecruitID
-            VALUES 
-              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @CreatedDate)
+  (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, CreatedDate)
+OUTPUT INSERTED.RecruitID
+VALUES 
+  (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @CreatedDate);
           `);
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
