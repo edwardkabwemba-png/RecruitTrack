@@ -93,7 +93,7 @@ module.exports = async function (context, req) {
         const parsedRoleId = parseInt(roleId, 10);
         const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
 
-        // 1. Insert Candidate into dbo.Recruits
+// 1. Insert Candidate into dbo.Recruits (NoticePeriod belongs HERE)
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
           .input('FirstName', sql.NVarChar(100), firstName)
@@ -118,7 +118,7 @@ module.exports = async function (context, req) {
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // 2. Link Candidate to Role inside dbo.Applications
+        // 2. Link Candidate to Role inside dbo.Applications (NoticePeriod REMOVED from here)
         if (validRoleId) {
           const parsedRecruiterId = parseInt(recruiterId, 10);
           const parsedSourceId = parseInt(sourceId, 10);
@@ -131,13 +131,12 @@ module.exports = async function (context, req) {
             .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
             .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
             .input('DateSourced', sql.Date, parsedDate)
-            .input('NoticePeriod', sql.NVarChar(50), rawNotice)
             .input('LifecycleStage', sql.NVarChar(50), 'In Discussion')
             .query(`
               INSERT INTO dbo.Applications 
-                (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, NoticePeriod, LifecycleStage)
+                (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage)
               VALUES 
-                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @NoticePeriod, @LifecycleStage);
+                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage);
             `);
         }
 
