@@ -190,9 +190,12 @@ async function loadCertifications() {
   }
 }
 
-// Upload a single document (CV, ID, etc.)
-async function uploadDoc(inputElement, docType) {
-  const file = inputElement.files[0];
+// Upload single document (CV, ID)
+async function uploadDoc(docType, inputId, statusId) {
+  const inputEl = document.getElementById(inputId);
+  const statusEl = document.getElementById(statusId);
+  const file = inputEl?.files[0];
+
   if (!file) return;
 
   const formData = new FormData();
@@ -200,41 +203,79 @@ async function uploadDoc(inputElement, docType) {
   formData.append('docType', docType);
 
   try {
+    if (statusEl) {
+      statusEl.textContent = 'Uploading...';
+      statusEl.className = 'status-badge badge-pending';
+    }
+
     const res = await fetch('/api/upload-document', {
       method: 'POST',
       body: formData
     });
+
     if (!res.ok) throw new Error('Upload failed');
-    alert(`${docType} uploaded successfully.`);
+
+    if (statusEl) {
+      statusEl.textContent = 'Uploaded';
+      statusEl.className = 'status-badge badge-success'; // Ensure you have .badge-success in CSS
+    }
   } catch (err) {
     console.error(`Error uploading ${docType}:`, err);
+    if (statusEl) {
+      statusEl.textContent = 'Error';
+      statusEl.className = 'status-badge badge-error';
+    }
     alert(`Failed to upload ${docType}.`);
   }
 }
 
-// Upload multiple supporting documents
-async function uploadMultiDocs(inputElement) {
-  const files = inputElement.files;
+// Upload multiple documents (Payslips, Certs, Degrees)
+async function uploadMultiDocs(docType, inputId, statusId, maxFiles) {
+  const inputEl = document.getElementById(inputId);
+  const statusEl = document.getElementById(statusId);
+  const files = inputEl?.files || [];
+
   if (!files.length) return;
 
+  if (maxFiles && files.length > maxFiles) {
+    alert(`You can only upload a maximum of ${maxFiles} files for ${docType}.`);
+    inputEl.value = ''; // Reset input selection
+    return;
+  }
+
   const formData = new FormData();
+  formData.append('docType', docType);
   for (let i = 0; i < files.length; i++) {
     formData.append('files', files[i]);
   }
 
   try {
+    if (statusEl) {
+      statusEl.textContent = 'Uploading...';
+      statusEl.className = 'status-badge badge-pending';
+    }
+
     const res = await fetch('/api/upload-document', {
       method: 'POST',
       body: formData
     });
+
     if (!res.ok) throw new Error('Upload failed');
-    alert('Supporting documents uploaded successfully.');
+
+    if (statusEl) {
+      statusEl.textContent = `${files.length} Received`;
+      statusEl.className = 'status-badge badge-success';
+    }
   } catch (err) {
-    console.error('Error uploading documents:', err);
-    alert('Failed to upload supporting documents.');
+    console.error(`Error uploading ${docType}:`, err);
+    if (statusEl) {
+      statusEl.textContent = 'Error';
+      statusEl.className = 'status-badge badge-error';
+    }
+    alert(`Failed to upload ${docType}.`);
   }
 }
 
-// Attach to window so HTML inline onchange handlers can reach them
+// Expose handlers globally for HTML onchange attributes
 window.uploadDoc = uploadDoc;
 window.uploadMultiDocs = uploadMultiDocs;
