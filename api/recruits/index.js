@@ -12,22 +12,12 @@ module.exports = async function (context, req) {
     if (req.method === 'GET') {
       const { action } = req.query;
 
-      // 1. Fetch Top 10 Recruits for Management Page
       if (action === 'recent') {
         const query = `
           SELECT TOP 10 
-            r.RecruitID,
-            r.FirstName,
-            r.Surname,
-            r.Email,
-            r.Phone,
-            r.CreatedDate,
-            p.PositionTitle,
-            c.ClientName,
-            u.FullName AS RecruiterName,
-            s.SourceName,
-            a.LifecycleStage,
-            a.DateSourced
+            r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate,
+            p.PositionTitle, c.ClientName, u.FullName AS RecruiterName,
+            s.SourceName, a.LifecycleStage, a.DateSourced
           FROM dbo.Recruits r
           LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
           LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
@@ -37,14 +27,12 @@ module.exports = async function (context, req) {
           LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
           ORDER BY r.RecruitID DESC;
         `;
-
         const result = await pool.request().query(query);
         context.res.status = 200;
         context.res.body = JSON.stringify(result.recordset || []);
         return;
       }
 
-      // 2. Fetch Form Dropdowns
       if (action === 'dropdowns') {
         const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
         const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources WHERE IsActive = 1");
@@ -65,19 +53,17 @@ module.exports = async function (context, req) {
     }
 
     // ==========================================
-    // POST REQUEST (CREATE RECRUIT & APPLICATION)
+    // POST REQUEST
     // ==========================================
     if (req.method === 'POST') {
       const body = req.body || {};
 
-      // Map notice period flexible to UI payload key variations
       const {
         recruiterId, dateSourced, firstName, surname, sourceId,
         countryOfResidence, currentRate, expectedRate,
         email, phone, idType, idNumber, roleId
       } = body;
 
-      // Extract notice period matching frontend variations
       const rawNotice = body.noticePeriod || body.notice || body.noticePeriodDays || '30 Days';
 
       if (!firstName || !surname || !email) {
@@ -93,7 +79,7 @@ module.exports = async function (context, req) {
         const parsedRoleId = parseInt(roleId, 10);
         const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
 
-// 1. Insert Candidate into dbo.Recruits (NoticePeriod belongs HERE)
+        // 1. Insert Candidate into dbo.Recruits
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
           .input('FirstName', sql.NVarChar(100), firstName)
@@ -118,11 +104,16 @@ module.exports = async function (context, req) {
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // 2. Link Candidate to Role inside dbo.Applications (NoticePeriod REMOVED from here)
+        // 2. Link Candidate to Role inside dbo.Applications
         if (validRoleId) {
           const parsedRecruiterId = parseInt(recruiterId, 10);
           const parsedSourceId = parseInt(sourceId, 10);
-          const parsedDate = dateSourced ? new Date(dateSourced) : new Date();
+
+          // Safe Date Parsing for SQL
+          let validDate = new Date();
+          if (dateSourced && !isNaN(Date.parse(dateSourced))) {
+            validDate = new Date(dateSourced);
+          }
 
           const appReq = new sql.Request(transaction);
           await appReq
@@ -130,7 +121,7 @@ module.exports = async function (context, req) {
             .input('RoleID', sql.Int, validRoleId)
             .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
             .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
-            .input('DateSourced', sql.Date, parsedDate)
+            .input('DateSourced', sql.Date, validDate)
             .input('LifecycleStage', sql.NVarChar(50), 'In Discussion')
             .query(`
               INSERT INTO dbo.Applications 
@@ -150,7 +141,11 @@ module.exports = async function (context, req) {
         return;
 
       } catch (txError) {
-        await transaction.rollback();
+        // Safe rollback check so true error message isn't swallowed
+        if (transaction._aborted !== true) {
+          try { await transaction.rollback(); } catch (_) {}
+        }
+        
         context.log.error("Transaction Error:", txError.message);
         context.res.status = 500;
         context.res.body = JSON.stringify({ message: "Database insert error", error: txError.message });
