@@ -1,3 +1,5 @@
+const { BlobServiceClient } = require('@azure/storage-blob');
+
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
@@ -9,55 +11,60 @@ module.exports = async function (context, req) {
 
   try {
     const contentType = req.headers['content-type'] || req.headers['Content-Type'] || '';
-
     if (!contentType.includes('multipart/form-data')) {
       context.res.status = 400;
       context.res.body = JSON.stringify({ message: 'Invalid Content-Type.' });
       return;
     }
 
-    // Extract boundary string from header
     const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
     if (!boundaryMatch) {
       context.res.status = 400;
-      context.res.body = JSON.stringify({ message: 'Missing boundary in multipart header' });
+      context.res.body = JSON.stringify({ message: 'Missing boundary in header' });
       return;
     }
-    const boundary = boundaryMatch[1] || boundaryMatch[2];
 
-    // Safely get raw Buffer (handles Base64 strings, Buffers, or Arrays)
     let rawBody = req.body;
     if (typeof rawBody === 'string') {
       rawBody = Buffer.from(rawBody, req.isRaw ? 'binary' : 'utf8');
-    } else if (req.rawBody) {
-      rawBody = Buffer.from(req.rawBody, 'binary');
     }
 
-    const parsedData = parseMultipartContent(rawBody, boundary);
+    const parsedData = parseMultipartContent(rawBody, boundaryMatch[1] || boundaryMatch[2]);
+    if (parsedData.files.length === 0) {
+      context.res.status = 400;
+      context.res.body = JSON.stringify({ message: 'No file found in request' });
+      return;
+    }
 
-    context.log(`Successfully parsed docType: ${parsedData.fields.docType || 'N/A'}`);
-    context.log(`Total files parsed: ${parsedData.files.length}`);
+    const uploadedFile = parsedData.files[0];
 
-    // SUCCESS RESPONSE
+    // Upload to Azure Blob Storage
+    const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.AzureWebJobsStorage);
+    const containerClient = blobServiceClient.getContainerClient('documents');
+    await containerClient.createIfNotExists({ access: 'container' });
+
+    const blobName = `${Date.now()}-${uploadedFile.filename}`;
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+    await blockBlobClient.uploadData(uploadedFile.buffer, {
+      blobHTTPHeaders: { blobContentType: uploadedFile.mimeType }
+    });
+
+    // Return the permanent URL to frontend
     context.res.status = 200;
     context.res.body = JSON.stringify({
       message: 'Upload successful',
-      docType: parsedData.fields.docType || 'Document',
-      fileCount: parsedData.files.length,
-      uploadedFiles: parsedData.files.map(f => f.filename)
+      fileUrl: blockBlobClient.url,
+      filename: uploadedFile.filename
     });
 
   } catch (err) {
-    context.log.error('Upload Execution Error:', err.stack || err.message);
+    context.log.error('Upload Error:', err.message);
     context.res.status = 500;
-    context.res.body = JSON.stringify({
-      message: 'Failed to process file upload',
-      error: err.message
-    });
+    context.res.body = JSON.stringify({ message: 'File upload failed', error: err.message });
   }
 };
 
-// Pure JavaScript Multipart Buffer Parser
 function parseMultipartContent(buffer, boundary) {
   const files = [];
   const fields = {};
@@ -76,7 +83,7 @@ function parseMultipartContent(buffer, boundary) {
 
     if (headerEndIdx !== -1) {
       const headerText = part.slice(0, headerEndIdx).toString('utf8');
-      const body = part.slice(headerEndIdx + 4, part.length - 2); // trim trailing \r\n
+      const body = part.slice(headerEndIdx + 4, part.length - 2);
 
       const nameMatch = headerText.match(/name="([^"]+)"/);
       const filenameMatch = headerText.match(/filename="([^"]+)"/);
@@ -93,9 +100,7 @@ function parseMultipartContent(buffer, boundary) {
         fields[nameMatch[1]] = body.toString('utf8');
       }
     }
-
     start = nextBoundaryIdx;
   }
-
   return { files, fields };
 }

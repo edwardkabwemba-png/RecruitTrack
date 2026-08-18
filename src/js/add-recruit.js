@@ -1,3 +1,6 @@
+// Store uploaded document URLs globally so they can be attached on submit
+let uploadedDocumentUrl = null;
+
 // Add form submit listener inside DOMContentLoaded
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
@@ -8,14 +11,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     loadCertifications()
   ]);
 
-
-  const candidateForm = document.getElementById('addCandidateForm') || document.querySelector('form');
+  const candidateForm = document.getElementById('addCandidateForm') || document.getElementById('addRecruitForm') || document.querySelector('form');
   if (candidateForm) {
     candidateForm.addEventListener('submit', handleCandidateSubmit);
   }
 });
 
-// Add or update handleCandidateSubmit in js/add-recruit.js
+// Add or update handleCandidateSubmit
 async function handleCandidateSubmit(e) {
   e.preventDefault();
 
@@ -23,7 +25,7 @@ async function handleCandidateSubmit(e) {
     recruiterId: document.getElementById('recruiterSelect')?.value,
     dateSourced: document.getElementById('dateSourced')?.value,
     firstName: document.getElementById('firstName')?.value,
-    surname: document.getElementById('surname')?.value, // Must be 'surname' to match backend expectation
+    surname: document.getElementById('surname')?.value,
     sourceId: document.getElementById('sourceSelect')?.value,
     countryOfResidence: document.getElementById('countrySelect')?.value,
     noticePeriod: document.getElementById('noticePeriod')?.value,
@@ -33,7 +35,9 @@ async function handleCandidateSubmit(e) {
     phone: document.getElementById('phone')?.value,
     idType: document.getElementById('idType')?.value,
     idNumber: document.getElementById('idNumber')?.value,
-    roleId: document.getElementById('roleSelect')?.value
+    roleId: document.getElementById('roleSelect')?.value,
+    // Step 4: Pass uploaded file URL to database API
+    documentUrl: uploadedDocumentUrl
   };
 
   try {
@@ -56,14 +60,6 @@ async function handleCandidateSubmit(e) {
     alert(`Error: ${err.message}`);
   }
 }
-
-// Ensure event listener is properly attached
-document.addEventListener('DOMContentLoaded', () => {
-  const form = document.getElementById('addRecruitForm');
-  if (form) {
-    form.addEventListener('submit', handleCandidateSubmit);
-  }
-});
 
 // 1. Fetch Recruiters from /api/users
 async function loadRecruiters() {
@@ -129,7 +125,6 @@ async function loadRoles() {
 
     if (Array.isArray(roles)) {
       roles.forEach(r => {
-        // Format display name as "PositionTitle @ ClientName (#RL-000X)"
         const roleLabel = `${r.PositionTitle || 'Role'} @ ${r.ClientName || 'Client'} (#RL-${String(r.RoleID).padStart(4, '0')})`;
         select.appendChild(new Option(roleLabel, r.RoleID));
       });
@@ -140,7 +135,7 @@ async function loadRoles() {
   }
 }
 
-// 1. Fetch Skills from /api/skills
+// 4. Fetch Skills from /api/skills
 async function loadSkills() {
   const select = document.getElementById('skillSelect') || document.querySelector('select[name="skills"]');
   if (!select) return;
@@ -165,7 +160,7 @@ async function loadSkills() {
   }
 }
 
-// 2. Fetch Certifications from /api/certifications
+// 5. Fetch Certifications from /api/certifications
 async function loadCertifications() {
   const select = document.getElementById('certSelect') || document.querySelector('select[name="certifications"]');
   if (!select) return;
@@ -190,7 +185,7 @@ async function loadCertifications() {
   }
 }
 
-// Upload single document (CV, ID)
+// Step 3: Upload single document (CV, ID) & capture output URL
 async function uploadDoc(docType, inputId, statusId) {
   const inputEl = document.getElementById(inputId);
   const statusEl = document.getElementById(statusId);
@@ -213,11 +208,18 @@ async function uploadDoc(docType, inputId, statusId) {
       body: formData
     });
 
-    if (!res.ok) throw new Error('Upload failed');
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.message || 'Upload failed');
+
+    // Store the returned file URL globally
+    if (data.fileUrl) {
+      uploadedDocumentUrl = data.fileUrl;
+    }
 
     if (statusEl) {
       statusEl.textContent = 'Uploaded';
-      statusEl.className = 'status-badge badge-success'; // Ensure you have .badge-success in CSS
+      statusEl.className = 'status-badge badge-success';
     }
   } catch (err) {
     console.error(`Error uploading ${docType}:`, err);
@@ -229,7 +231,7 @@ async function uploadDoc(docType, inputId, statusId) {
   }
 }
 
-// Upload multiple documents (Payslips, Certs, Degrees)
+// Step 3: Upload multiple documents (Payslips, Certs, Degrees) & capture output URLs
 async function uploadMultiDocs(docType, inputId, statusId, maxFiles) {
   const inputEl = document.getElementById(inputId);
   const statusEl = document.getElementById(statusId);
@@ -239,7 +241,7 @@ async function uploadMultiDocs(docType, inputId, statusId, maxFiles) {
 
   if (maxFiles && files.length > maxFiles) {
     alert(`You can only upload a maximum of ${maxFiles} files for ${docType}.`);
-    inputEl.value = ''; // Reset input selection
+    inputEl.value = '';
     return;
   }
 
@@ -260,7 +262,14 @@ async function uploadMultiDocs(docType, inputId, statusId, maxFiles) {
       body: formData
     });
 
-    if (!res.ok) throw new Error('Upload failed');
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.message || 'Upload failed');
+
+    // Store returned document URL (or array of URLs)
+    if (data.fileUrl) {
+      uploadedDocumentUrl = data.fileUrl;
+    }
 
     if (statusEl) {
       statusEl.textContent = `${files.length} Received`;
