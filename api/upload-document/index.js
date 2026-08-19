@@ -1,10 +1,8 @@
 const { BlobServiceClient } = require('@azure/storage-blob');
 
 module.exports = async function (context, req) {
-  // 1. Default headers
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
-  // 2. Reject non-POST requests
   if (req.method !== 'POST') {
     context.res.status = 405;
     context.res.body = JSON.stringify({ message: 'Method not allowed' });
@@ -12,46 +10,43 @@ module.exports = async function (context, req) {
   }
 
   try {
-    // 3. Verify environment variable
     const connStr = process.env.CUSTOM_STORAGE_CONNECTION_STRING;
     if (!connStr) {
-      throw new Error("Missing CUSTOM_STORAGE_CONNECTION_STRING setting in Azure Configuration.");
-    }
-
-    // 4. Validate Content-Type
-    const contentType = req.headers['content-type'] || req.headers['Content-Type'] || '';
-    if (!contentType.includes('multipart/form-data')) {
-      context.res.status = 400;
-      context.res.body = JSON.stringify({ message: 'Invalid Content-Type. Expected multipart/form-data.' });
+      context.res.status = 500;
+      context.res.body = JSON.stringify({ message: "Missing CUSTOM_STORAGE_CONNECTION_STRING in Azure settings." });
       return;
     }
 
-    // 5. Convert request body to Buffer safely
-    let rawBody = req.body;
-    if (!rawBody) {
+    let fileBuffer;
+    
+    // Support JSON base64 payloads or raw buffer bodies
+    if (req.body && req.body.fileData) {
+      fileBuffer = Buffer.from(req.body.fileData, 'base64');
+    } else if (Buffer.isBuffer(req.body)) {
+      fileBuffer = req.body;
+    } else if (typeof req.body === 'string') {
+      fileBuffer = Buffer.from(req.body, 'base64');
+    } else {
       context.res.status = 400;
-      context.res.body = JSON.stringify({ message: 'No file data received in request.' });
+      context.res.body = JSON.stringify({ message: 'No valid file payload received.' });
       return;
     }
 
-    if (typeof rawBody === 'string') {
-      rawBody = Buffer.from(rawBody, req.isRaw ? 'binary' : 'base64');
-    }
+    const fileName = req.body?.fileName || req.headers['x-file-name'] || `doc-${Date.now()}.pdf`;
+    const cleanFileName = decodeURIComponent(fileName).replace(/[^a-zA-Z0-9.-]/g, '_');
 
-    // 6. Connect to Azure Blob Storage
     const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
     const containerClient = blobServiceClient.getContainerClient('documents');
     
-    // Ensure container exists with public access for reading document URLs
     await containerClient.createIfNotExists({ access: 'blob' });
 
-    // 7. Generate unique filename and upload binary data
-    const blobName = `doc-${Date.now()}.pdf`;
+    const blobName = `${Date.now()}-${cleanFileName}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    await blockBlobClient.uploadData(rawBody);
+    await blockBlobClient.uploadData(fileBuffer, {
+      blobHTTPHeaders: { blobContentType: req.headers['content-type'] || 'application/pdf' }
+    });
 
-    // 8. Return success response with permanent Azure Blob URL
     context.res.status = 200;
     context.res.body = JSON.stringify({
       message: 'Upload successful',

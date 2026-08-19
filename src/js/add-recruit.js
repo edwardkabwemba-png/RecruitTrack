@@ -123,13 +123,22 @@ async function handleFileUpload(e) {
   }
 
   try {
-    // Package file into FormData to satisfy the multipart/form-data requirement
-    const formData = new FormData();
-    formData.append('file', file);
+    // Read file as Base64 string for safe JSON transmission
+    const base64Data = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result.split(',')[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
 
     const res = await fetch('/api/upload-document', {
       method: 'POST',
-      body: formData // Fetch automatically sets Content-Type: multipart/form-data with boundary
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fileName: file.name,
+        fileType: file.type,
+        fileData: base64Data
+      })
     });
 
     const textResponse = await res.text();
@@ -137,7 +146,7 @@ async function handleFileUpload(e) {
     try {
       data = textResponse ? JSON.parse(textResponse) : {};
     } catch (_) {
-      throw new Error(`Server response error (${res.status}): ${textResponse.slice(0, 150)}`);
+      throw new Error(`Server returned error (${res.status}): ${textResponse.slice(0, 100)}`);
     }
 
     if (!res.ok) {
@@ -164,28 +173,41 @@ async function handleFileUpload(e) {
 async function handleCandidateSubmit(e) {
   e.preventDefault();
 
+  const recruiterSelect = document.getElementById('recruiterSelect');
+  const sourceSelect = document.getElementById('sourceSelect');
+  const roleSelect = document.getElementById('roleSelect');
+  const firstName = document.getElementById('firstName')?.value?.trim();
+  const surname = document.getElementById('surname')?.value?.trim();
+  const email = document.getElementById('email')?.value?.trim();
+
+  // Validate mandatory fields required by your SQL Schema
+  if (!firstName || !surname || !email) {
+    alert('Please fill in First Name, Surname, and Email Address.');
+    return;
+  }
+
+  if (!recruiterSelect?.value || !sourceSelect?.value || !roleSelect?.value) {
+    alert('Please select a Recruiter, Source, and Role before saving.');
+    return;
+  }
+
   const payload = {
-    recruiterId: document.getElementById('recruiterSelect')?.value || null,
-    dateSourced: document.getElementById('dateSourced')?.value || null,
-    firstName: document.getElementById('firstName')?.value?.trim() || '',
-    surname: document.getElementById('surname')?.value?.trim() || '',
-    sourceId: document.getElementById('sourceSelect')?.value || null,
+    recruiterId: recruiterSelect.value,
+    sourceId: sourceSelect.value,
+    roleId: roleSelect.value,
+    dateSourced: document.getElementById('dateSourced')?.value || new Date().toISOString().split('T')[0],
+    firstName: firstName,
+    surname: surname,
     countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
     noticePeriod: document.getElementById('noticePeriod')?.value || '30 Days',
     currentRate: document.getElementById('currentRate')?.value || null,
     expectedRate: document.getElementById('expectedRate')?.value || null,
-    email: document.getElementById('email')?.value?.trim() || '',
+    email: email,
     phone: document.getElementById('phone')?.value?.trim() || null,
     idType: document.getElementById('idType')?.value || null,
     idNumber: document.getElementById('idNumber')?.value?.trim() || null,
-    roleId: document.getElementById('roleSelect')?.value || null,
     documentUrl: uploadedDocumentUrl
   };
-
-  if (!payload.firstName || !payload.surname || !payload.email) {
-    alert('Please fill in all mandatory fields (First Name, Surname, and Email Address).');
-    return;
-  }
 
   try {
     const res = await fetch('/api/recruits', {
@@ -197,15 +219,15 @@ async function handleCandidateSubmit(e) {
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.message || data.error || 'Failed to save recruit');
+      throw new Error(data.error || data.message || 'Failed to save candidate.');
     }
 
-    alert('Candidate saved successfully!');
+    alert('Candidate successfully added!');
     window.location.href = '/recruits.html';
 
   } catch (err) {
     console.error('Submission error:', err);
-    alert(`Error: ${err.message}`);
+    alert(`Error saving candidate: ${err.message}`);
   }
 }
 
