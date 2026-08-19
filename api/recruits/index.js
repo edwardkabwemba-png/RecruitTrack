@@ -56,12 +56,22 @@ module.exports = async function (context, req) {
     // POST REQUEST
     // ==========================================
     if (req.method === 'POST') {
-      const body = req.body || {};
+      // 1. Parse body safely whether passed as an Object or JSON String
+      let body = req.body || {};
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch (e) {
+          context.res.status = 400;
+          context.res.body = JSON.stringify({ message: "Invalid JSON payload format." });
+          return;
+        }
+      }
 
       const {
         recruiterId, dateSourced, firstName, surname, sourceId,
         countryOfResidence, currentRate, expectedRate,
-        email, phone, idType, idNumber, roleId
+        email, phone, idType, idNumber, roleId, documentUrl
       } = body;
 
       const rawNotice = body.noticePeriod || body.notice || body.noticePeriodDays || '30 Days';
@@ -79,7 +89,7 @@ module.exports = async function (context, req) {
         const parsedRoleId = parseInt(roleId, 10);
         const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
 
-        // 1. Insert Candidate into dbo.Recruits
+        // 2. Insert Candidate into dbo.Recruits (including DocumentUrl)
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
           .input('FirstName', sql.NVarChar(100), firstName)
@@ -93,23 +103,23 @@ module.exports = async function (context, req) {
           .input('ExpectedRate', sql.Decimal(18, 2), expectedRate && !isNaN(expectedRate) ? parseFloat(expectedRate) : 0.00)
           .input('NoticePeriod', sql.NVarChar(50), rawNotice)
           .input('RoleID', sql.Int, validRoleId)
+          .input('DocumentUrl', sql.NVarChar(500), documentUrl || null)
           .input('CreatedDate', sql.DateTime, new Date())
           .query(`
             INSERT INTO dbo.Recruits 
-              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, CreatedDate)
+              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, DocumentUrl, CreatedDate)
             OUTPUT INSERTED.RecruitID
             VALUES 
-              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @CreatedDate);
+              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @DocumentUrl, @CreatedDate);
           `);
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // 2. Link Candidate to Role inside dbo.Applications
+        // 3. Link Candidate to Role inside dbo.Applications
         if (validRoleId) {
           const parsedRecruiterId = parseInt(recruiterId, 10);
           const parsedSourceId = parseInt(sourceId, 10);
 
-          // Safe Date Parsing for SQL
           let validDate = new Date();
           if (dateSourced && !isNaN(Date.parse(dateSourced))) {
             validDate = new Date(dateSourced);
@@ -141,7 +151,6 @@ module.exports = async function (context, req) {
         return;
 
       } catch (txError) {
-        // Safe rollback check so true error message isn't swallowed
         if (transaction._aborted !== true) {
           try { await transaction.rollback(); } catch (_) {}
         }
