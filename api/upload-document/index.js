@@ -17,20 +17,34 @@ module.exports = async function (context, req) {
       return;
     }
 
-    if (!req.body) {
+    // Resolve binary data into a Node Buffer from any incoming format
+    let fileBuffer = null;
+    if (Buffer.isBuffer(req.body)) {
+      fileBuffer = req.body;
+    } else if (req.rawBody) {
+      fileBuffer = Buffer.isBuffer(req.rawBody) 
+        ? req.rawBody 
+        : Buffer.from(req.rawBody, typeof req.rawBody === 'string' ? 'utf8' : 'binary');
+    } else if (typeof req.body === 'string') {
+      fileBuffer = Buffer.from(req.body, 'base64');
+    } else if (req.body && req.body.data) {
+      fileBuffer = Buffer.from(req.body.data);
+    }
+
+    if (!fileBuffer || fileBuffer.length === 0) {
       context.res.status = 400;
-      context.res.body = JSON.stringify({ message: 'No file data received in request.' });
+      context.res.body = JSON.stringify({ message: 'No valid file binary data received in request.' });
       return;
     }
 
-    // Read filename and dynamic subfolder path
+    // Extract headers
     const rawFileName = decodeURIComponent(req.headers['x-file-name'] || `doc-${Date.now()}.pdf`);
     const folderPath = decodeURIComponent(req.headers['x-folder-path'] || 'Unsorted');
     
     const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9.-]/g, '_');
     const cleanFolderPath = folderPath.replace(/[^a-zA-Z0-9_\-/]/g, '_');
 
-    // Blob virtual directory path: CandidateName/DocType/filename.pdf
+    // Folder path format: FirstName_Surname/Category/timestamp-filename.pdf
     const blobName = `${cleanFolderPath}/${Date.now()}-${cleanFileName}`;
 
     const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
@@ -40,7 +54,8 @@ module.exports = async function (context, req) {
 
     const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    await blockBlobClient.uploadData(req.body, {
+    // Upload verified Buffer
+    await blockBlobClient.uploadData(fileBuffer, {
       blobHTTPHeaders: { blobContentType: req.headers['content-type'] || 'application/pdf' }
     });
 
