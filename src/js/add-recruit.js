@@ -40,9 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Attach File Input Event Listeners for Partitioned Uploads
   bindFileInput('fileCv', 'CV');
   bindFileInput('fileId', 'ID_Visa');
-  bindFileInput('filePaySlips', 'PaySlips');
+  bindFileInput('filePayslips', 'PaySlips');     // Fixed ID: lowercase 's'
   bindFileInput('fileCerts', 'Certifications');
-  bindFileInput('fileDegrees', 'Degrees');
+  bindFileInput('fileDegree', 'Degrees');        // Fixed ID: singular 'Degree'
+
 });
 
 // Helper to monitor file selections and update badge UI
