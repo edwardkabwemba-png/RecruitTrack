@@ -17,41 +17,42 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 });
 
-// Add or update handleCandidateSubmit
 async function handleCandidateSubmit(e) {
   e.preventDefault();
 
-  const payload = {
-    recruiterId: document.getElementById('recruiterSelect')?.value,
-    dateSourced: document.getElementById('dateSourced')?.value,
-    firstName: document.getElementById('firstName')?.value,
-    surname: document.getElementById('surname')?.value,
-    sourceId: document.getElementById('sourceSelect')?.value,
-    countryOfResidence: document.getElementById('countrySelect')?.value,
-    noticePeriod: document.getElementById('noticePeriod')?.value,
-    currentRate: document.getElementById('currentRate')?.value,
-    expectedRate: document.getElementById('expectedRate')?.value,
-    email: document.getElementById('email')?.value,
-    phone: document.getElementById('phone')?.value,
-    idType: document.getElementById('idType')?.value,
-    idNumber: document.getElementById('idNumber')?.value,
-    roleId: document.getElementById('roleSelect')?.value,
-    // Step 4: Pass uploaded file URL to database API
-    documentUrl: uploadedDocumentUrl
-  };
+  const formData = new FormData();
+
+  // Text Fields
+  formData.append('recruiterId', document.getElementById('recruiterSelect')?.value || '');
+  formData.append('dateSourced', document.getElementById('dateSourced')?.value || '');
+  formData.append('firstName', document.getElementById('firstName')?.value || '');
+  formData.append('surname', document.getElementById('surname')?.value || '');
+  formData.append('sourceId', document.getElementById('sourceSelect')?.value || '');
+  formData.append('countryOfResidence', document.getElementById('countrySelect')?.value || '');
+  formData.append('noticePeriod', document.getElementById('noticePeriod')?.value || '');
+  formData.append('currentRate', document.getElementById('currentRate')?.value || '');
+  formData.append('expectedRate', document.getElementById('expectedRate')?.value || '');
+  formData.append('email', document.getElementById('email')?.value || '');
+  formData.append('phone', document.getElementById('phone')?.value || '');
+  formData.append('idType', document.getElementById('idType')?.value || '');
+  formData.append('idNumber', document.getElementById('idNumber')?.value || '');
+  formData.append('roleId', document.getElementById('roleSelect')?.value || '');
+
+  // File Inputs
+  const cvFile = document.getElementById('cvInput')?.files[0];
+  const idFile = document.getElementById('idInput')?.files[0];
+
+  if (cvFile) formData.append('cv', cvFile);
+  if (idFile) formData.append('id', idFile);
 
   try {
     const res = await fetch('/api/recruits', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: formData // Browser sets multipart boundary automatically
     });
 
     const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.message || 'Failed to save recruit');
-    }
+    if (!res.ok) throw new Error(data.message || 'Failed to save recruit');
 
     alert('Candidate saved successfully!');
     window.location.href = '/recruits.html';
