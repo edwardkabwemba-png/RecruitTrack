@@ -1,3 +1,5 @@
+let uploadedDocumentUrl = null;
+
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Fetch dropdown options on page load
   loadDropdownData();
@@ -8,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
     form.addEventListener('submit', handleCandidateSubmit);
   }
 
-  // 3. Keep candidate name in sync with UI
+  // 3. Keep candidate title in sync with UI inputs
   const firstNameInput = document.getElementById('firstName');
   const surnameInput = document.getElementById('surname');
   const displayTitle = document.getElementById('displayCandidateName');
@@ -21,14 +23,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
+
+  // 4. Attach Dynamic Tag Handlers for Skills and Certifications
+  setupTagDropdown('skillSelect', 'skillsContainer', 'Skill');
+  setupTagDropdown('certSelect', 'certsContainer', 'Cert');
+
+  // 5. Attach CV Upload Handler
+  const fileCvInput = document.getElementById('fileCv');
+  if (fileCvInput) {
+    fileCvInput.addEventListener('change', handleFileUpload);
+  }
 });
 
 // Load Dropdowns from Backend API
 async function loadDropdownData() {
   try {
     const res = await fetch('/api/recruits?action=dropdowns');
-    if (!res.ok) throw new Error('Failed to fetch dropdown options');
     
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || errData.message || `Server error: ${res.status}`);
+    }
+
     const data = await res.json();
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName', 'Select Recruiter...');
@@ -37,7 +53,7 @@ async function loadDropdownData() {
     populateSelect('skillSelect', data.skills, 'SkillID', 'SkillName', 'Select Skill...');
     populateSelect('certSelect', data.certifications, 'CertID', 'CertName', 'Select Certification...');
   } catch (err) {
-    console.error('Error loading dropdowns:', err);
+    console.error('Error loading dropdowns:', err.message);
   }
 }
 
@@ -56,11 +72,91 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   }
 }
 
-// Handle Form Submission
-async function handleCandidateSubmit(e) {
-  e.preventDefault(); // Prevent standard browser POST / page refresh
+// Interactive Skill/Cert Tag Management
+function setupTagDropdown(selectId, containerId, labelType) {
+  const selectEl = document.getElementById(selectId);
+  const containerEl = document.getElementById(containerId);
 
-  // Gather values safely from the DOM
+  if (!selectEl || !containerEl) return;
+
+  selectEl.addEventListener('change', () => {
+    const selectedValue = selectEl.value;
+    const selectedText = selectEl.options[selectEl.selectedIndex]?.text;
+
+    if (!selectedValue) return;
+
+    // Check if tag already added
+    const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
+    const isDuplicate = existingTags.some(tag => tag.dataset.value === selectedValue);
+
+    if (isDuplicate) {
+      selectEl.value = '';
+      return;
+    }
+
+    // Create Badge Element
+    const tag = document.createElement('span');
+    tag.className = 'tag-badge';
+    tag.dataset.value = selectedValue;
+    tag.innerHTML = `${selectedText} <span class="remove-btn">&times;</span>`;
+
+    tag.querySelector('.remove-btn').addEventListener('click', () => {
+      tag.remove();
+    });
+
+    containerEl.appendChild(tag);
+    selectEl.value = ''; // Reset dropdown after selection
+  });
+}
+
+// Upload CV / Document File to Blob Storage API
+async function handleFileUpload(e) {
+  const file = e.target.files[0];
+  const statusCv = document.getElementById('statusCv');
+
+  if (!file) return;
+
+  if (statusCv) {
+    statusCv.className = 'status-badge badge-pending';
+    statusCv.textContent = 'Uploading...';
+  }
+
+  try {
+    const res = await fetch('/api/upload-document', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'multipart/form-data',
+        'X-File-Name': file.name
+      },
+      body: file
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || 'File upload failed');
+    }
+
+    uploadedDocumentUrl = data.fileUrl;
+
+    if (statusCv) {
+      statusCv.className = 'status-badge badge-received';
+      statusCv.textContent = 'Uploaded';
+    }
+  } catch (err) {
+    console.error('File upload error:', err);
+    if (statusCv) {
+      statusCv.className = 'status-badge badge-pending';
+      statusCv.textContent = 'Upload Failed';
+    }
+    alert(`File upload failed: ${err.message}`);
+  }
+}
+
+// Handle Candidate Form Submission
+async function handleCandidateSubmit(e) {
+  e.preventDefault();
+
   const payload = {
     recruiterId: document.getElementById('recruiterSelect')?.value || null,
     dateSourced: document.getElementById('dateSourced')?.value || null,
@@ -76,41 +172,36 @@ async function handleCandidateSubmit(e) {
     idType: document.getElementById('idType')?.value || null,
     idNumber: document.getElementById('idNumber')?.value?.trim() || null,
     roleId: document.getElementById('roleSelect')?.value || null,
-    documentUrl: null
+    documentUrl: uploadedDocumentUrl
   };
 
-  // Pre-submission validation
   if (!payload.firstName || !payload.surname || !payload.email) {
-    alert('Please complete all required fields: First Name, Surname, and Email Address.');
+    alert('Please fill in all mandatory fields (First Name, Surname, and Email Address).');
     return;
   }
 
   try {
-    const response = await fetch('/api/recruits', {
+    const res = await fetch('/api/recruits', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
-    const data = await response.json();
+    const data = await res.json();
 
-    if (!response.ok) {
-      throw new Error(data.message || 'Server returned an error while saving.');
+    if (!res.ok) {
+      throw new Error(data.message || data.error || 'Failed to save recruit');
     }
 
-    alert('Candidate successfully added!');
+    alert('Candidate saved successfully!');
     window.location.href = '/recruits.html';
 
   } catch (err) {
     console.error('Submission error:', err);
-    alert(`Error saving recruit: ${err.message}`);
+    alert(`Error: ${err.message}`);
   }
 }
 
-// Placeholder for Stage Tracker Button
 function advanceStage() {
-  alert('Stage advancement logic ready.');
+  alert('Stage advancement initialized.');
 }
