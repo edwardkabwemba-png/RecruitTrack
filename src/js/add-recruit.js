@@ -123,22 +123,16 @@ async function handleFileUpload(e) {
   }
 
   try {
-    // 1. Convert file directly to Base64 string
-    const base64String = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    // Read raw binary ArrayBuffer (matches function.json dataType: "binary")
+    const arrayBuffer = await file.arrayBuffer();
 
-    // 2. Send Base64 string directly while setting multipart/form-data Content-Type header
     const res = await fetch('/api/upload-document', {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data; boundary=----WebKitFormBoundaryCandidateUpload',
+        'Content-Type': file.type || 'application/pdf',
         'X-File-Name': encodeURIComponent(file.name)
       },
-      body: base64String
+      body: arrayBuffer
     });
 
     const textResponse = await res.text();
