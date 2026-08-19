@@ -123,33 +123,28 @@ async function handleFileUpload(e) {
   }
 
   try {
-    // Read raw file buffer so Azure Functions can parse binary data cleanly
-    const fileBuffer = await file.arrayBuffer();
+    // Package file into FormData to satisfy the multipart/form-data requirement
+    const formData = new FormData();
+    formData.append('file', file);
 
     const res = await fetch('/api/upload-document', {
       method: 'POST',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-        'X-File-Name': encodeURIComponent(file.name)
-      },
-      body: fileBuffer
+      body: formData // Fetch automatically sets Content-Type: multipart/form-data with boundary
     });
 
-    // Safely parse JSON or handle plain text server errors without throwing SyntaxError
     const textResponse = await res.text();
     let data = {};
     try {
       data = textResponse ? JSON.parse(textResponse) : {};
     } catch (_) {
-      throw new Error(`Server returned non-JSON error (${res.status}): ${textResponse.slice(0, 150)}`);
+      throw new Error(`Server response error (${res.status}): ${textResponse.slice(0, 150)}`);
     }
 
     if (!res.ok) {
-      throw new Error(data.message || data.error || `Upload failed with status ${res.status}`);
+      throw new Error(data.error || data.message || `Upload failed with status ${res.status}`);
     }
 
-    // Save uploaded file URL
-    uploadedDocumentUrl = data.fileUrl || data.url || null;
+    uploadedDocumentUrl = data.fileUrl || null;
 
     if (statusBadge) {
       statusBadge.className = 'status-badge badge-received';
