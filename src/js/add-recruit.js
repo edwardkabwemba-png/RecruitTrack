@@ -110,6 +110,7 @@ function setupTagDropdown(selectId, containerId, labelType) {
 }
 
 // Upload CV / Document File to Azure Function API
+// Upload CV / Document File to Azure Function API
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   const inputEl = e.target;
@@ -123,22 +124,15 @@ async function handleFileUpload(e) {
   }
 
   try {
-    // Read file as Base64 string for safe JSON transmission
-    const base64Data = await new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result.split(',')[1]);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+    // 1. Package the file inside FormData (forces multipart/form-data)
+    const formData = new FormData();
+    formData.append('file', file, file.name);
 
+    // 2. Transmit without setting explicit Content-Type headers 
+    // (browser automatically attaches multipart/form-data with boundary)
     const res = await fetch('/api/upload-document', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fileName: file.name,
-        fileType: file.type,
-        fileData: base64Data
-      })
+      body: formData
     });
 
     const textResponse = await res.text();
@@ -146,13 +140,14 @@ async function handleFileUpload(e) {
     try {
       data = textResponse ? JSON.parse(textResponse) : {};
     } catch (_) {
-      throw new Error(`Server returned error (${res.status}): ${textResponse.slice(0, 100)}`);
+      throw new Error(`Server returned status ${res.status}: ${textResponse.slice(0, 100)}`);
     }
 
     if (!res.ok) {
       throw new Error(data.error || data.message || `Upload failed with status ${res.status}`);
     }
 
+    // Save permanent blob URL returned by API
     uploadedDocumentUrl = data.fileUrl || null;
 
     if (statusBadge) {
