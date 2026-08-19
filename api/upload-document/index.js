@@ -1,8 +1,7 @@
+const { BlobServiceClient } = require('@azure/storage-blob');
+
 module.exports = async function (context, req) {
-  context.res = { 
-    headers: { 'Content-Type': 'application/json' },
-    status: 200 
-  };
+  context.res = { headers: { 'Content-Type': 'application/json' } };
 
   if (req.method !== 'POST') {
     context.res.status = 405;
@@ -11,6 +10,12 @@ module.exports = async function (context, req) {
   }
 
   try {
+    // Read from your new allowed environment variable
+    const connStr = process.env.CUSTOM_STORAGE_CONNECTION_STRING;
+    if (!connStr) {
+      throw new Error("Missing CUSTOM_STORAGE_CONNECTION_STRING setting.");
+    }
+
     const contentType = req.headers['content-type'] || req.headers['Content-Type'] || '';
     if (!contentType.includes('multipart/form-data')) {
       context.res.status = 400;
@@ -18,24 +23,28 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // Extract raw payload
     let rawBody = req.body;
-    if (Buffer.isBuffer(rawBody)) {
-      rawBody = rawBody.toString('base64');
-    } else if (typeof rawBody !== 'string') {
-      rawBody = Buffer.from(rawBody || '').toString('base64');
+    if (typeof rawBody === 'string') {
+      rawBody = Buffer.from(rawBody, req.isRaw ? 'binary' : 'base64');
     }
 
-    // For now, accept and log successful receipt of the document 
-    // to prevent blocking candidate registration
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
+    const containerClient = blobServiceClient.getContainerClient('documents');
+    await containerClient.createIfNotExists({ access: 'blob' });
+
+    const blobName = `doc-${Date.now()}.pdf`;
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+    await blockBlobClient.uploadData(rawBody);
+
     context.res.status = 200;
     context.res.body = JSON.stringify({
       message: 'Upload successful',
-      fileUrl: `https://storage.placeholder.local/documents/doc-${Date.now()}.pdf`
+      fileUrl: blockBlobClient.url
     });
 
   } catch (err) {
-    context.log.error('Upload Error:', err);
+    context.log.error('Upload Error:', err.message);
     context.res.status = 500;
     context.res.body = JSON.stringify({ message: 'File upload failed', error: err.message });
   }
