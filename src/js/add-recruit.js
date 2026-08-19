@@ -219,12 +219,16 @@ async function handleCandidateSubmit(e) {
     saveBtn.textContent = 'Saving Candidate & Uploading Files...';
   }
 
-  try {
-    // 1. Process and upload all files into partitioned folders
+try {
+    // 1. Define candidate folder name and upload all pending files into partitioned folders
     const candidateFolderName = `${firstName}_${surname}`;
-    const primaryCvUrl = await processAllDocumentUploads(candidateFolderName);
+    await processAllDocumentUploads(candidateFolderName);
 
-    // 2. Build payload with the primary CV link
+    // 2. Build full Azure Storage folder URL path
+    const storageAccountName = 'strgcandidatetracker'; 
+    const folderUrl = `https://${storageAccountName}.blob.core.windows.net/documents/${candidateFolderName}/`;
+
+    // 3. Assemble payload
     const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
@@ -240,7 +244,7 @@ async function handleCandidateSubmit(e) {
       phone: document.getElementById('phone')?.value?.trim() || null,
       idType: document.getElementById('idType')?.value || null,
       idNumber: document.getElementById('idNumber')?.value?.trim() || null,
-      documentUrl: primaryCvUrl || uploadedDocumentUrl
+      documentUrl: folderUrl
     };
 
     // 3. Save Candidate in DB
