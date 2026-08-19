@@ -109,45 +109,57 @@ function setupTagDropdown(selectId, containerId, labelType) {
   });
 }
 
-// Upload CV / Document File to Blob Storage API
+// Upload CV / Document File to Azure Function API
 async function handleFileUpload(e) {
   const file = e.target.files[0];
-  const statusCv = document.getElementById('statusCv');
+  const inputEl = e.target;
+  const statusBadge = inputEl.parentElement?.querySelector('.status-badge') || document.getElementById('statusCv');
 
   if (!file) return;
 
-  if (statusCv) {
-    statusCv.className = 'status-badge badge-pending';
-    statusCv.textContent = 'Uploading...';
+  if (statusBadge) {
+    statusBadge.className = 'status-badge badge-pending';
+    statusBadge.textContent = 'Uploading...';
   }
 
   try {
+    // Read raw file buffer so Azure Functions can parse binary data cleanly
+    const fileBuffer = await file.arrayBuffer();
+
     const res = await fetch('/api/upload-document', {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
-        'X-File-Name': file.name
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name)
       },
-      body: file
+      body: fileBuffer
     });
 
-    const data = await res.json();
+    // Safely parse JSON or handle plain text server errors without throwing SyntaxError
+    const textResponse = await res.text();
+    let data = {};
+    try {
+      data = textResponse ? JSON.parse(textResponse) : {};
+    } catch (_) {
+      throw new Error(`Server returned non-JSON error (${res.status}): ${textResponse.slice(0, 150)}`);
+    }
 
     if (!res.ok) {
-      throw new Error(data.message || 'File upload failed');
+      throw new Error(data.message || data.error || `Upload failed with status ${res.status}`);
     }
 
-    uploadedDocumentUrl = data.fileUrl;
+    // Save uploaded file URL
+    uploadedDocumentUrl = data.fileUrl || data.url || null;
 
-    if (statusCv) {
-      statusCv.className = 'status-badge badge-received';
-      statusCv.textContent = 'Uploaded';
+    if (statusBadge) {
+      statusBadge.className = 'status-badge badge-received';
+      statusBadge.textContent = 'Uploaded';
     }
   } catch (err) {
-    console.error('File upload error:', err);
-    if (statusCv) {
-      statusCv.className = 'status-badge badge-pending';
-      statusCv.textContent = 'Upload Failed';
+    console.error('File upload error:', err.message);
+    if (statusBadge) {
+      statusBadge.className = 'status-badge badge-pending';
+      statusBadge.textContent = 'Upload Failed';
     }
     alert(`File upload failed: ${err.message}`);
   }
