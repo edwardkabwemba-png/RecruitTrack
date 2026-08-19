@@ -17,33 +17,30 @@ module.exports = async function (context, req) {
       return;
     }
 
-    let fileBuffer;
-    
-    // Support JSON base64 payloads or raw buffer bodies
-    if (req.body && req.body.fileData) {
-      fileBuffer = Buffer.from(req.body.fileData, 'base64');
-    } else if (Buffer.isBuffer(req.body)) {
-      fileBuffer = req.body;
-    } else if (typeof req.body === 'string') {
-      fileBuffer = Buffer.from(req.body, 'base64');
-    } else {
+    if (!req.body) {
       context.res.status = 400;
-      context.res.body = JSON.stringify({ message: 'No valid file payload received.' });
+      context.res.body = JSON.stringify({ message: 'No file data received in request.' });
       return;
     }
 
-    const fileName = req.body?.fileName || req.headers['x-file-name'] || `doc-${Date.now()}.pdf`;
-    const cleanFileName = decodeURIComponent(fileName).replace(/[^a-zA-Z0-9.-]/g, '_');
+    // Read filename and dynamic subfolder path
+    const rawFileName = decodeURIComponent(req.headers['x-file-name'] || `doc-${Date.now()}.pdf`);
+    const folderPath = decodeURIComponent(req.headers['x-folder-path'] || 'Unsorted');
+    
+    const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const cleanFolderPath = folderPath.replace(/[^a-zA-Z0-9_\-/]/g, '_');
+
+    // Blob virtual directory path: CandidateName/DocType/filename.pdf
+    const blobName = `${cleanFolderPath}/${Date.now()}-${cleanFileName}`;
 
     const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
     const containerClient = blobServiceClient.getContainerClient('documents');
     
     await containerClient.createIfNotExists({ access: 'blob' });
 
-    const blobName = `${Date.now()}-${cleanFileName}`;
     const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    await blockBlobClient.uploadData(fileBuffer, {
+    await blockBlobClient.uploadData(req.body, {
       blobHTTPHeaders: { blobContentType: req.headers['content-type'] || 'application/pdf' }
     });
 

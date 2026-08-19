@@ -1,5 +1,14 @@
 let uploadedDocumentUrl = null;
 
+// Track selected files before submitting
+const pendingFiles = {
+  CV: [],
+  ID_Visa: [],
+  PaySlips: [],
+  Certifications: [],
+  Degrees: []
+};
+
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Fetch dropdown options on page load
   loadDropdownData();
@@ -28,12 +37,35 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTagDropdown('skillSelect', 'skillsContainer', 'Skill');
   setupTagDropdown('certSelect', 'certsContainer', 'Cert');
 
-  // 5. Attach CV Upload Handler
-  const fileCvInput = document.getElementById('fileCv');
-  if (fileCvInput) {
-    fileCvInput.addEventListener('change', handleFileUpload);
-  }
+  // 5. Attach File Input Event Listeners for Partitioned Uploads
+  bindFileInput('fileCv', 'CV');
+  bindFileInput('fileId', 'ID_Visa');
+  bindFileInput('filePaySlips', 'PaySlips');
+  bindFileInput('fileCerts', 'Certifications');
+  bindFileInput('fileDegrees', 'Degrees');
 });
+
+// Helper to monitor file selections and update badge UI
+function bindFileInput(elementId, category) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+
+  el.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files);
+    pendingFiles[category] = files;
+
+    const badge = el.parentElement?.querySelector('.status-badge');
+    if (badge) {
+      if (files.length > 0) {
+        badge.className = 'status-badge badge-received';
+        badge.textContent = files.length === 1 ? 'Ready' : `${files.length} Files Ready`;
+      } else {
+        badge.className = 'status-badge badge-pending';
+        badge.textContent = 'Pending';
+      }
+    }
+  });
+}
 
 // Load Dropdowns from Backend API
 async function loadDropdownData() {
@@ -85,7 +117,6 @@ function setupTagDropdown(selectId, containerId, labelType) {
 
     if (!selectedValue) return;
 
-    // Check if tag already added
     const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
     const isDuplicate = existingTags.some(tag => tag.dataset.value === selectedValue);
 
@@ -94,7 +125,6 @@ function setupTagDropdown(selectId, containerId, labelType) {
       return;
     }
 
-    // Create Badge Element
     const tag = document.createElement('span');
     tag.className = 'tag-badge';
     tag.dataset.value = selectedValue;
@@ -105,62 +135,56 @@ function setupTagDropdown(selectId, containerId, labelType) {
     });
 
     containerEl.appendChild(tag);
-    selectEl.value = ''; // Reset dropdown after selection
+    selectEl.value = '';
   });
 }
 
-// Upload CV / Document File to Azure Function API
-async function handleFileUpload(e) {
-  const file = e.target.files[0];
-  const inputEl = e.target;
-  const statusBadge = inputEl.parentElement?.querySelector('.status-badge') || document.getElementById('statusCv');
+// Helper: Upload single file to storage with dynamic folder header
+async function uploadSingleFile(file, folderPath) {
+  const arrayBuffer = await file.arrayBuffer();
 
-  if (!file) return;
+  const res = await fetch('/api/upload-document', {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type || 'application/pdf',
+      'X-File-Name': encodeURIComponent(file.name),
+      'X-Folder-Path': encodeURIComponent(folderPath)
+    },
+    body: arrayBuffer
+  });
 
-  if (statusBadge) {
-    statusBadge.className = 'status-badge badge-pending';
-    statusBadge.textContent = 'Uploading...';
-  }
-
+  const textResponse = await res.text();
+  let data = {};
   try {
-    // Read raw binary ArrayBuffer (matches function.json dataType: "binary")
-    const arrayBuffer = await file.arrayBuffer();
-
-    const res = await fetch('/api/upload-document', {
-      method: 'POST',
-      headers: {
-        'Content-Type': file.type || 'application/pdf',
-        'X-File-Name': encodeURIComponent(file.name)
-      },
-      body: arrayBuffer
-    });
-
-    const textResponse = await res.text();
-    let data = {};
-    try {
-      data = textResponse ? JSON.parse(textResponse) : {};
-    } catch (_) {
-      throw new Error(`Server status ${res.status}: ${textResponse.slice(0, 100)}`);
-    }
-
-    if (!res.ok) {
-      throw new Error(data.error || data.message || `Upload failed with status ${res.status}`);
-    }
-
-    uploadedDocumentUrl = data.fileUrl || null;
-
-    if (statusBadge) {
-      statusBadge.className = 'status-badge badge-received';
-      statusBadge.textContent = 'Uploaded';
-    }
-  } catch (err) {
-    console.error('File upload error:', err.message);
-    if (statusBadge) {
-      statusBadge.className = 'status-badge badge-pending';
-      statusBadge.textContent = 'Upload Failed';
-    }
-    alert(`File upload failed: ${err.message}`);
+    data = textResponse ? JSON.parse(textResponse) : {};
+  } catch (_) {
+    throw new Error(`Server status ${res.status}: ${textResponse.slice(0, 100)}`);
   }
+
+  if (!res.ok) {
+    throw new Error(data.error || data.message || `Upload failed with status ${res.status}`);
+  }
+
+  return data.fileUrl;
+}
+
+// Upload all selected documents partitioned under CandidateName/Category
+async function processAllDocumentUploads(candidateFolderName) {
+  let mainCvUrl = null;
+
+  for (const [category, files] of Object.entries(pendingFiles)) {
+    for (const file of files) {
+      const folderPath = `${candidateFolderName}/${category}`;
+      const fileUrl = await uploadSingleFile(file, folderPath);
+
+      // Save the primary CV URL to attach to the recruit database record
+      if (category === 'CV' && !mainCvUrl) {
+        mainCvUrl = fileUrl;
+      }
+    }
+  }
+
+  return mainCvUrl;
 }
 
 // Handle Candidate Form Submission
@@ -174,7 +198,6 @@ async function handleCandidateSubmit(e) {
   const surname = document.getElementById('surname')?.value?.trim();
   const email = document.getElementById('email')?.value?.trim();
 
-  // Validate mandatory fields required by your SQL Schema
   if (!firstName || !surname || !email) {
     alert('Please fill in First Name, Surname, and Email Address.');
     return;
@@ -185,25 +208,37 @@ async function handleCandidateSubmit(e) {
     return;
   }
 
-  const payload = {
-    recruiterId: recruiterSelect.value,
-    sourceId: sourceSelect.value,
-    roleId: roleSelect.value,
-    dateSourced: document.getElementById('dateSourced')?.value || new Date().toISOString().split('T')[0],
-    firstName: firstName,
-    surname: surname,
-    countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
-    noticePeriod: document.getElementById('noticePeriod')?.value || '30 Days',
-    currentRate: document.getElementById('currentRate')?.value || null,
-    expectedRate: document.getElementById('expectedRate')?.value || null,
-    email: email,
-    phone: document.getElementById('phone')?.value?.trim() || null,
-    idType: document.getElementById('idType')?.value || null,
-    idNumber: document.getElementById('idNumber')?.value?.trim() || null,
-    documentUrl: uploadedDocumentUrl
-  };
+  const saveBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('.btn-primary');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving Candidate & Uploading Files...';
+  }
 
   try {
+    // 1. Process and upload all files into partitioned folders
+    const candidateFolderName = `${firstName}_${surname}`;
+    const primaryCvUrl = await processAllDocumentUploads(candidateFolderName);
+
+    // 2. Build payload with the primary CV link
+    const payload = {
+      recruiterId: recruiterSelect.value,
+      sourceId: sourceSelect.value,
+      roleId: roleSelect.value,
+      dateSourced: document.getElementById('dateSourced')?.value || new Date().toISOString().split('T')[0],
+      firstName: firstName,
+      surname: surname,
+      countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
+      noticePeriod: document.getElementById('noticePeriod')?.value || '30 Days',
+      currentRate: document.getElementById('currentRate')?.value || null,
+      expectedRate: document.getElementById('expectedRate')?.value || null,
+      email: email,
+      phone: document.getElementById('phone')?.value?.trim() || null,
+      idType: document.getElementById('idType')?.value || null,
+      idNumber: document.getElementById('idNumber')?.value?.trim() || null,
+      documentUrl: primaryCvUrl || uploadedDocumentUrl
+    };
+
+    // 3. Save Candidate in DB
     const res = await fetch('/api/recruits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -216,12 +251,17 @@ async function handleCandidateSubmit(e) {
       throw new Error(data.error || data.message || 'Failed to save candidate.');
     }
 
-    alert('Candidate successfully added!');
+    alert('Candidate and documents successfully uploaded!');
     window.location.href = '/recruits.html';
 
   } catch (err) {
     console.error('Submission error:', err);
     alert(`Error saving candidate: ${err.message}`);
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Recruit';
+    }
   }
 }
 
