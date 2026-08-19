@@ -35,7 +35,7 @@ module.exports = async function (context, req) {
 
       if (action === 'dropdowns') {
         const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
-        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources WHERE IsActive = 1");
+        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
         const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
         const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
         const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
