@@ -141,8 +141,13 @@ function setupTagDropdown(selectId, containerId, labelType) {
 
 // Helper: Upload single file to storage with dynamic folder header
 async function uploadSingleFile(file, folderPath) {
-  const arrayBuffer = await file.arrayBuffer();
+  if (!file) return null;
 
+  // 1. Read binary data and wrap in a Uint8Array view
+  const buffer = await file.arrayBuffer();
+  const uint8Data = new Uint8Array(buffer);
+
+  // 2. Fetch API call sending raw binary body
   const res = await fetch('/api/upload-document', {
     method: 'POST',
     headers: {
@@ -150,7 +155,7 @@ async function uploadSingleFile(file, folderPath) {
       'X-File-Name': encodeURIComponent(file.name),
       'X-Folder-Path': encodeURIComponent(folderPath)
     },
-    body: arrayBuffer
+    body: uint8Data
   });
 
   const textResponse = await res.text();
