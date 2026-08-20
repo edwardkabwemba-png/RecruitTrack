@@ -36,9 +36,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const firstNameInput = document.getElementById('firstName');
   const surnameInput = document.getElementById('surname');
   const displayTitle = document.getElementById('displayCandidateName');
-  // 4. Attach Dynamic Tag Handlers
-  setupSkillTagDropdown('skillSelect', 'skillsContainer');
-  setupTagDropdown('certSelect', 'certsContainer', 'Cert');
 
   function updateDisplayName() {
     const fn = firstNameInput?.value.trim() || '';
@@ -51,12 +48,11 @@ document.addEventListener('DOMContentLoaded', () => {
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
-  // 4. Attach Dynamic Tag Handlers for Skills and Certifications
-  setupTagDropdown('skillSelect', 'skillsContainer', 'Skill');
-  setupTagDropdown('certSelect', 'certsContainer', 'Cert');
+  // 4. Attach Dynamic Tag Handlers for Skills (with years) and Certifications
+  setupSkillTagDropdown('skillSelect', 'skillsContainer');
+  setupTagDropdown('certSelect', 'certsContainer');
 
- 
- // 5. Attach File Input Event Listeners for Partitioned Uploads
+  // 5. Attach File Input Event Listeners for Partitioned Uploads
   bindFileInput('fileCv', 'badgeCv', 'CV');
   bindFileInput('fileId', 'badgeId', 'ID_Visa');
   bindFileInput('filePayslips', 'badgePayslips', 'PaySlips');
@@ -77,8 +73,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function getAdvanceBtn() {
   return document.getElementById('btnAdvanceStage') || 
          document.querySelector('.btn-advance-stage') || 
-         document.querySelector('button[onclick="advanceStage()"]') ||
-         Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.toLowerCase().includes('advance'));
+         document.querySelector('button[onclick="advanceStage()"]');
 }
 
 // Lifecycle Stepper Logic
@@ -93,18 +88,14 @@ function advanceStage(e) {
   }
 }
 
-// Fixed Stepper UI function to highlight selected stage dots dynamically
 function updateStageUI() {
-  // Target ONLY the circle elements
   const stageNodes = document.querySelectorAll('.stage-node');
   const advanceBtn = getAdvanceBtn();
 
   stageNodes.forEach((node, index) => {
-    // Clear inline styles that broke layout
     node.style.backgroundColor = '';
     node.style.borderColor = '';
 
-    // Toggle clean CSS classes
     node.classList.remove('completed', 'active', 'pending');
 
     if (index < currentStageIndex) {
@@ -116,7 +107,6 @@ function updateStageUI() {
     }
   });
 
-  // Update button text cleanly
   if (advanceBtn) {
     if (currentStageIndex < STAGES.length - 1) {
       const nextStageName = STAGES[currentStageIndex + 1];
@@ -197,6 +187,7 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   }
 }
 
+// Interactive Skill Tag Management (with Years Prompt)
 function setupSkillTagDropdown(selectId, containerId) {
   const selectEl = document.getElementById(selectId);
   const containerEl = document.getElementById(containerId);
@@ -209,18 +200,16 @@ function setupSkillTagDropdown(selectId, containerId) {
 
     if (!selectedValue) return;
 
-    // Check duplicate
     const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
     if (existingTags.some(tag => tag.dataset.value === selectedValue)) {
       selectEl.value = '';
       return;
     }
 
-    // Prompt user for years of experience with default fallback
     const yrsInput = prompt(`Enter years of experience for ${selectedText}:`, "1");
     if (yrsInput === null) {
       selectEl.value = '';
-      return; // Cancelled
+      return;
     }
 
     const years = parseFloat(yrsInput) || 0;
@@ -232,7 +221,7 @@ function setupSkillTagDropdown(selectId, containerId) {
     tag.dataset.name = selectedText;
     tag.dataset.years = years;
     tag.dataset.formatted = fullText;
-    tag.innerHTML = `${fullText} <span class="remove-btn">&times;</span>`;
+    tag.innerHTML = `${fullText} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
 
     tag.querySelector('.remove-btn').addEventListener('click', () => {
       tag.remove();
@@ -243,7 +232,41 @@ function setupSkillTagDropdown(selectId, containerId) {
   });
 }
 
-// Helper: Upload single file to storage with dynamic folder header
+// Generic Multiple Tag Selection (For Certifications)
+function setupTagDropdown(selectId, containerId) {
+  const selectEl = document.getElementById(selectId);
+  const containerEl = document.getElementById(containerId);
+
+  if (!selectEl || !containerEl) return;
+
+  selectEl.addEventListener('change', () => {
+    const selectedValue = selectEl.value;
+    const selectedText = selectEl.options[selectEl.selectedIndex]?.text;
+
+    if (!selectedValue) return;
+
+    const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
+    if (existingTags.some(tag => tag.dataset.value === selectedValue)) {
+      selectEl.value = '';
+      return;
+    }
+
+    const tag = document.createElement('span');
+    tag.className = 'tag-badge';
+    tag.dataset.value = selectedValue;
+    tag.dataset.text = selectedText;
+    tag.innerHTML = `${selectedText} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
+
+    tag.querySelector('.remove-btn').addEventListener('click', () => {
+      tag.remove();
+    });
+
+    containerEl.appendChild(tag);
+    selectEl.value = '';
+  });
+}
+
+// Helper: Upload single file to storage
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
@@ -275,7 +298,7 @@ async function uploadSingleFile(file, folderPath) {
   return data.fileUrl;
 }
 
-// Upload all selected documents partitioned under CandidateName/Category
+// Upload all selected documents
 async function processAllDocumentUploads(candidateFolderName) {
   let mainCvUrl = null;
 
@@ -293,7 +316,7 @@ async function processAllDocumentUploads(candidateFolderName) {
   return mainCvUrl;
 }
 
-// Handle Candidate Form Submission
+// Handle Form Submission
 async function handleCandidateSubmit(e) {
   e.preventDefault();
 
@@ -321,23 +344,19 @@ async function handleCandidateSubmit(e) {
   }
 
   try {
-    // 1. Define candidate folder name and upload all pending files into partitioned folders
     const candidateFolderName = `${firstName}_${surname}`;
     await processAllDocumentUploads(candidateFolderName);
 
-    // 2. Build full Azure Storage folder URL path
     const storageAccountName = 'strgcandidatetracker'; 
     const folderUrl = `https://${storageAccountName}.blob.core.windows.net/documents/${candidateFolderName}/`;
 
-    // Extract skill tags formatted with years
+    // Extract skill and cert tag arrays
     const skillBadges = Array.from(document.querySelectorAll('#skillsContainer .tag-badge'));
     const skillsList = skillBadges.map(b => b.dataset.formatted || b.textContent.replace('×', '').trim());
 
-    // Extract certification tags
     const certBadges = Array.from(document.querySelectorAll('#certsContainer .tag-badge'));
-    const certsList = certBadges.map(b => b.textContent.replace('×', '').trim());
+    const certsList = certBadges.map(b => b.dataset.text || b.textContent.replace('×', '').trim());
 
-    // Build payload
     const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
@@ -346,9 +365,7 @@ async function handleCandidateSubmit(e) {
       firstName: firstName,
       surname: surname,
       countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
-      seniorityLevel: document.getElementById('senioritySelect')?.value || null,
-      totalYearsExperience: document.getElementById('totalExperience')?.value || null,
-      skills: JSON.stringify(skillsList), // Saves: ["Application Support (3 yrs)", "API Testing (2 yrs)"]
+      skills: JSON.stringify(skillsList),
       certifications: JSON.stringify(certsList),
       otherSkills: document.getElementById('otherSkills')?.value?.trim() || null,
       noticePeriod: document.getElementById('noticePeriod')?.value || '30 Days',
@@ -367,7 +384,6 @@ async function handleCandidateSubmit(e) {
       docDegreesStatus: pendingFiles.Degrees.length > 0 ? 'Uploaded' : 'Pending'
     };
 
-    // 4. Save Candidate in DB
     const res = await fetch('/api/recruits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
