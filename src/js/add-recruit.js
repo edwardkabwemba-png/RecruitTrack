@@ -52,12 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
   setupTagDropdown('skillSelect', 'skillsContainer', 'Skill');
   setupTagDropdown('certSelect', 'certsContainer', 'Cert');
 
-  // 5. Attach File Input Event Listeners for Partitioned Uploads
-  bindFileInput('fileCv', 'CV');
-  bindFileInput('fileId', 'ID_Visa');
-  bindFileInput('filePayslips', 'PaySlips');
-  bindFileInput('fileCerts', 'Certifications');
-  bindFileInput('fileDegree', 'Degrees');
+ 
+ // 5. Attach File Input Event Listeners for Partitioned Uploads
+  bindFileInput('fileCv', 'badgeCv', 'CV');
+  bindFileInput('fileId', 'badgeId', 'ID_Visa');
+  bindFileInput('filePayslips', 'badgePayslips', 'PaySlips');
+  bindFileInput('fileCerts', 'badgeCerts', 'Certifications');
+  bindFileInput('fileDegree', 'badgeDegree', 'Degrees');
 
   // 6. Attach Lifecycle Stage Advance Listener
   const advanceBtn = getAdvanceBtn();
