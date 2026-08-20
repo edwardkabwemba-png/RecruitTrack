@@ -420,22 +420,26 @@
     </div>
 
     <!-- Section C: Skills & Experience -->
-    <div class="section-card">
-      <h3>C. Skills & Experience</h3>
-      <div class="form-grid">
-        <div>
-          <label>Current Seniority Level</label>
-          <select id="seniorityLevel">
-            <option value="Entry">Entry</option>
-            <option value="Mid-Level" selected>Mid-Level</option>
-            <option value="Senior">Senior</option>
-            <option value="Managerial">Managerial</option>
-          </select>
-        </div>
-        <div>
-          <label>Total Years of Experience</label>
-          <input type="number" step="0.5" id="yearsExperience" placeholder="e.g. 5.5">
-        </div>
+<div class="section-card">
+  <h3>C. Skills & Experience</h3>
+  
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <label for="senioritySelect" class="form-label">Current Seniority Level</label>
+      <select id="senioritySelect" class="form-select">
+        <option value="">Select Seniority Level...</option>
+        <option value="Junior">Junior</option>
+        <option value="Mid-Level">Mid-Level</option>
+        <option value="Senior">Senior</option>
+        <option value="Lead / Executive">Lead / Executive</option>
+      </select>
+    </div>
+
+    <div class="col-md-6">
+      <label for="totalExperience" class="form-label">Total Years of Experience</label>
+      <input type="number" step="0.5" id="totalExperience" class="form-control" placeholder="e.g. 5.5">
+    </div>
+  </div>
         
         <div class="full-width">
           <label>Skills Held (Select Skill & Years)</label>

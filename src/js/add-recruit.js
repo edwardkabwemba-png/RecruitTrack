@@ -357,7 +357,7 @@ async function handleCandidateSubmit(e) {
     const certBadges = Array.from(document.querySelectorAll('#certsContainer .tag-badge'));
     const certsList = certBadges.map(b => b.dataset.text || b.textContent.replace('×', '').trim());
 
-    const payload = {
+const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
       roleId: roleSelect.value,
@@ -365,6 +365,8 @@ async function handleCandidateSubmit(e) {
       firstName: firstName,
       surname: surname,
       countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
+      seniorityLevel: document.getElementById('senioritySelect')?.value || null,
+      totalYearsExperience: document.getElementById('totalExperience')?.value || null,
       skills: JSON.stringify(skillsList),
       certifications: JSON.stringify(certsList),
       otherSkills: document.getElementById('otherSkills')?.value?.trim() || null,
