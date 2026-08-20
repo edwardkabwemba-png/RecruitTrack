@@ -89,24 +89,29 @@ function advanceStage(e) {
   }
 }
 
+// Fixed Stepper UI function to highlight selected stage dots dynamically
 function updateStageUI() {
-  // Target dots/steps by node class or parent elements
-  const stageNodes = document.querySelectorAll('.stage-node, .stage-step, .lifecycle-step');
+  // Grab all step containers/circles inside the recruitment lifecycle section
+  const lifecycleContainer = document.querySelector('.section-card:nth-of-type(4)') || document.body;
+  const stageItems = lifecycleContainer.querySelectorAll('.stage-node, .stage-step, .step, div > span, td'); 
   const advanceBtn = getAdvanceBtn();
 
-  stageNodes.forEach((node, index) => {
-    node.classList.remove('completed', 'active', 'pending');
-
-    if (index < currentStageIndex) {
-      node.classList.add('completed');
-    } else if (index === currentStageIndex) {
-      node.classList.add('active');
+  // Highlight blue active stage indicator
+  const allDots = document.querySelectorAll('.stage-node, [class*="node"], [class*="step"]');
+  allDots.forEach((dot, index) => {
+    if (index === currentStageIndex) {
+      dot.style.backgroundColor = '#0d6efd';
+      dot.style.borderColor = '#0d6efd';
+    } else if (index < currentStageIndex) {
+      dot.style.backgroundColor = '#198754';
+      dot.style.borderColor = '#198754';
     } else {
-      node.classList.add('pending');
+      dot.style.backgroundColor = '#e9ecef';
+      dot.style.borderColor = '#ced4da';
     }
   });
 
-  // Update button label to reflect next step
+  // Update button label
   if (advanceBtn) {
     if (currentStageIndex < STAGES.length - 1) {
       const nextStageName = STAGES[currentStageIndex + 1];
@@ -119,23 +124,32 @@ function updateStageUI() {
   }
 }
 
-// Helper to monitor file selections and update badge UI
-function bindFileInput(elementId, category) {
+// Helper to monitor file selections and update badge UI directly by ID
+function bindFileInput(elementId, badgeId, category) {
   const el = document.getElementById(elementId);
+  const badge = document.getElementById(badgeId);
   if (!el) return;
 
   el.addEventListener('change', (e) => {
     const files = Array.from(e.target.files);
     pendingFiles[category] = files;
 
-    const badge = el.parentElement?.querySelector('.status-badge');
     if (badge) {
       if (files.length > 0) {
         badge.className = 'status-badge badge-received';
-        badge.textContent = files.length === 1 ? 'Ready' : `${files.length} Files Ready`;
+        badge.style.backgroundColor = '#d1e7dd';
+        badge.style.color = '#0f5132';
+        
+        if (category === 'PaySlips') {
+          badge.textContent = `${files.length} of 3 Received`;
+        } else {
+          badge.textContent = files.length === 1 ? 'Received' : `${files.length} Files Received`;
+        }
       } else {
         badge.className = 'status-badge badge-pending';
-        badge.textContent = 'Pending';
+        badge.style.backgroundColor = '#fff3cd';
+        badge.style.color = '#664d03';
+        badge.textContent = category === 'PaySlips' ? '0 of 3 Received' : 'Pending';
       }
     }
   });
