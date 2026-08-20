@@ -36,6 +36,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const firstNameInput = document.getElementById('firstName');
   const surnameInput = document.getElementById('surname');
   const displayTitle = document.getElementById('displayCandidateName');
+  // 4. Attach Dynamic Tag Handlers
+  setupSkillTagDropdown('skillSelect', 'skillsContainer');
+  setupTagDropdown('certSelect', 'certsContainer', 'Cert');
 
   function updateDisplayName() {
     const fn = firstNameInput?.value.trim() || '';
@@ -194,8 +197,7 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   }
 }
 
-// Interactive Skill/Cert Tag Management
-function setupTagDropdown(selectId, containerId, labelType) {
+function setupSkillTagDropdown(selectId, containerId) {
   const selectEl = document.getElementById(selectId);
   const containerEl = document.getElementById(containerId);
 
@@ -207,18 +209,30 @@ function setupTagDropdown(selectId, containerId, labelType) {
 
     if (!selectedValue) return;
 
+    // Check duplicate
     const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
-    const isDuplicate = existingTags.some(tag => tag.dataset.value === selectedValue);
-
-    if (isDuplicate) {
+    if (existingTags.some(tag => tag.dataset.value === selectedValue)) {
       selectEl.value = '';
       return;
     }
 
+    // Prompt user for years of experience with default fallback
+    const yrsInput = prompt(`Enter years of experience for ${selectedText}:`, "1");
+    if (yrsInput === null) {
+      selectEl.value = '';
+      return; // Cancelled
+    }
+
+    const years = parseFloat(yrsInput) || 0;
+    const fullText = `${selectedText} (${years} yrs)`;
+
     const tag = document.createElement('span');
     tag.className = 'tag-badge';
     tag.dataset.value = selectedValue;
-    tag.innerHTML = `${selectedText} <span class="remove-btn">&times;</span>`;
+    tag.dataset.name = selectedText;
+    tag.dataset.years = years;
+    tag.dataset.formatted = fullText;
+    tag.innerHTML = `${fullText} <span class="remove-btn">&times;</span>`;
 
     tag.querySelector('.remove-btn').addEventListener('click', () => {
       tag.remove();
@@ -315,7 +329,15 @@ async function handleCandidateSubmit(e) {
     const storageAccountName = 'strgcandidatetracker'; 
     const folderUrl = `https://${storageAccountName}.blob.core.windows.net/documents/${candidateFolderName}/`;
 
-    // 3. Assemble payload
+    // Extract skill tags formatted with years
+    const skillBadges = Array.from(document.querySelectorAll('#skillsContainer .tag-badge'));
+    const skillsList = skillBadges.map(b => b.dataset.formatted || b.textContent.replace('×', '').trim());
+
+    // Extract certification tags
+    const certBadges = Array.from(document.querySelectorAll('#certsContainer .tag-badge'));
+    const certsList = certBadges.map(b => b.textContent.replace('×', '').trim());
+
+    // Build payload
     const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
@@ -324,6 +346,11 @@ async function handleCandidateSubmit(e) {
       firstName: firstName,
       surname: surname,
       countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
+      seniorityLevel: document.getElementById('senioritySelect')?.value || null,
+      totalYearsExperience: document.getElementById('totalExperience')?.value || null,
+      skills: JSON.stringify(skillsList), // Saves: ["Application Support (3 yrs)", "API Testing (2 yrs)"]
+      certifications: JSON.stringify(certsList),
+      otherSkills: document.getElementById('otherSkills')?.value?.trim() || null,
       noticePeriod: document.getElementById('noticePeriod')?.value || '30 Days',
       currentRate: document.getElementById('currentRate')?.value || null,
       expectedRate: document.getElementById('expectedRate')?.value || null,

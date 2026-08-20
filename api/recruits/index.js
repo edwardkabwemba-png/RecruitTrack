@@ -71,7 +71,8 @@ module.exports = async function (context, req) {
       const {
         recruiterId, dateSourced, firstName, surname, sourceId,
         countryOfResidence, currentRate, expectedRate,
-        email, phone, idType, idNumber, roleId, documentUrl
+        email, phone, idType, idNumber, roleId, documentUrl,
+        skills, certifications, otherSkills
       } = body;
 
       const rawNotice = body.noticePeriod || body.notice || body.noticePeriodDays || '30 Days';
@@ -89,7 +90,7 @@ module.exports = async function (context, req) {
         const parsedRoleId = parseInt(roleId, 10);
         const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
 
-        // 2. Insert Candidate into dbo.Recruits (including DocumentUrl)
+        // 2. Insert Candidate into dbo.Recruits (including DocumentUrl, Skills, Certifications, and OtherSkills)
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
           .input('FirstName', sql.NVarChar(100), firstName)
@@ -105,12 +106,15 @@ module.exports = async function (context, req) {
           .input('RoleID', sql.Int, validRoleId)
           .input('DocumentUrl', sql.NVarChar(500), documentUrl || null)
           .input('CreatedDate', sql.DateTime, new Date())
+          .input('Skills', sql.NVarChar(sql.MAX), skills || null)
+          .input('Certifications', sql.NVarChar(sql.MAX), certifications || null)
+          .input('OtherSkills', sql.NVarChar(sql.MAX), otherSkills || null)
           .query(`
             INSERT INTO dbo.Recruits 
-              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, DocumentUrl, CreatedDate)
+              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, DocumentUrl, CreatedDate, Skills, Certifications, OtherSkills)
             OUTPUT INSERTED.RecruitID
             VALUES 
-              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @DocumentUrl, @CreatedDate);
+              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @DocumentUrl, @CreatedDate, @Skills, @Certifications, @OtherSkills);
           `);
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
@@ -125,29 +129,27 @@ module.exports = async function (context, req) {
             validDate = new Date(dateSourced);
           }
 
-         const lifecycleStage = req.body.stage || req.body.lifecycleStage || 'In Discussion';
-
-const appReq = new sql.Request(transaction);
-await appReq
-  .input('RecruitID', sql.Int, newRecruitId)
-  .input('RoleID', sql.Int, validRoleId)
-  .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
-  .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
-  .input('DateSourced', sql.Date, validDate)
-  .input('LifecycleStage', sql.NVarChar(50), req.body.stage || 'In Discussion')
-  .input('DocCvStatus', sql.NVarChar(20), req.body.docCvStatus || 'Pending')
-  .input('DocIdStatus', sql.NVarChar(20), req.body.docIdStatus || 'Pending')
-  .input('DocPaySlipsStatus', sql.Int, req.body.docPaySlipsStatus || 0)
-  .input('DocCertsStatus', sql.NVarChar(20), req.body.docCertsStatus || 'Pending')
-  .input('DocDegreesStatus', sql.NVarChar(20), req.body.docDegreesStatus || 'Pending')
-  .query(`
-    INSERT INTO dbo.Applications 
-      (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage, 
-       DocCvStatus, DocIdStatus, DocPaySlipsStatus, DocCertsStatus, DocDegreesStatus)
-    VALUES 
-      (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage, 
-       @DocCvStatus, @DocIdStatus, @DocPaySlipsStatus, @DocCertsStatus, @DocDegreesStatus);
-  `);
+          const appReq = new sql.Request(transaction);
+          await appReq
+            .input('RecruitID', sql.Int, newRecruitId)
+            .input('RoleID', sql.Int, validRoleId)
+            .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
+            .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
+            .input('DateSourced', sql.Date, validDate)
+            .input('LifecycleStage', sql.NVarChar(50), body.stage || body.lifecycleStage || 'In Discussion')
+            .input('DocCvStatus', sql.NVarChar(20), body.docCvStatus || 'Pending')
+            .input('DocIdStatus', sql.NVarChar(20), body.docIdStatus || 'Pending')
+            .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus || 0)
+            .input('DocCertsStatus', sql.NVarChar(20), body.docCertsStatus || 'Pending')
+            .input('DocDegreesStatus', sql.NVarChar(20), body.docDegreesStatus || 'Pending')
+            .query(`
+              INSERT INTO dbo.Applications 
+                (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage, 
+                 DocCvStatus, DocIdStatus, DocPaySlipsStatus, DocCertsStatus, DocDegreesStatus)
+              VALUES 
+                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage, 
+                 @DocCvStatus, @DocIdStatus, @DocPaySlipsStatus, @DocCertsStatus, @DocDegreesStatus);
+            `);
         }
 
         await transaction.commit();
