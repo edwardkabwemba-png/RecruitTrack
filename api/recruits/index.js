@@ -56,7 +56,6 @@ module.exports = async function (context, req) {
     // POST REQUEST
     // ==========================================
     if (req.method === 'POST') {
-      // 1. Parse body safely whether passed as an Object or JSON String
       let body = req.body || {};
       if (typeof body === 'string') {
         try {
@@ -72,6 +71,7 @@ module.exports = async function (context, req) {
         recruiterId, dateSourced, firstName, surname, sourceId,
         countryOfResidence, currentRate, expectedRate,
         email, phone, idType, idNumber, roleId, documentUrl,
+        seniorityLevel, totalYearsExperience,
         skills, certifications, otherSkills
       } = body;
 
@@ -90,7 +90,10 @@ module.exports = async function (context, req) {
         const parsedRoleId = parseInt(roleId, 10);
         const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
 
-        // 2. Insert Candidate into dbo.Recruits (including DocumentUrl, Skills, Certifications, and OtherSkills)
+        // Parse experience numeric value safely
+        const parsedExp = totalYearsExperience && !isNaN(parseFloat(totalYearsExperience)) ? parseFloat(totalYearsExperience) : null;
+
+        // Insert Candidate into dbo.Recruits
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
           .input('FirstName', sql.NVarChar(100), firstName)
@@ -98,6 +101,8 @@ module.exports = async function (context, req) {
           .input('Email', sql.NVarChar(150), email)
           .input('Phone', sql.NVarChar(50), phone || null)
           .input('CountryOfResidency', sql.NVarChar(100), countryOfResidence || 'South Africa')
+          .input('SeniorityLevel', sql.NVarChar(50), seniorityLevel || null)
+          .input('TotalYearsExperience', sql.Decimal(4, 1), parsedExp)
           .input('IdType', sql.NVarChar(50), idType || null)
           .input('IdNumber', sql.NVarChar(100), idNumber || null)
           .input('CurrentRate', sql.Decimal(18, 2), currentRate && !isNaN(currentRate) ? parseFloat(currentRate) : null)
@@ -111,15 +116,15 @@ module.exports = async function (context, req) {
           .input('OtherSkills', sql.NVarChar(sql.MAX), otherSkills || null)
           .query(`
             INSERT INTO dbo.Recruits 
-              (FirstName, Surname, Email, Phone, CountryOfResidency, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, DocumentUrl, CreatedDate, Skills, Certifications, OtherSkills)
+              (FirstName, Surname, Email, Phone, CountryOfResidency, SeniorityLevel, TotalYearsExperience, IdType, IdNumber, CurrentRate, ExpectedRate, NoticePeriod, RoleID, DocumentUrl, CreatedDate, Skills, Certifications, OtherSkills)
             OUTPUT INSERTED.RecruitID
             VALUES 
-              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @DocumentUrl, @CreatedDate, @Skills, @Certifications, @OtherSkills);
+              (@FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @SeniorityLevel, @TotalYearsExperience, @IdType, @IdNumber, @CurrentRate, @ExpectedRate, @NoticePeriod, @RoleID, @DocumentUrl, @CreatedDate, @Skills, @Certifications, @OtherSkills);
           `);
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // 3. Link Candidate to Role inside dbo.Applications
+        // Link Candidate to Role inside dbo.Applications
         if (validRoleId) {
           const parsedRecruiterId = parseInt(recruiterId, 10);
           const parsedSourceId = parseInt(sourceId, 10);
