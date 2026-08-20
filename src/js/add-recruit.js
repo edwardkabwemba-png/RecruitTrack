@@ -245,6 +245,7 @@ try {
       phone: document.getElementById('phone')?.value?.trim() || null,
       idType: document.getElementById('idType')?.value || null,
       idNumber: document.getElementById('idNumber')?.value?.trim() || null,
+      stage: STAGES[currentStageIndex],
       documentUrl: folderUrl
     };
 

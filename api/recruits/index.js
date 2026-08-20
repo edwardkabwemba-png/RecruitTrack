@@ -125,20 +125,22 @@ module.exports = async function (context, req) {
             validDate = new Date(dateSourced);
           }
 
-          const appReq = new sql.Request(transaction);
-          await appReq
-            .input('RecruitID', sql.Int, newRecruitId)
-            .input('RoleID', sql.Int, validRoleId)
-            .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
-            .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
-            .input('DateSourced', sql.Date, validDate)
-            .input('LifecycleStage', sql.NVarChar(50), 'In Discussion')
-            .query(`
-              INSERT INTO dbo.Applications 
-                (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage)
-              VALUES 
-                (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage);
-            `);
+         const lifecycleStage = req.body.stage || req.body.lifecycleStage || 'In Discussion';
+
+const appReq = new sql.Request(transaction);
+await appReq
+  .input('RecruitID', sql.Int, newRecruitId)
+  .input('RoleID', sql.Int, validRoleId)
+  .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
+  .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
+  .input('DateSourced', sql.Date, validDate)
+  .input('LifecycleStage', sql.NVarChar(50), lifecycleStage)
+  .query(`
+    INSERT INTO dbo.Applications 
+      (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage)
+    VALUES 
+      (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage);
+  `);
         }
 
         await transaction.commit();
