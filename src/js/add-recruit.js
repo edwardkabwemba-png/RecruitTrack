@@ -92,27 +92,28 @@ function advanceStage(e) {
 
 // Fixed Stepper UI function to highlight selected stage dots dynamically
 function updateStageUI() {
-  // Grab all step containers/circles inside the recruitment lifecycle section
-  const lifecycleContainer = document.querySelector('.section-card:nth-of-type(4)') || document.body;
-  const stageItems = lifecycleContainer.querySelectorAll('.stage-node, .stage-step, .step, div > span, td'); 
+  // Target ONLY the circle elements
+  const stageNodes = document.querySelectorAll('.stage-node');
   const advanceBtn = getAdvanceBtn();
 
-  // Highlight blue active stage indicator
-  const allDots = document.querySelectorAll('.stage-node, [class*="node"], [class*="step"]');
-  allDots.forEach((dot, index) => {
-    if (index === currentStageIndex) {
-      dot.style.backgroundColor = '#0d6efd';
-      dot.style.borderColor = '#0d6efd';
-    } else if (index < currentStageIndex) {
-      dot.style.backgroundColor = '#198754';
-      dot.style.borderColor = '#198754';
+  stageNodes.forEach((node, index) => {
+    // Clear inline styles that broke layout
+    node.style.backgroundColor = '';
+    node.style.borderColor = '';
+
+    // Toggle clean CSS classes
+    node.classList.remove('completed', 'active', 'pending');
+
+    if (index < currentStageIndex) {
+      node.classList.add('completed');
+    } else if (index === currentStageIndex) {
+      node.classList.add('active');
     } else {
-      dot.style.backgroundColor = '#e9ecef';
-      dot.style.borderColor = '#ced4da';
+      node.classList.add('pending');
     }
   });
 
-  // Update button label
+  // Update button text cleanly
   if (advanceBtn) {
     if (currentStageIndex < STAGES.length - 1) {
       const nextStageName = STAGES[currentStageIndex + 1];

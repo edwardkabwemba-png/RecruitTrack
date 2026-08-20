@@ -403,19 +403,17 @@
     </div>
 
     <!-- Section D: Recruitment Lifecycle -->
-    <div class="section-card">
-      <h3>D. Recruitment Lifecycle</h3>
-      <div class="pipeline-tracker">
-        <div class="pipeline-step"><div class="circle"></div><br>Sourced</div>
-        <div class="pipeline-step active" id="step-2"><div class="circle"></div><br>In Discussion</div>
-        <div class="pipeline-step" id="step-3"><div class="circle"></div><br>Screened</div>
-        <div class="pipeline-step" id="step-4"><div class="circle"></div><br>CV Prepared</div>
-        <div class="pipeline-step" id="step-5"><div class="circle"></div><br>Interviewed</div>
-        <div class="pipeline-step" id="step-6"><div class="circle"></div><br>Offer Sent</div>
-        <div class="pipeline-step" id="step-7"><div class="circle"></div><br>Hired</div>
-      </div>
-      <button type="button" id="advanceStageBtn" class="btn btn-primary" onclick="advanceStage()">Advance to Screened</button>
-    </div>
+<div class="lifecycle-container">
+  <div class="lifecycle-item">
+    <div class="stage-node"></div>
+    <span class="stage-label">Sourced</span>
+  </div>
+  <div class="lifecycle-item">
+    <div class="stage-node"></div>
+    <span class="stage-label">In Discussion</span>
+  </div>
+  <!-- Repeat for Screened, CV Prepared, Interviewed, Offer Sent, Hired -->
+</div>
 
     <!-- Section E: Document Checklist -->
    <!-- Section E: Document Checklist -->
