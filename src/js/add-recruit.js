@@ -275,6 +275,65 @@ try {
   }
 }
 
-function advanceStage() {
-  alert('Stage advancement initialized.');
+// Array of stages in order
+const STAGES = [
+  'Sourced',
+  'In Discussion',
+  'Screened',
+  'CV Prepared',
+  'Interviewed',
+  'Offer Sent',
+  'Hired'
+];
+
+let currentStageIndex = 1; // Default: 'In Discussion'
+
+document.addEventListener('DOMContentLoaded', () => {
+  // ... your existing DOMContentLoaded code ...
+
+  // Attach Lifecycle Stage Advance Listener
+  const advanceBtn = document.getElementById('btnAdvanceStage'); // Or querySelector('.btn-advance-stage')
+  if (advanceBtn) {
+    advanceBtn.addEventListener('click', advanceStage);
+  }
+});
+
+function advanceStage(e) {
+  if (e) e.preventDefault();
+
+  if (currentStageIndex < STAGES.length - 1) {
+    currentStageIndex++;
+    updateStageUI();
+  } else {
+    alert('Candidate has reached the final stage (Hired)!');
+  }
+}
+
+function updateStageUI() {
+  const stageNodes = document.querySelectorAll('.stage-node'); // Select all step circle containers
+  const advanceBtn = document.getElementById('btnAdvanceStage');
+
+  stageNodes.forEach((node, index) => {
+    node.classList.remove('completed', 'active', 'pending');
+
+    if (index < currentStageIndex) {
+      node.classList.add('completed');
+    } else if (index === currentStageIndex) {
+      node.classList.add('active');
+    } else {
+      node.classList.add('pending');
+    }
+  });
+
+  // Update button label to show the next step name
+  if (advanceBtn) {
+    if (currentStageIndex < STAGES.length - 1) {
+      const nextStageName = STAGES[currentStageIndex + 1];
+      advanceBtn.textContent = `Advance to ${nextStageName}`;
+      advanceBtn.disabled = false;
+    } else {
+      advanceBtn.textContent = 'Candidate Hired';
+      advanceBtn.disabled = true;
+    }
+  }
 }
