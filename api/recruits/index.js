@@ -134,12 +134,19 @@ await appReq
   .input('RecruiterUserID', sql.Int, !isNaN(parsedRecruiterId) ? parsedRecruiterId : null)
   .input('SourceID', sql.Int, !isNaN(parsedSourceId) ? parsedSourceId : null)
   .input('DateSourced', sql.Date, validDate)
-  .input('LifecycleStage', sql.NVarChar(50), lifecycleStage)
+  .input('LifecycleStage', sql.NVarChar(50), req.body.stage || 'In Discussion')
+  .input('DocCvStatus', sql.NVarChar(20), req.body.docCvStatus || 'Pending')
+  .input('DocIdStatus', sql.NVarChar(20), req.body.docIdStatus || 'Pending')
+  .input('DocPaySlipsStatus', sql.Int, req.body.docPaySlipsStatus || 0)
+  .input('DocCertsStatus', sql.NVarChar(20), req.body.docCertsStatus || 'Pending')
+  .input('DocDegreesStatus', sql.NVarChar(20), req.body.docDegreesStatus || 'Pending')
   .query(`
     INSERT INTO dbo.Applications 
-      (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage)
+      (RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced, LifecycleStage, 
+       DocCvStatus, DocIdStatus, DocPaySlipsStatus, DocCertsStatus, DocDegreesStatus)
     VALUES 
-      (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage);
+      (@RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced, @LifecycleStage, 
+       @DocCvStatus, @DocIdStatus, @DocPaySlipsStatus, @DocCertsStatus, @DocDegreesStatus);
   `);
         }
 

@@ -230,7 +230,7 @@ try {
     const folderUrl = `https://${storageAccountName}.blob.core.windows.net/documents/${candidateFolderName}/`;
 
     // 3. Assemble payload
-    const payload = {
+const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
       roleId: roleSelect.value,
@@ -246,7 +246,12 @@ try {
       idType: document.getElementById('idType')?.value || null,
       idNumber: document.getElementById('idNumber')?.value?.trim() || null,
       stage: STAGES[currentStageIndex],
-      documentUrl: folderUrl
+      documentUrl: folderUrl,
+      docCvStatus: pendingFiles.CV.length > 0 ? 'Uploaded' : 'Pending',
+      docIdStatus: pendingFiles.ID_Visa.length > 0 ? 'Uploaded' : 'Pending',
+      docPaySlipsStatus: pendingFiles.PaySlips.length,
+      docCertsStatus: pendingFiles.Certifications.length > 0 ? 'Uploaded' : 'Pending',
+      docDegreesStatus: pendingFiles.Degrees.length > 0 ? 'Uploaded' : 'Pending'
     };
 
     // 3. Save Candidate in DB
@@ -276,7 +281,7 @@ try {
   }
 }
 
-// Array of stages in order
+// Array of stages in order matching SQL database schema
 const STAGES = [
   'Sourced',
   'In Discussion',
@@ -290,13 +295,48 @@ const STAGES = [
 let currentStageIndex = 1; // Default: 'In Discussion'
 
 document.addEventListener('DOMContentLoaded', () => {
-  // ... your existing DOMContentLoaded code ...
+  // 1. Fetch dropdown options on page load
+  loadDropdownData();
 
-  // Attach Lifecycle Stage Advance Listener
-  const advanceBtn = document.getElementById('btnAdvanceStage'); // Or querySelector('.btn-advance-stage')
+  // 2. Attach form submit event listener
+  const form = document.getElementById('addRecruitForm');
+  if (form) {
+    form.addEventListener('submit', handleCandidateSubmit);
+  }
+
+  // 3. Keep candidate title in sync with UI inputs
+  const firstNameInput = document.getElementById('firstName');
+  const surnameInput = document.getElementById('surname');
+  const displayTitle = document.getElementById('displayCandidateName');
+
+  function updateDisplayName() {
+    const fn = firstNameInput?.value.trim() || '';
+    const sn = surnameInput?.value.trim() || '';
+    displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'New Candidate';
+  }
+
+  firstNameInput?.addEventListener('input', updateDisplayName);
+  surnameInput?.addEventListener('input', updateDisplayName);
+
+  // 4. Attach Dynamic Tag Handlers for Skills and Certifications
+  setupTagDropdown('skillSelect', 'skillsContainer', 'Skill');
+  setupTagDropdown('certSelect', 'certsContainer', 'Cert');
+
+  // 5. Attach File Input Event Listeners for Partitioned Uploads
+  bindFileInput('fileCv', 'CV');
+  bindFileInput('fileId', 'ID_Visa');
+  bindFileInput('filePayslips', 'PaySlips');
+  bindFileInput('fileCerts', 'Certifications');
+  bindFileInput('fileDegree', 'Degrees');
+
+  // 6. Attach Lifecycle Stage Advance Listener
+  const advanceBtn = document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
   if (advanceBtn) {
     advanceBtn.addEventListener('click', advanceStage);
   }
+
+  // 7. Initialize Stepper UI
+  updateStageUI();
 });
 
 function advanceStage(e) {
@@ -311,8 +351,8 @@ function advanceStage(e) {
 }
 
 function updateStageUI() {
-  const stageNodes = document.querySelectorAll('.stage-node'); // Select all step circle containers
-  const advanceBtn = document.getElementById('btnAdvanceStage');
+  const stageNodes = document.querySelectorAll('.stage-node');
+  const advanceBtn = document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
 
   stageNodes.forEach((node, index) => {
     node.classList.remove('completed', 'active', 'pending');
