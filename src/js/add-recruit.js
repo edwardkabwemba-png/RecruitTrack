@@ -9,6 +9,19 @@ const pendingFiles = {
   Degrees: []
 };
 
+// Array of stages in order matching SQL database schema
+const STAGES = [
+  'Sourced',
+  'In Discussion',
+  'Screened',
+  'CV Prepared',
+  'Interviewed',
+  'Offer Sent',
+  'Hired'
+];
+
+let currentStageIndex = 1; // Default: 'In Discussion'
+
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Fetch dropdown options on page load
   loadDropdownData();
@@ -27,7 +40,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateDisplayName() {
     const fn = firstNameInput?.value.trim() || '';
     const sn = surnameInput?.value.trim() || '';
-    displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'New Candidate';
+    if (displayTitle) {
+      displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'New Candidate';
+    }
   }
 
   firstNameInput?.addEventListener('input', updateDisplayName);
@@ -40,11 +55,69 @@ document.addEventListener('DOMContentLoaded', () => {
   // 5. Attach File Input Event Listeners for Partitioned Uploads
   bindFileInput('fileCv', 'CV');
   bindFileInput('fileId', 'ID_Visa');
-  bindFileInput('filePayslips', 'PaySlips');     // Fixed ID: lowercase 's'
+  bindFileInput('filePayslips', 'PaySlips');
   bindFileInput('fileCerts', 'Certifications');
-  bindFileInput('fileDegree', 'Degrees');        // Fixed ID: singular 'Degree'
+  bindFileInput('fileDegree', 'Degrees');
 
+  // 6. Attach Lifecycle Stage Advance Listener
+  const advanceBtn = getAdvanceBtn();
+  if (advanceBtn) {
+    advanceBtn.addEventListener('click', advanceStage);
+  }
+
+  // 7. Initialize Stepper UI
+  updateStageUI();
 });
+
+// Helper to select the advance stage button across varying class/id conventions
+function getAdvanceBtn() {
+  return document.getElementById('btnAdvanceStage') || 
+         document.querySelector('.btn-advance-stage') || 
+         document.querySelector('button[onclick="advanceStage()"]') ||
+         Array.from(document.querySelectorAll('button')).find(btn => btn.textContent.toLowerCase().includes('advance'));
+}
+
+// Lifecycle Stepper Logic
+function advanceStage(e) {
+  if (e) e.preventDefault();
+
+  if (currentStageIndex < STAGES.length - 1) {
+    currentStageIndex++;
+    updateStageUI();
+  } else {
+    alert('Candidate has reached the final stage (Hired)!');
+  }
+}
+
+function updateStageUI() {
+  // Target dots/steps by node class or parent elements
+  const stageNodes = document.querySelectorAll('.stage-node, .stage-step, .lifecycle-step');
+  const advanceBtn = getAdvanceBtn();
+
+  stageNodes.forEach((node, index) => {
+    node.classList.remove('completed', 'active', 'pending');
+
+    if (index < currentStageIndex) {
+      node.classList.add('completed');
+    } else if (index === currentStageIndex) {
+      node.classList.add('active');
+    } else {
+      node.classList.add('pending');
+    }
+  });
+
+  // Update button label to reflect next step
+  if (advanceBtn) {
+    if (currentStageIndex < STAGES.length - 1) {
+      const nextStageName = STAGES[currentStageIndex + 1];
+      advanceBtn.textContent = `Advance to ${nextStageName}`;
+      advanceBtn.disabled = false;
+    } else {
+      advanceBtn.textContent = 'Candidate Hired';
+      advanceBtn.disabled = true;
+    }
+  }
+}
 
 // Helper to monitor file selections and update badge UI
 function bindFileInput(elementId, category) {
@@ -144,11 +217,9 @@ function setupTagDropdown(selectId, containerId, labelType) {
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
-  // 1. Read binary data and wrap in a Uint8Array view
   const buffer = await file.arrayBuffer();
   const uint8Data = new Uint8Array(buffer);
 
-  // 2. Fetch API call sending raw binary body
   const res = await fetch('/api/upload-document', {
     method: 'POST',
     headers: {
@@ -183,7 +254,6 @@ async function processAllDocumentUploads(candidateFolderName) {
       const folderPath = `${candidateFolderName}/${category}`;
       const fileUrl = await uploadSingleFile(file, folderPath);
 
-      // Save the primary CV URL to attach to the recruit database record
       if (category === 'CV' && !mainCvUrl) {
         mainCvUrl = fileUrl;
       }
@@ -220,7 +290,7 @@ async function handleCandidateSubmit(e) {
     saveBtn.textContent = 'Saving Candidate & Uploading Files...';
   }
 
-try {
+  try {
     // 1. Define candidate folder name and upload all pending files into partitioned folders
     const candidateFolderName = `${firstName}_${surname}`;
     await processAllDocumentUploads(candidateFolderName);
@@ -230,7 +300,7 @@ try {
     const folderUrl = `https://${storageAccountName}.blob.core.windows.net/documents/${candidateFolderName}/`;
 
     // 3. Assemble payload
-const payload = {
+    const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
       roleId: roleSelect.value,
@@ -254,7 +324,7 @@ const payload = {
       docDegreesStatus: pendingFiles.Degrees.length > 0 ? 'Uploaded' : 'Pending'
     };
 
-    // 3. Save Candidate in DB
+    // 4. Save Candidate in DB
     const res = await fetch('/api/recruits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -277,104 +347,6 @@ const payload = {
     if (saveBtn) {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Save Recruit';
-    }
-  }
-}
-
-// Array of stages in order matching SQL database schema
-const STAGES = [
-  'Sourced',
-  'In Discussion',
-  'Screened',
-  'CV Prepared',
-  'Interviewed',
-  'Offer Sent',
-  'Hired'
-];
-
-let currentStageIndex = 1; // Default: 'In Discussion'
-
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Fetch dropdown options on page load
-  loadDropdownData();
-
-  // 2. Attach form submit event listener
-  const form = document.getElementById('addRecruitForm');
-  if (form) {
-    form.addEventListener('submit', handleCandidateSubmit);
-  }
-
-  // 3. Keep candidate title in sync with UI inputs
-  const firstNameInput = document.getElementById('firstName');
-  const surnameInput = document.getElementById('surname');
-  const displayTitle = document.getElementById('displayCandidateName');
-
-  function updateDisplayName() {
-    const fn = firstNameInput?.value.trim() || '';
-    const sn = surnameInput?.value.trim() || '';
-    displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'New Candidate';
-  }
-
-  firstNameInput?.addEventListener('input', updateDisplayName);
-  surnameInput?.addEventListener('input', updateDisplayName);
-
-  // 4. Attach Dynamic Tag Handlers for Skills and Certifications
-  setupTagDropdown('skillSelect', 'skillsContainer', 'Skill');
-  setupTagDropdown('certSelect', 'certsContainer', 'Cert');
-
-  // 5. Attach File Input Event Listeners for Partitioned Uploads
-  bindFileInput('fileCv', 'CV');
-  bindFileInput('fileId', 'ID_Visa');
-  bindFileInput('filePayslips', 'PaySlips');
-  bindFileInput('fileCerts', 'Certifications');
-  bindFileInput('fileDegree', 'Degrees');
-
-  // 6. Attach Lifecycle Stage Advance Listener
-  const advanceBtn = document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
-  if (advanceBtn) {
-    advanceBtn.addEventListener('click', advanceStage);
-  }
-
-  // 7. Initialize Stepper UI
-  updateStageUI();
-});
-
-function advanceStage(e) {
-  if (e) e.preventDefault();
-
-  if (currentStageIndex < STAGES.length - 1) {
-    currentStageIndex++;
-    updateStageUI();
-  } else {
-    alert('Candidate has reached the final stage (Hired)!');
-  }
-}
-
-function updateStageUI() {
-  const stageNodes = document.querySelectorAll('.stage-node');
-  const advanceBtn = document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
-
-  stageNodes.forEach((node, index) => {
-    node.classList.remove('completed', 'active', 'pending');
-
-    if (index < currentStageIndex) {
-      node.classList.add('completed');
-    } else if (index === currentStageIndex) {
-      node.classList.add('active');
-    } else {
-      node.classList.add('pending');
-    }
-  });
-
-  // Update button label to show the next step name
-  if (advanceBtn) {
-    if (currentStageIndex < STAGES.length - 1) {
-      const nextStageName = STAGES[currentStageIndex + 1];
-      advanceBtn.textContent = `Advance to ${nextStageName}`;
-      advanceBtn.disabled = false;
-    } else {
-      advanceBtn.textContent = 'Candidate Hired';
-      advanceBtn.disabled = true;
     }
   }
 }
