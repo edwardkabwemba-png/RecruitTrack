@@ -12,26 +12,35 @@ module.exports = async function (context, req) {
     if (req.method === 'GET') {
       const { action } = req.query;
 
-      if (action === 'recent') {
-        const query = `
-          SELECT TOP 10 
-            r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate,
-            p.PositionTitle, c.ClientName, u.FullName AS RecruiterName,
-            s.SourceName, a.LifecycleStage, a.DateSourced
-          FROM dbo.Recruits r
-          LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
-          LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
-          LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
-          LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
-          LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
-          LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
-          ORDER BY r.RecruitID DESC;
-        `;
-        const result = await pool.request().query(query);
-        context.res.status = 200;
-        context.res.body = JSON.stringify(result.recordset || []);
-        return;
-      }
+      if (action === 'recent' || !action) {
+    const query = `
+      SELECT TOP 50 
+        r.RecruitID, 
+        r.FirstName, 
+        r.Surname, 
+        r.Email, 
+        r.Phone, 
+        r.CreatedDate,
+        p.PositionTitle, 
+        c.ClientName, 
+        u.FullName AS RecruiterName,
+        s.SourceName, 
+        ISNULL(a.LifecycleStage, 'Sourced') AS Stage, -- Fetches stage from database
+        a.DateSourced
+      FROM dbo.Recruits r
+      LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
+      LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
+      LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
+      LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
+      LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+      LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
+      ORDER BY r.RecruitID DESC;
+    `;
+    const result = await pool.request().query(query);
+    context.res.status = 200;
+    context.res.body = JSON.stringify(result.recordset || []);
+    return;
+  }
 
       if (action === 'dropdowns') {
         const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
