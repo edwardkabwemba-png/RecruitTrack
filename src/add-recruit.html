@@ -87,6 +87,70 @@
     .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
     .badge-pending { background-color: #fefcbf; color: #975a16; }
     .badge-received { background-color: #c6f6d5; color: #22543d; }
+
+    .lifecycle-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  position: relative;
+  margin: 30px 0 20px 0;
+  padding: 0 10px;
+}
+
+/* Connecting track behind the circles */
+.lifecycle-container::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 20px;
+  right: 20px;
+  height: 2px;
+  background-color: #e9ecef;
+  z-index: 1;
+}
+
+.lifecycle-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  text-align: center;
+}
+
+.stage-node {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 3px solid #ced4da;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Completed and active stage circle styling */
+.stage-node.completed,
+.stage-node.active {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+}
+
+.stage-node.active {
+  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
+}
+
+.stage-label {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.lifecycle-item:has(.stage-node.active) .stage-label,
+.lifecycle-item:has(.stage-node.completed) .stage-label {
+  color: #212529;
+  font-weight: 600;
+}
   </style>
 </head>
 <body>
@@ -402,17 +466,52 @@
       </div>
     </div>
 
-    <!-- Section D: Recruitment Lifecycle -->
-<div class="lifecycle-container">
-  <div class="lifecycle-item">
-    <div class="stage-node"></div>
-    <span class="stage-label">Sourced</span>
+<!-- Section D: Recruitment Lifecycle -->
+<div class="section-card">
+  <h3>D. Recruitment Lifecycle</h3>
+  
+  <div class="lifecycle-container">
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">Sourced</span>
+    </div>
+
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">In Discussion</span>
+    </div>
+
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">Screened</span>
+    </div>
+
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">CV Prepared</span>
+    </div>
+
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">Interviewed</span>
+    </div>
+
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">Offer Sent</span>
+    </div>
+
+    <div class="lifecycle-item">
+      <div class="stage-node"></div>
+      <span class="stage-label">Hired</span>
+    </div>
   </div>
-  <div class="lifecycle-item">
-    <div class="stage-node"></div>
-    <span class="stage-label">In Discussion</span>
+
+  <div style="margin-top: 20px;">
+    <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
+      Advance to Screened
+    </button>
   </div>
-  <!-- Repeat for Screened, CV Prepared, Interviewed, Offer Sent, Hired -->
 </div>
 
     <!-- Section E: Document Checklist -->
