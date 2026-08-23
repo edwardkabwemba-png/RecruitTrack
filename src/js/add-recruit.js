@@ -162,13 +162,24 @@ async function loadDropdownData() {
 
     const data = await res.json();
 
+    // Mapping key attributes to safely align with SQL column returns
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName', 'Select Recruiter...');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName', 'Select Source...');
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'Select a Role...');
-    populateSelect('skillSelect', data.skills, 'SkillID', 'SkillName', 'Select Skill...');
-    populateSelect('certSelect', data.certifications, 'CertID', 'CertName', 'Select Certification...');
+    
+    // Skills and Certs use SkillName and CertName as primary keys
+    populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName', 'Select Skill...');
+    populateSelect('certSelect', data.certifications, 'CertName', 'CertName', 'Select Certification...');
   } catch (err) {
     console.error('Error loading dropdowns:', err.message);
+    
+    // Fallback labels for UI feedback
+    ['recruiterSelect', 'sourceSelect', 'roleSelect', 'skillSelect', 'certSelect'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el && el.options.length <= 1) {
+        el.innerHTML = `<option value="">Failed to load options</option>`;
+      }
+    });
   }
 }
 
@@ -180,8 +191,11 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   if (Array.isArray(items)) {
     items.forEach(item => {
       const opt = document.createElement('option');
-      opt.value = item[valueKey];
-      opt.textContent = item[textKey];
+      const val = item[valueKey] !== undefined ? item[valueKey] : item['SkillID'] || item['CertID'];
+      const text = item[textKey] !== undefined ? item[textKey] : val;
+      
+      opt.value = val;
+      opt.textContent = text;
       select.appendChild(opt);
     });
   }
@@ -357,7 +371,7 @@ async function handleCandidateSubmit(e) {
     const certBadges = Array.from(document.querySelectorAll('#certsContainer .tag-badge'));
     const certsList = certBadges.map(b => b.dataset.text || b.textContent.replace('×', '').trim());
 
-const payload = {
+    const payload = {
       recruiterId: recruiterSelect.value,
       sourceId: sourceSelect.value,
       roleId: roleSelect.value,
