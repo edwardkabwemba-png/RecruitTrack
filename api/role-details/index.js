@@ -21,8 +21,50 @@ module.exports = async function (context, req) {
     return;
   }
 
+  // --- 1. HANDLE UPDATE (PUT) ---
+  if (req.method.toUpperCase() === 'PUT') {
+    const body = req.body || {};
+    
+    try {
+      const updateResult = await pool.request()
+        .input('RoleID', sql.Int, roleId)
+        .input('SeniorityLevel', sql.NVarChar(100), body.seniorityLevel || null)
+        .input('MinYearsExperience', sql.Int, body.minYearsExperience !== undefined ? body.minYearsExperience : null)
+        .input('MinEducation', sql.NVarChar(200), body.minEducation || null)
+        .input('WorkModel', sql.NVarChar(100), body.workModel || null)
+        .input('RateBudgetMin', sql.Decimal(18, 2), body.rateBudgetMin ? parseFloat(body.rateBudgetMin) : null)
+        .input('RateBudgetMax', sql.Decimal(18, 2), body.rateBudgetMax ? parseFloat(body.rateBudgetMax) : null)
+        .query(`
+          UPDATE dbo.Roles
+          SET 
+            SeniorityLevel = ISNULL(@SeniorityLevel, SeniorityLevel),
+            MinYearsExperience = ISNULL(@MinYearsExperience, MinYearsExperience),
+            MinEducation = ISNULL(@MinEducation, MinEducation),
+            WorkModel = ISNULL(@WorkModel, WorkModel),
+            RateBudgetMin = ISNULL(@RateBudgetMin, RateBudgetMin),
+            RateBudgetMax = ISNULL(@RateBudgetMax, RateBudgetMax)
+          WHERE RoleID = @RoleID;
+        `);
+
+      if (updateResult.rowsAffected[0] === 0) {
+        context.res.status = 404;
+        context.res.body = JSON.stringify({ message: "Role record not found to update." });
+        return;
+      }
+
+      context.res.status = 200;
+      context.res.body = JSON.stringify({ message: "Role updated successfully." });
+      return;
+    } catch (updateErr) {
+      context.log.error("Error updating role:", updateErr);
+      context.res.status = 500;
+      context.res.body = JSON.stringify({ message: "Database update failed", error: updateErr.message });
+      return;
+    }
+  }
+
+  // --- 2. HANDLE FETCH (GET) ---
   try {
-    // 1. Fetch Role Metadata
     const roleResult = await pool.request()
       .input('RoleID', sql.Int, roleId)
       .query(`
@@ -51,7 +93,7 @@ module.exports = async function (context, req) {
 
     const roleData = roleResult.recordset[0];
 
-    // 2. Fetch Recruiters Assigned to this Role
+    // Fetch Recruiters
     let recruiters = [];
     try {
       const recruitersResult = await pool.request()
@@ -67,7 +109,7 @@ module.exports = async function (context, req) {
       context.log.warn("Could not fetch recruiters:", recErr.message);
     }
 
-    // 3. Fetch Candidates on this Role
+    // Fetch Candidates
     let candidates = [];
     try {
       const candidatesResult = await pool.request()
