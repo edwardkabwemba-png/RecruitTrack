@@ -13,8 +13,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadRoleDetails(roleId) {
   try {
-    // Standard query string parameter for Azure Functions
-    const res = await fetch(`/api/role-details?id=${roleId}`);
+    // Restored path-based routing parameter matching Azure function.json
+    const res = await fetch(`/api/role-details/${roleId}`);
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     
     const data = await res.json();
@@ -80,7 +80,6 @@ function renderRoleDetails(role, recruiters) {
 }
 
 function renderCandidatesPipeline(candidates) {
-  // Target multiple possible container IDs used across wireframe versions
   const tbody = document.getElementById('candidatesTableBody') || document.querySelector('#candidatesTable tbody') || document.querySelector('tbody');
   const countHeader = document.getElementById('candidateCountHeader') || document.querySelector('.candidates-header h3');
   const metricsText = document.getElementById('pipelineMetricsText');
@@ -95,7 +94,6 @@ function renderCandidatesPipeline(candidates) {
     return;
   }
 
-  // Aggregate breakdown metrics
   const stageCounts = {};
   candidates.forEach(c => {
     const stageLabel = c.IsFailed ? `Not Successful` : c.Stage;
@@ -108,7 +106,6 @@ function renderCandidatesPipeline(candidates) {
       .join(' · ');
   }
 
-  // Render Table Rows
   tbody.innerHTML = candidates.map(c => {
     const stageName = c.IsFailed ? `Not Successful — ${c.Stage}` : c.Stage;
     const progressDisplay = c.IsFailed ? '—' : `${c.ProgressPercentage}%`;
