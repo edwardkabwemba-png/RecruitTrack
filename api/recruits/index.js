@@ -13,34 +13,35 @@ module.exports = async function (context, req) {
       const { action } = req.query;
 
       if (action === 'recent' || !action) {
-    const query = `
-      SELECT TOP 50 
-        r.RecruitID, 
-        r.FirstName, 
-        r.Surname, 
-        r.Email, 
-        r.Phone, 
-        r.CreatedDate,
-        p.PositionTitle, 
-        c.ClientName, 
-        u.FullName AS RecruiterName,
-        s.SourceName, 
-        ISNULL(a.LifecycleStage, 'Sourced') AS Stage, -- Fetches stage from database
-        a.DateSourced
-      FROM dbo.Recruits r
-      LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
-      LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
-      LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
-      LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
-      LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
-      LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
-      ORDER BY r.RecruitID DESC;
-    `;
-    const result = await pool.request().query(query);
-    context.res.status = 200;
-    context.res.body = JSON.stringify(result.recordset || []);
-    return;
-  }
+        const query = `
+          SELECT TOP 50 
+            r.RecruitID, 
+            r.FirstName, 
+            r.Surname, 
+            r.Email, 
+            r.Phone, 
+            r.CreatedDate,
+            a.ApplicationID,
+            p.PositionTitle, 
+            c.ClientName, 
+            u.FullName AS RecruiterName,
+            s.SourceName, 
+            ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
+            a.DateSourced
+          FROM dbo.Recruits r
+          LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
+          LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
+          LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
+          LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
+          LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+          LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
+          ORDER BY r.RecruitID DESC;
+        `;
+        const result = await pool.request().query(query);
+        context.res.status = 200;
+        context.res.body = JSON.stringify(result.recordset || []);
+        return;
+      }
 
       if (action === 'dropdowns') {
         const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
@@ -57,6 +58,109 @@ module.exports = async function (context, req) {
           skills: skills.recordset,
           certifications: certs.recordset
         });
+        return;
+      }
+    }
+
+    // ==========================================
+    // PUT REQUEST (UPDATE RECRUIT & DOCUMENTS)
+    // ==========================================
+    if (req.method === 'PUT') {
+      let body = req.body || {};
+      if (typeof body === 'string') {
+        try {
+          body = JSON.parse(body);
+        } catch (e) {
+          // Handled via body/multipart data
+        }
+      }
+
+      const recruitId = parseInt(context.bindingData.id || body.recruitId, 10);
+      const applicationId = parseInt(body.applicationId, 10);
+
+      if (isNaN(recruitId)) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ message: "Invalid Recruit ID." });
+        return;
+      }
+
+      const { firstName, surname, email, phoneNumber, phone } = body;
+      const contactPhone = phoneNumber || phone || null;
+
+      const transaction = new sql.Transaction(pool);
+      await transaction.begin();
+
+      try {
+        // Update Candidate Basic Details
+        const updateRecruitReq = new sql.Request(transaction);
+        await updateRecruitReq
+          .input('RecruitID', sql.Int, recruitId)
+          .input('FirstName', sql.NVarChar(100), firstName || null)
+          .input('Surname', sql.NVarChar(100), surname || null)
+          .input('Email', sql.NVarChar(150), email || null)
+          .input('Phone', sql.NVarChar(50), contactPhone)
+          .query(`
+            UPDATE dbo.Recruits
+            SET 
+              FirstName = ISNULL(@FirstName, FirstName),
+              Surname = ISNULL(@Surname, Surname),
+              Email = ISNULL(@Email, Email),
+              Phone = ISNULL(@Phone, Phone)
+            WHERE RecruitID = @RecruitID;
+          `);
+
+        // Check for attached file uploads and update document statuses in dbo.Applications
+        const hasMainCv = req.files && req.files.mainCv;
+        const hasDocId = req.files && req.files.docId;
+        const hasPayslips = req.files && req.files.payslips;
+        const hasCerts = req.files && req.files.certs;
+
+        if (hasMainCv || hasDocId || hasPayslips || hasCerts) {
+          const updateAppReq = new sql.Request(transaction);
+          updateAppReq.input('RecruitID', sql.Int, recruitId);
+
+          let setClauses = [];
+
+          if (hasMainCv) {
+            updateAppReq.input('DocCvStatus', sql.NVarChar(20), 'Uploaded');
+            setClauses.push('DocCvStatus = @DocCvStatus');
+          }
+          if (hasDocId) {
+            updateAppReq.input('DocIdStatus', sql.NVarChar(20), 'Uploaded');
+            setClauses.push('DocIdStatus = @DocIdStatus');
+          }
+          if (hasPayslips) {
+            updateAppReq.input('DocPaySlipsStatus', sql.Int, 1);
+            setClauses.push('DocPaySlipsStatus = @DocPaySlipsStatus');
+          }
+          if (hasCerts) {
+            updateAppReq.input('DocCertsStatus', sql.NVarChar(20), 'Uploaded');
+            setClauses.push('DocCertsStatus = @DocCertsStatus');
+          }
+
+          if (setClauses.length > 0) {
+            let appQuery = `UPDATE dbo.Applications SET ${setClauses.join(', ')} WHERE RecruitID = @RecruitID`;
+            if (!isNaN(applicationId)) {
+              updateAppReq.input('ApplicationID', sql.Int, applicationId);
+              appQuery += ` AND ApplicationID = @ApplicationID`;
+            }
+            await updateAppReq.query(appQuery);
+          }
+        }
+
+        await transaction.commit();
+
+        context.res.status = 200;
+        context.res.body = JSON.stringify({ message: "Recruit details updated successfully." });
+        return;
+
+      } catch (txError) {
+        if (transaction._aborted !== true) {
+          try { await transaction.rollback(); } catch (_) {}
+        }
+        context.log.error("Update Transaction Error:", txError.message);
+        context.res.status = 500;
+        context.res.body = JSON.stringify({ message: "Database update error", error: txError.message });
         return;
       }
     }
@@ -99,10 +203,8 @@ module.exports = async function (context, req) {
         const parsedRoleId = parseInt(roleId, 10);
         const validRoleId = !isNaN(parsedRoleId) ? parsedRoleId : null;
 
-        // Parse experience numeric value safely
         const parsedExp = totalYearsExperience && !isNaN(parseFloat(totalYearsExperience)) ? parseFloat(totalYearsExperience) : null;
 
-        // Insert Candidate into dbo.Recruits
         const recruitReq = new sql.Request(transaction);
         const recruitResult = await recruitReq
           .input('FirstName', sql.NVarChar(100), firstName)
@@ -133,7 +235,6 @@ module.exports = async function (context, req) {
 
         const newRecruitId = recruitResult.recordset[0].RecruitID;
 
-        // Link Candidate to Role inside dbo.Applications
         if (validRoleId) {
           const parsedRecruiterId = parseInt(recruiterId, 10);
           const parsedSourceId = parseInt(sourceId, 10);
