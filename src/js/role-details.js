@@ -1,3 +1,5 @@
+let currentRoleData = null;
+
 document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const roleId = urlParams.get('id');
@@ -9,6 +11,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   await loadRoleDetails(roleId);
+  setupModalEvents(roleId);
 });
 
 async function loadRoleDetails(roleId) {
@@ -19,6 +22,7 @@ async function loadRoleDetails(roleId) {
     
     const data = await res.json();
     const role = data.role;
+    currentRoleData = role; // Store globally for modal population
 
     if (!role) throw new Error('Role not found.');
 
@@ -168,7 +172,65 @@ function setupActionButtons(role) {
 
   if (editBtn) {
     editBtn.onclick = () => {
-      window.location.href = `edit-role.html?id=${roleId}`;
+      const modal = document.getElementById('editRoleModal');
+      if (modal) {
+        // Pre-fill modal values
+        if (currentRoleData) {
+          if (document.getElementById('editSeniority')) document.getElementById('editSeniority').value = currentRoleData.SeniorityLevel || '';
+          if (document.getElementById('editExperience')) document.getElementById('editExperience').value = currentRoleData.MinYearsExperience || 0;
+          if (document.getElementById('editEducation')) document.getElementById('editEducation').value = currentRoleData.MinEducation || '';
+          if (document.getElementById('editWorkModel')) document.getElementById('editWorkModel').value = currentRoleData.WorkModel || 'Hybrid';
+          if (document.getElementById('editRateMin')) document.getElementById('editRateMin').value = currentRoleData.RateBudgetMin || '';
+          if (document.getElementById('editRateMax')) document.getElementById('editRateMax').value = currentRoleData.RateBudgetMax || '';
+        }
+        modal.style.display = 'flex';
+      } else {
+        // Fallback to separate page if modal element is not present
+        window.location.href = `edit-role.html?id=${roleId}`;
+      }
+    };
+  }
+}
+
+function setupModalEvents(roleId) {
+  const modal = document.getElementById('editRoleModal');
+  const closeBtn = document.getElementById('closeEditModal');
+  const cancelBtn = document.getElementById('cancelEditBtn');
+  const form = document.getElementById('editRoleForm');
+
+  if (!modal) return;
+
+  const closeModal = () => { modal.style.display = 'none'; };
+  if (closeBtn) closeBtn.onclick = closeModal;
+  if (cancelBtn) cancelBtn.onclick = closeModal;
+
+  if (form) {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+
+      const payload = {
+        seniorityLevel: document.getElementById('editSeniority').value,
+        minYearsExperience: parseInt(document.getElementById('editExperience').value, 10),
+        minEducation: document.getElementById('editEducation').value,
+        workModel: document.getElementById('editWorkModel').value,
+        rateBudgetMin: parseFloat(document.getElementById('editRateMin').value) || null,
+        rateBudgetMax: parseFloat(document.getElementById('editRateMax').value) || null
+      };
+
+      try {
+        const res = await fetch(`/api/role-details/${roleId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) throw new Error('Failed to update role details.');
+
+        closeModal();
+        await loadRoleDetails(roleId);
+      } catch (err) {
+        alert(err.message);
+      }
     };
   }
 }
