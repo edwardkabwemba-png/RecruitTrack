@@ -8,37 +8,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Load Initial Role Details
+  // Load Initial Role Details and Candidate Pipeline
   await loadRoleDetails(roleId);
 });
 
 async function loadRoleDetails(roleId) {
   try {
-    const res = await fetch(`/api/roles?id=${roleId}`);
+    const res = await fetch(`/api/role-details/${roleId}`);
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     
     const data = await res.json();
-    const role = Array.isArray(data) ? data.find(r => r.RoleID == roleId) || data[0] : data;
+    const role = data.role;
 
     if (!role) throw new Error('Role not found.');
 
-    renderRoleDetails(role);
+    renderRoleDetails(role, data.recruiters);
     setupActionButtons(role);
+    renderCandidatesPipeline(data.candidates || []);
 
   } catch (err) {
     console.error('Error fetching role details:', err);
-    document.getElementById('role-title-text').innerText = 'Error Loading Role';
+    const titleElement = document.getElementById('role-title-text');
+    if (titleElement) titleElement.innerText = 'Error Loading Role';
   }
 }
 
-function renderRoleDetails(role) {
+function renderRoleDetails(role, recruiters) {
   const roleIdNum = role.RoleID || 0;
   const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
   const status = role.Status || 'Active';
 
   // Title and Header Tags
-  document.getElementById('role-title-text').innerText = role.PositionTitle || 'Role Details';
-  document.getElementById('role-id-tag').innerText = formattedId;
+  const titleElem = document.getElementById('role-title-text');
+  if (titleElem) titleElem.innerText = role.PositionTitle || 'Role Details';
+  
+  const idTag = document.getElementById('role-id-tag');
+  if (idTag) idTag.innerText = formattedId;
 
   // Status Badge
   const statusBadge = document.getElementById('role-status-badge');
@@ -48,36 +53,91 @@ function renderRoleDetails(role) {
   }
 
   // Job Details Grid
-  document.getElementById('val-position').innerText = role.PositionTitle || 'N/A';
-  document.getElementById('val-client').innerText = role.ClientName || 'N/A';
-  document.getElementById('val-seniority').innerText = role.SeniorityLevel || 'N/A';
-  document.getElementById('val-education').innerText = role.MinEducation || 'N/A';
-  document.getElementById('val-experience').innerText = role.MinYearsExperience ? `${role.MinYearsExperience} Years` : '0 Years';
-  document.getElementById('val-model').innerText = role.WorkModel || 'N/A';
+  if (document.getElementById('val-position')) document.getElementById('val-position').innerText = role.PositionTitle || 'N/A';
+  if (document.getElementById('val-client')) document.getElementById('val-client').innerText = role.ClientName || 'N/A';
+  if (document.getElementById('val-seniority')) document.getElementById('val-seniority').innerText = role.SeniorityLevel || 'N/A';
+  if (document.getElementById('val-education')) document.getElementById('val-education').innerText = role.MinEducation || 'N/A';
+  if (document.getElementById('val-experience')) document.getElementById('val-experience').innerText = role.MinYearsExperience ? `${role.MinYearsExperience} Years` : '0 Years';
+  if (document.getElementById('val-model')) document.getElementById('val-model').innerText = role.WorkModel || 'N/A';
 
-const rateMin = role.RateBudgetMin ? `R ${parseFloat(role.RateBudgetMin).toLocaleString()}` : 'N/A';
-const rateMax = role.RateBudgetMax ? `R ${parseFloat(role.RateBudgetMax).toLocaleString()}` : 'N/A';
-  document.getElementById('val-budget').innerText = `${rateMin} - ${rateMax}`;
+  const rateMin = role.RateBudgetMin ? `R ${parseFloat(role.RateBudgetMin).toLocaleString()}` : 'N/A';
+  const rateMax = role.RateBudgetMax ? `R ${parseFloat(role.RateBudgetMax).toLocaleString()}` : 'N/A';
+  if (document.getElementById('val-budget')) document.getElementById('val-budget').innerText = `${rateMin} - ${rateMax}`;
 
   // Skills & Certifications
-  document.getElementById('val-skills').innerText = role.RequiredSkills || 'None Specified';
-  document.getElementById('val-nice-skills').innerText = role.NiceToHaveSkills || 'None Specified';
-  document.getElementById('val-certs').innerText = role.RequiredCertifications || 'None Specified';
+  if (document.getElementById('val-skills')) document.getElementById('val-skills').innerText = role.RequiredSkills || 'None Specified';
+  if (document.getElementById('val-nice-skills')) document.getElementById('val-nice-skills').innerText = role.NiceToHaveSkills || 'None Specified';
+  if (document.getElementById('val-certs')) document.getElementById('val-certs').innerText = role.RequiredCertifications || 'None Specified';
 
   // Recruiters Tag Container
   const recruitersContainer = document.getElementById('recruiters-container');
   if (recruitersContainer) {
-    const initialsList = role.RecruiterInitials ? role.RecruiterInitials.split(',').filter(Boolean) : [];
-    
-    if (initialsList.length > 0) {
-      recruitersContainer.innerHTML = initialsList.map(init => `
+    if (recruiters && recruiters.length > 0) {
+      recruitersContainer.innerHTML = recruiters.map(u => `
         <span class="user-tag">
-          <strong>${init}</strong>
+          <strong>${u.AvatarInitials || u.FullName || 'NA'}</strong>
         </span>
       `).join('');
     } else {
       recruitersContainer.innerHTML = `<span style="font-size:0.8rem; color:#94a3b8;">No recruiters assigned</span>`;
     }
+  }
+}
+
+function renderCandidatesPipeline(candidates) {
+  const tbody = document.getElementById('candidatesTableBody');
+  const countHeader = document.getElementById('candidateCountHeader');
+  const metricsText = document.getElementById('pipelineMetricsText');
+
+  if (countHeader) countHeader.textContent = `Candidates on this Role (${candidates.length})`;
+
+  if (!tbody) return;
+
+  if (candidates.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #64748b; padding: 25px;">No candidates on this role yet.</td></tr>`;
+    if (metricsText) metricsText.textContent = '';
+    return;
+  }
+
+  // Aggregate breakdown metrics
+  const stageCounts = {};
+  candidates.forEach(c => {
+    const stageLabel = c.IsFailed ? `Not Successful` : c.Stage;
+    stageCounts[stageLabel] = (stageCounts[stageLabel] || 0) + 1;
+  });
+
+  if (metricsText) {
+    metricsText.textContent = Object.entries(stageCounts)
+      .map(([stage, count]) => `${count} ${stage}`)
+      .join(' · ');
+  }
+
+  // Render Table Rows
+  tbody.innerHTML = candidates.map(c => {
+    const stageName = c.IsFailed ? `Not Successful — ${c.Stage}` : c.Stage;
+    const progressDisplay = c.IsFailed ? '—' : `${c.ProgressPercentage}%`;
+    const badgeClass = getStageBadgeClass(c.Stage, c.IsFailed);
+
+    return `
+      <tr>
+        <td><strong>${c.CandidateName}</strong></td>
+        <td><span class="avatar-chip">${c.RecruiterInitials || 'NA'}</span></td>
+        <td><span class="badge ${badgeClass}">${stageName}</span></td>
+        <td>${progressDisplay}</td>
+        <td>${c.UploadedDocCount}/6</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function getStageBadgeClass(stage, isFailed) {
+  if (isFailed) return 'badge-rejected';
+  switch (stage) {
+    case 'Hired': return 'badge-hired';
+    case 'Interviewed': return 'badge-interviewed';
+    case 'CV Prepared': return 'badge-cv';
+    case 'Screened': return 'badge-screened';
+    default: return 'badge-discussion';
   }
 }
 
@@ -89,7 +149,6 @@ function setupActionButtons(role) {
   const freezeBtn = document.getElementById('btn-freeze');
   const closeBtn = document.getElementById('btn-close');
 
-  // Configure Freeze / Unfreeze Label
   if (freezeBtn) {
     freezeBtn.innerText = status === 'Frozen' ? 'Unfreeze' : 'Freeze';
     freezeBtn.onclick = () => {
@@ -98,7 +157,6 @@ function setupActionButtons(role) {
     };
   }
 
-  // Configure Close Button with Confirmation
   if (closeBtn) {
     if (status === 'Closed') {
       closeBtn.disabled = true;
@@ -115,7 +173,6 @@ function setupActionButtons(role) {
     }
   }
 
-  // Configure Edit Button
   if (editBtn) {
     editBtn.onclick = () => {
       window.location.href = `edit-role.html?id=${roleId}`;
@@ -140,7 +197,6 @@ async function executeRoleAction(action, roleId) {
       return;
     }
 
-    // Reload page details after successful action execution
     await loadRoleDetails(roleId);
 
   } catch (err) {

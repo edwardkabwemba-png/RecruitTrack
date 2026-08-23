@@ -3,7 +3,7 @@ const sql = require('mssql');
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
   
-  const roleId = parseInt(context.bindingData.id, 10);
+  const roleId = parseInt(context.bindingData.id || req.query.id, 10);
 
   if (isNaN(roleId)) {
     context.res.status = 400;
@@ -22,27 +22,25 @@ module.exports = async function (context, req) {
   }
 
   try {
-    // 1. Fetch Role using actual schema column names
+    // 1. Fetch Role Metadata
     const roleResult = await pool.request()
       .input('RoleID', sql.Int, roleId)
       .query(`
         SELECT 
-          r.RoleID,
-          r.Status,
-          r.SeniorityLevel,
-          r.MinEducation,
-          r.FieldOfStudy,
-          r.MinYearsExperience,
-          r.Location,
-          r.WorkModel,
-          r.RateBudgetMin,
-          r.RateBudgetMax,
-          p.PositionTitle,
+          ro.RoleID, 
+          ro.SeniorityLevel, 
+          ro.MinYearsExperience, 
+          ro.MinEducation,
+          ro.WorkModel, 
+          ro.RateBudgetMin, 
+          ro.RateBudgetMax, 
+          ro.Status,
+          p.PositionTitle, 
           c.ClientName
-        FROM dbo.Roles r
-        LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
-        LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
-        WHERE r.RoleID = @RoleID
+        FROM dbo.Roles ro
+        LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
+        LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
+        WHERE ro.RoleID = @RoleID
       `);
 
     if (roleResult.recordset.length === 0) {
@@ -53,38 +51,57 @@ module.exports = async function (context, req) {
 
     const roleData = roleResult.recordset[0];
 
-    // 2. Fetch Recruiters safely
+    // 2. Fetch Recruiters Assigned to this Role
     let recruiters = [];
     try {
       const recruitersResult = await pool.request()
         .input('RoleID', sql.Int, roleId)
         .query(`
-          SELECT u.UserID, u.FirstName, u.LastName
-          FROM dbo.RoleRecruiters rr
-          JOIN dbo.Users u ON rr.UserID = u.UserID
-          WHERE rr.RoleID = @RoleID
+          SELECT DISTINCT u.UserID, u.FullName, u.AvatarInitials
+          FROM dbo.Applications a
+          JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+          WHERE a.RoleID = @RoleID
         `);
       recruiters = recruitersResult.recordset;
     } catch (recErr) {
       context.log.warn("Could not fetch recruiters:", recErr.message);
     }
 
-    // 3. Fetch Candidates safely
+    // 3. Fetch Candidates on this Role
     let candidates = [];
     try {
       const candidatesResult = await pool.request()
         .input('RoleID', sql.Int, roleId)
         .query(`
           SELECT 
-            rc.RecruitID,
-            rc.CandidateName,
-            rc.RecruiterInitials,
-            rc.Stage,
-            rc.ProgressPercentage,
-            rc.DocumentsCount,
-            rc.TotalDocumentsRequired
-          FROM dbo.RoleCandidates rc
-          WHERE rc.RoleID = @RoleID
+            r.RecruitID,
+            CONCAT(r.FirstName, ' ', r.Surname) AS CandidateName,
+            u.AvatarInitials AS RecruiterInitials,
+            ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
+            a.IsFailed,
+            CASE 
+              WHEN a.IsFailed = 1 THEN 0
+              WHEN a.LifecycleStage = 'Sourced' THEN 14
+              WHEN a.LifecycleStage = 'In Discussion' THEN 28
+              WHEN a.LifecycleStage = 'Screened' THEN 43
+              WHEN a.LifecycleStage = 'CV Prepared' THEN 57
+              WHEN a.LifecycleStage = 'Interviewed' THEN 71
+              WHEN a.LifecycleStage = 'Offer Sent' THEN 85
+              WHEN a.LifecycleStage = 'Hired' THEN 100
+              ELSE 14
+            END AS ProgressPercentage,
+            (
+              (CASE WHEN r.DocumentUrl IS NOT NULL AND r.DocumentUrl <> '' THEN 1 ELSE 0 END) +
+              (CASE WHEN a.DocCvStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+              (CASE WHEN a.DocIdStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+              (CASE WHEN a.DocPaySlipsStatus > 0 THEN 1 ELSE 0 END) +
+              (CASE WHEN a.DocCertsStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+              (CASE WHEN a.DocDegreesStatus = 'Uploaded' THEN 1 ELSE 0 END)
+            ) AS UploadedDocCount
+          FROM dbo.Applications a
+          JOIN dbo.Recruits r ON a.RecruitID = r.RecruitID
+          LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+          WHERE a.RoleID = @RoleID
         `);
       candidates = candidatesResult.recordset;
     } catch (candErr) {
