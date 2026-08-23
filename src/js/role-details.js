@@ -93,7 +93,7 @@ function renderCandidatesPipeline(candidates) {
   if (!tbody) return;
 
   if (candidates.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #64748b; padding: 25px;">No candidates on this role yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #64748b; padding: 25px;">No candidates on this role yet.</td></tr>`;
     if (metricsText) metricsText.textContent = '';
     return;
   }
@@ -114,6 +114,12 @@ function renderCandidatesPipeline(candidates) {
     const stageName = c.IsFailed ? `Not Successful — ${c.Stage}` : c.Stage;
     const progressDisplay = c.IsFailed ? '—' : `${c.ProgressPercentage}%`;
     const badgeClass = getStageBadgeClass(c.Stage, c.IsFailed);
+    
+    // Fallback calculation if PendingDocCount is not calculated server-side
+    const pendingCount = c.PendingDocCount !== undefined ? c.PendingDocCount : (6 - (c.UploadedDocCount || 0));
+    const pendingBadgeStyle = pendingCount > 0 
+      ? 'background: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 12px; font-weight: 600;' 
+      : 'background: #dcfce7; color: #15803d; padding: 2px 8px; border-radius: 12px; font-weight: 600;';
 
     return `
       <tr>
@@ -122,6 +128,7 @@ function renderCandidatesPipeline(candidates) {
         <td><span class="badge ${badgeClass}">${stageName}</span></td>
         <td>${progressDisplay}</td>
         <td>${c.UploadedDocCount}/6</td>
+        <td><span style="${pendingBadgeStyle}">${pendingCount} Pending</span></td>
       </tr>
     `;
   }).join('');

@@ -115,35 +115,45 @@ module.exports = async function (context, req) {
       const candidatesResult = await pool.request()
         .input('RoleID', sql.Int, roleId)
         .query(`
-          SELECT 
-            r.RecruitID,
-            CONCAT(r.FirstName, ' ', r.Surname) AS CandidateName,
-            u.AvatarInitials AS RecruiterInitials,
-            ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
-            a.IsFailed,
-            CASE 
-              WHEN a.IsFailed = 1 THEN 0
-              WHEN a.LifecycleStage = 'Sourced' THEN 14
-              WHEN a.LifecycleStage = 'In Discussion' THEN 28
-              WHEN a.LifecycleStage = 'Screened' THEN 43
-              WHEN a.LifecycleStage = 'CV Prepared' THEN 57
-              WHEN a.LifecycleStage = 'Interviewed' THEN 71
-              WHEN a.LifecycleStage = 'Offer Sent' THEN 85
-              WHEN a.LifecycleStage = 'Hired' THEN 100
-              ELSE 14
-            END AS ProgressPercentage,
-            (
-              (CASE WHEN r.DocumentUrl IS NOT NULL AND r.DocumentUrl <> '' THEN 1 ELSE 0 END) +
-              (CASE WHEN a.DocCvStatus = 'Uploaded' THEN 1 ELSE 0 END) +
-              (CASE WHEN a.DocIdStatus = 'Uploaded' THEN 1 ELSE 0 END) +
-              (CASE WHEN a.DocPaySlipsStatus > 0 THEN 1 ELSE 0 END) +
-              (CASE WHEN a.DocCertsStatus = 'Uploaded' THEN 1 ELSE 0 END) +
-              (CASE WHEN a.DocDegreesStatus = 'Uploaded' THEN 1 ELSE 0 END)
-            ) AS UploadedDocCount
-          FROM dbo.Applications a
-          JOIN dbo.Recruits r ON a.RecruitID = r.RecruitID
-          LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
-          WHERE a.RoleID = @RoleID
+SELECT 
+  r.RecruitID,
+  CONCAT(r.FirstName, ' ', r.Surname) AS CandidateName,
+  u.AvatarInitials AS RecruiterInitials,
+  ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
+  a.IsFailed,
+  CASE 
+    WHEN a.IsFailed = 1 THEN 0
+    WHEN a.LifecycleStage = 'Sourced' THEN 14
+    WHEN a.LifecycleStage = 'In Discussion' THEN 28
+    WHEN a.LifecycleStage = 'Screened' THEN 43
+    WHEN a.LifecycleStage = 'CV Prepared' THEN 57
+    WHEN a.LifecycleStage = 'Interviewed' THEN 71
+    WHEN a.LifecycleStage = 'Offer Sent' THEN 85
+    WHEN a.LifecycleStage = 'Hired' THEN 100
+    ELSE 14
+  END AS ProgressPercentage,
+  (
+    (CASE WHEN r.DocumentUrl IS NOT NULL AND r.DocumentUrl <> '' THEN 1 ELSE 0 END) +
+    (CASE WHEN a.DocCvStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+    (CASE WHEN a.DocIdStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+    (CASE WHEN a.DocPaySlipsStatus > 0 THEN 1 ELSE 0 END) +
+    (CASE WHEN a.DocCertsStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+    (CASE WHEN a.DocDegreesStatus = 'Uploaded' THEN 1 ELSE 0 END)
+  ) AS UploadedDocCount,
+  (
+    6 - (
+      (CASE WHEN r.DocumentUrl IS NOT NULL AND r.DocumentUrl <> '' THEN 1 ELSE 0 END) +
+      (CASE WHEN a.DocCvStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+      (CASE WHEN a.DocIdStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+      (CASE WHEN a.DocPaySlipsStatus > 0 THEN 1 ELSE 0 END) +
+      (CASE WHEN a.DocCertsStatus = 'Uploaded' THEN 1 ELSE 0 END) +
+      (CASE WHEN a.DocDegreesStatus = 'Uploaded' THEN 1 ELSE 0 END)
+    )
+  ) AS PendingDocCount
+FROM dbo.Applications a
+JOIN dbo.Recruits r ON a.RecruitID = r.RecruitID
+LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+WHERE a.RoleID = @RoleID
         `);
       candidates = candidatesResult.recordset;
     } catch (candErr) {
