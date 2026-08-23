@@ -8,13 +8,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
-  // Load Initial Role Details and Candidate Pipeline
   await loadRoleDetails(roleId);
 });
 
 async function loadRoleDetails(roleId) {
   try {
-    const res = await fetch(`/api/role-details/${roleId}`);
+    // Standard query string parameter for Azure Functions
+    const res = await fetch(`/api/role-details?id=${roleId}`);
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     
     const data = await res.json();
@@ -38,21 +38,18 @@ function renderRoleDetails(role, recruiters) {
   const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
   const status = role.Status || 'Active';
 
-  // Title and Header Tags
   const titleElem = document.getElementById('role-title-text');
   if (titleElem) titleElem.innerText = role.PositionTitle || 'Role Details';
   
   const idTag = document.getElementById('role-id-tag');
   if (idTag) idTag.innerText = formattedId;
 
-  // Status Badge
   const statusBadge = document.getElementById('role-status-badge');
   if (statusBadge) {
     statusBadge.innerText = status.toUpperCase();
     statusBadge.className = `status-badge badge-${status.toLowerCase()}`;
   }
 
-  // Job Details Grid
   if (document.getElementById('val-position')) document.getElementById('val-position').innerText = role.PositionTitle || 'N/A';
   if (document.getElementById('val-client')) document.getElementById('val-client').innerText = role.ClientName || 'N/A';
   if (document.getElementById('val-seniority')) document.getElementById('val-seniority').innerText = role.SeniorityLevel || 'N/A';
@@ -64,12 +61,10 @@ function renderRoleDetails(role, recruiters) {
   const rateMax = role.RateBudgetMax ? `R ${parseFloat(role.RateBudgetMax).toLocaleString()}` : 'N/A';
   if (document.getElementById('val-budget')) document.getElementById('val-budget').innerText = `${rateMin} - ${rateMax}`;
 
-  // Skills & Certifications
   if (document.getElementById('val-skills')) document.getElementById('val-skills').innerText = role.RequiredSkills || 'None Specified';
   if (document.getElementById('val-nice-skills')) document.getElementById('val-nice-skills').innerText = role.NiceToHaveSkills || 'None Specified';
   if (document.getElementById('val-certs')) document.getElementById('val-certs').innerText = role.RequiredCertifications || 'None Specified';
 
-  // Recruiters Tag Container
   const recruitersContainer = document.getElementById('recruiters-container');
   if (recruitersContainer) {
     if (recruiters && recruiters.length > 0) {
@@ -85,8 +80,9 @@ function renderRoleDetails(role, recruiters) {
 }
 
 function renderCandidatesPipeline(candidates) {
-  const tbody = document.getElementById('candidatesTableBody');
-  const countHeader = document.getElementById('candidateCountHeader');
+  // Target multiple possible container IDs used across wireframe versions
+  const tbody = document.getElementById('candidatesTableBody') || document.querySelector('#candidatesTable tbody') || document.querySelector('tbody');
+  const countHeader = document.getElementById('candidateCountHeader') || document.querySelector('.candidates-header h3');
   const metricsText = document.getElementById('pipelineMetricsText');
 
   if (countHeader) countHeader.textContent = `Candidates on this Role (${candidates.length})`;
