@@ -120,18 +120,53 @@
       <div class="grid-2">
         <div class="form-group">
           <label>Seniority Level Required <span class="req">*</span></label>
-          <input type="text" id="seniority" required placeholder="e.g. Mid–Senior">
+          <select id="seniority" required>
+            <option value="">— Select Seniority Level —</option>
+            <option value="Intern / Graduate">Intern / Graduate</option>
+            <option value="Junior">Junior</option>
+            <option value="Mid-Level">Mid-Level</option>
+            <option value="Senior">Senior</option>
+            <option value="Lead / Principal">Lead / Principal</option>
+            <option value="Architect">Architect</option>
+            <option value="Manager / Head of">Manager / Head of</option>
+            <option value="Director / Executive">Director / Executive</option>
+          </select>
         </div>
         <div class="form-group">
-          <label>Minimum Education Level <span class="req">*</span></label>
-          <input type="text" id="education" required placeholder="e.g. Bachelor's">
+          <label>Education Level <span class="req">*</span></label>
+          <select id="education" required>
+            <option value="">— Select Education Level —</option>
+            <option value="Matric / High School">Matric / High School</option>
+            <option value="Higher Certificate">Higher Certificate</option>
+            <option value="Diploma / National Diploma">Diploma / National Diploma</option>
+            <option value="Advanced Diploma">Advanced Diploma</option>
+            <option value="Bachelor's Degree">Bachelor's Degree</option>
+            <option value="Honours Degree">Honours Degree</option>
+            <option value="Master's Degree">Master's Degree</option>
+            <option value="MBA">MBA</option>
+            <option value="Doctorate / PhD">Doctorate / PhD</option>
+          </select>
         </div>
       </div>
 
       <div class="grid-2">
         <div class="form-group">
           <label>Field of Study</label>
-          <input type="text" id="fieldOfStudy" placeholder="e.g. Information Systems">
+          <select id="fieldOfStudy">
+            <option value="">— Select IT Field of Study —</option>
+            <option value="Computer Science">Computer Science</option>
+            <option value="Information Technology">Information Technology</option>
+            <option value="Information Systems / IS">Information Systems / IS</option>
+            <option value="Software Engineering">Software Engineering</option>
+            <option value="Data Science / Analytics">Data Science / Analytics</option>
+            <option value="Cyber Security / Information Security">Cyber Security / Information Security</option>
+
+            <option value="Cloud Computing / Systems Architecture">Cloud Computing / Systems Architecture</option>
+
+            <option value="Artificial Intelligence / Machine Learning">Artificial Intelligence / Machine Learning</option>
+            <option value="Computer Engineering">Computer Engineering</option>
+
+          </select>
         </div>
         <div class="form-group">
           <label>Minimum Years of Experience <span class="req">*</span></label>
@@ -142,7 +177,26 @@
       <div class="grid-2">
         <div class="form-group">
           <label>Location / Client Site</label>
-          <input type="text" id="location" placeholder="e.g. Johannesburg, GP">
+          <select id="location">
+            <option value="">— Select City / Location —</option>
+            <option value="Johannesburg, GP">Johannesburg, GP</option>
+            <option value="Pretoria, GP">Pretoria, GP</option>
+            <option value="Centurion, GP">Centurion, GP</option>
+
+            <option value="Cape Town, WC">Cape Town, WC</option>
+
+            <option value="Durban, KZN">Durban, KZN</option>
+            <option value="Umhlanga, KZN">Umhlanga, KZN</option>
+
+            <option value="Gqeberha (Port Elizabeth), EC">Gqeberha (Port Elizabeth), EC</option>
+            <option value="East London, EC">East London, EC</option>
+            <option value="Bloemfontein, FS">Bloemfontein, FS</option>
+            <option value="Polokwane, LP">Polokwane, LP</option>
+            <option value="Mbombela (Nelspruit), MP">Mbombela (Nelspruit), MP</option>
+            <option value="Kimberley, NC">Kimberley, NC</option>
+            <option value="Remote - South Africa">Remote - South Africa</option>
+            <option value="International / Overseas">International / Overseas</option>
+          </select>
         </div>
         <div class="form-group">
           <label>Work Model</label>
@@ -166,53 +220,53 @@
       </div>
 
       <!-- Recruiters Assigned -->
-<div class="form-group">
-  <label>Recruiters Assigned</label>
-  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-    <select id="recruitersDropdown" style="flex: 1;">
-      <option value="">— Select Recruiter / User from Database —</option>
-    </select>
-    <button type="button" class="btn-secondary" onclick="addSelectedRecruiter()">+ Add Recruiter</button>
-  </div>
-  <div class="tag-container" id="recruitersContainer"></div>
-</div>
+      <div class="form-group">
+        <label>Recruiters Assigned</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <select id="recruitersDropdown" style="flex: 1;">
+            <option value="">— Select Recruiter / User from Database —</option>
+          </select>
+          <button type="button" class="btn-secondary" onclick="addSelectedRecruiter()">+ Add Recruiter</button>
+        </div>
+        <div class="tag-container" id="recruitersContainer"></div>
+      </div>
 
       <!-- Required Skills -->
       <div class="form-group">
-  <label>Required Skills <span class="req">*</span> <span class="sub">— from shared Skills Library</span></label>
-  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-    <select id="skillsDropdown" style="flex: 1;">
-      <option value="">— Select Skill from Database —</option>
-    </select>
-    <input type="number" id="skillYearsInput" placeholder="Yrs exp" style="width: 100px;" min="1" max="30">
-    <button type="button" class="btn-secondary" onclick="addSelectedSkill('reqSkill')">+ Add Skill</button>
-  </div>
-  <div class="tag-container" id="reqSkillsContainer"></div>
-</div>
+        <label>Required Skills <span class="req">*</span> <span class="sub">— from shared Skills Library</span></label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <select id="skillsDropdown" style="flex: 1;">
+            <option value="">— Select Skill from Database —</option>
+          </select>
+          <input type="number" id="skillYearsInput" placeholder="Yrs exp" style="width: 100px;" min="1" max="30">
+          <button type="button" class="btn-secondary" onclick="addSelectedSkill('reqSkill')">+ Add Skill</button>
+        </div>
+        <div class="tag-container" id="reqSkillsContainer"></div>
+      </div>
 
       <!-- Nice to have Skills -->
-  <div class="form-group">
-  <label>Nice-to-have Skills</label>
-  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-    <select id="niceSkillsDropdown" style="flex: 1;">
-      <option value="">— Select Skill from Database —</option>
-    </select>
-    <button type="button" class="btn-secondary" onclick="addSelectedSkill('niceSkill')">+ Add Skill</button>
-  </div>
-  <div class="tag-container" id="niceSkillsContainer"></div>
-</div>
+      <div class="form-group">
+        <label>Nice-to-have Skills</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <select id="niceSkillsDropdown" style="flex: 1;">
+            <option value="">— Select Skill from Database —</option>
+          </select>
+          <button type="button" class="btn-secondary" onclick="addSelectedSkill('niceSkill')">+ Add Skill</button>
+        </div>
+        <div class="tag-container" id="niceSkillsContainer"></div>
+      </div>
 
       <!-- Required Certifications -->
-<div class="form-group">
-  <label>Required Certifications <span class="sub">— from shared Certifications Library</span></label>
-  <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-    <select id="certsDropdown" style="flex: 1;">
-      <option value="">— Select Certification from Database —</option>
-    </select>
-    <button type="button" class="btn-secondary" onclick="addSelectedCert()">+ Add Certification</button>
-  </div>
-  <div class="tag-container" id="certificationsContainer"></div>
-</div>
+      <div class="form-group">
+        <label>Required Certifications <span class="sub">— from shared Certifications Library</span></label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <select id="certsDropdown" style="flex: 1;">
+            <option value="">— Select Certification from Database —</option>
+          </select>
+          <button type="button" class="btn-secondary" onclick="addSelectedCert()">+ Add Certification</button>
+        </div>
+        <div class="tag-container" id="certificationsContainer"></div>
+      </div>
 
       <!-- Other Skills / Certifications -->
       <div class="form-group">
