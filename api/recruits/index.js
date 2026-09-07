@@ -74,7 +74,10 @@ module.exports = async function (context, req) {
         try { body = JSON.parse(body); } catch (e) {}
       }
 
-      const recruitId = parseInt(context.bindingData.id || body.recruitId, 10);
+      // Check query string (`?id=21`), route parameters, or request body for the Recruit ID
+      const rawId = req.query.id || (context.bindingData && context.bindingData.id) || body.recruitId;
+      const recruitId = parseInt(rawId, 10);
+
       if (isNaN(recruitId)) {
         context.res.status = 400;
         context.res.body = JSON.stringify({ message: "Invalid Recruit ID." });
@@ -100,10 +103,10 @@ module.exports = async function (context, req) {
           .input('IdNumber', sql.NVarChar(100), body.idNumber)
           .input('CurrentRate', sql.Decimal(18, 2), body.currentRate ? parseFloat(body.currentRate) : null)
           .input('ExpectedRate', sql.Decimal(18, 2), body.expectedRate ? parseFloat(body.expectedRate) : 0.00)
-          .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod)
-          .input('Skills', sql.NVarChar(sql.MAX), body.skills)
-          .input('Certifications', sql.NVarChar(sql.MAX), body.certifications)
-          .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills)
+          .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
+          .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
+          .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
+          .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
           .query(`
             UPDATE dbo.Recruits
             SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
