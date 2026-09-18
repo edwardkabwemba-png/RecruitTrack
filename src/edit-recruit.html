@@ -196,38 +196,58 @@
 </select>
     </div>
 
-   <div class="form-section">
-  <h3>Documents Uploaded</h3>
-  
-  <div class="doc-field">
-    <label for="fileCv">CV Document:</label>
-    <input type="file" id="fileCv" accept=".pdf,.doc,.docx" />
-    <span id="badgeCv" class="status-badge badge-pending">Pending</span>
-  </div>
+<!-- Documents Section -->
+<div class="form-card">
+  <h3 class="section-title">Candidate Documents</h3>
+  <div class="document-grid">
+    
+    <div class="doc-item">
+      <div class="doc-info">
+        <label for="fileCv">CV Document</label>
+        <span id="badgeCv" class="status-badge badge-pending">Pending</span>
+      </div>
+      <input type="file" id="fileCv" accept=".pdf,.doc,.docx" class="file-input" />
+    </div>
 
-  <div class="doc-field">
-    <label for="fileId">ID / Passport:</label>
-    <input type="file" id="fileId" accept=".pdf,.jpg,.png" />
-    <span id="badgeId" class="status-badge badge-pending">Pending</span>
-  </div>
+    <div class="doc-item">
+      <div class="doc-info">
+        <label for="fileId">ID / Passport</label>
+        <span id="badgeId" class="status-badge badge-pending">Pending</span>
+      </div>
+      <input type="file" id="fileId" accept=".pdf,.jpg,.png" class="file-input" />
+    </div>
 
-  <div class="doc-field">
-    <label for="filePayslips">Pay Slips:</label>
-    <input type="file" id="filePayslips" accept=".pdf" />
-    <span id="badgePayslips" class="status-badge badge-pending">Pending</span>
-  </div>
+    <div class="doc-item">
+      <div class="doc-info">
+        <label for="filePayslips">Pay Slips</label>
+        <span id="badgePayslips" class="status-badge badge-pending">Pending</span>
+      </div>
+      <input type="file" id="filePayslips" accept=".pdf" class="file-input" />
+    </div>
 
-  <div class="doc-field">
-    <label for="fileCerts">Certifications:</label>
-    <input type="file" id="fileCerts" accept=".pdf,.jpg,.png" />
-    <span id="badgeCerts" class="status-badge badge-pending">Pending</span>
-  </div>
+    <div class="doc-item">
+      <div class="doc-info">
+        <label for="fileCerts">Certifications</label>
+        <span id="badgeCerts" class="status-badge badge-pending">Pending</span>
+      </div>
+      <input type="file" id="fileCerts" accept=".pdf,.jpg,.png" class="file-input" />
+    </div>
 
-  <div class="doc-field">
-    <label for="fileDegree">Degrees / Qualifications:</label>
-    <input type="file" id="fileDegree" accept=".pdf,.jpg,.png" />
-    <span id="badgeDegree" class="status-badge badge-pending">Pending</span>
+    <div class="doc-item">
+      <div class="doc-info">
+        <label for="fileDegree">Degrees / Qualifications</label>
+        <span id="badgeDegree" class="status-badge badge-pending">Pending</span>
+      </div>
+      <input type="file" id="fileDegree" accept=".pdf,.jpg,.png" class="file-input" />
+    </div>
+
   </div>
+</div>
+
+<!-- Form Submit Action Bar -->
+<div class="form-actions">
+  <button type="button" class="btn btn-secondary" onclick="window.location.href='manage-recruits.html'">Cancel</button>
+  <button type="submit" id="btnUpdateCandidate" class="btn btn-primary">Update Candidate</button>
 </div>
 
   <script src="js/edit-recruit.js"></script>
