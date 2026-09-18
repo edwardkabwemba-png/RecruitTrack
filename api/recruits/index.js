@@ -117,7 +117,7 @@ module.exports = async function (context, req) {
             WHERE RecruitID = @RecruitID;
           `);
 
-        // 2. Update Application & Stage
+        // 2. Update Application, Stage & Document Statuses
         const appReq = new sql.Request(transaction);
         await appReq
           .input('RecruitID', sql.Int, recruitId)
@@ -126,10 +126,23 @@ module.exports = async function (context, req) {
           .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
           .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
           .input('LifecycleStage', sql.NVarChar(50), body.stage || 'Sourced')
+          .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
+          .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
+          .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus !== undefined ? parseInt(body.docPaySlipsStatus, 10) : 0)
+          .input('DocCertsStatus', sql.NVarChar(50), body.docCertsStatus || 'Pending')
+          .input('DocDegreesStatus', sql.NVarChar(50), body.docDegreesStatus || 'Pending')
           .query(`
             UPDATE dbo.Applications
-            SET RoleID = @RoleID, RecruiterUserID = @RecruiterUserID, SourceID = @SourceID,
-                DateSourced = @DateSourced, LifecycleStage = @LifecycleStage
+            SET RoleID = @RoleID, 
+                RecruiterUserID = @RecruiterUserID, 
+                SourceID = @SourceID,
+                DateSourced = @DateSourced, 
+                LifecycleStage = @LifecycleStage,
+                DocCvStatus = @DocCvStatus,
+                DocIdStatus = @DocIdStatus,
+                DocPaySlipsStatus = @DocPaySlipsStatus,
+                DocCertsStatus = @DocCertsStatus,
+                DocDegreesStatus = @DocDegreesStatus
             WHERE RecruitID = @RecruitID;
           `);
 
