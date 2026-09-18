@@ -6,9 +6,7 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
-    // ==========================================
-    // 1. GET REQUESTS
-    // ==========================================
+    // GET REQUESTS
     if (req.method === 'GET') {
       const { action, id } = req.query;
 
@@ -69,9 +67,7 @@ module.exports = async function (context, req) {
       }
     }
 
-    // ==========================================
-    // 2. POST & PUT REQUESTS (CREATE & UPDATE)
-    // ==========================================
+    // POST & PUT REQUESTS (CREATE & UPDATE)
     if (req.method === 'POST' || req.method === 'PUT') {
       let body = req.body || {};
       if (typeof body === 'string') {
@@ -80,8 +76,6 @@ module.exports = async function (context, req) {
 
       const rawId = req.query.id || (context.bindingData && context.bindingData.id) || body.recruitId;
       const recruitId = rawId ? parseInt(rawId, 10) : null;
-
-      // Extract lifecycle stage safely
       const targetStage = body.stage || body.lifecycleStage || 'Sourced';
 
       const transaction = new sql.Transaction(pool);
@@ -182,7 +176,7 @@ module.exports = async function (context, req) {
               WHERE RecruitID = @RecruitID;
             `);
 
-          // 2b. UPSERT APPLICATION (Guarantees LifecycleStage gets created if missing)
+          // 2b. UPSERT APPLICATION
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)

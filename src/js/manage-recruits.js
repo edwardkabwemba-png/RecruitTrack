@@ -49,9 +49,9 @@ async function fetchRecentRecruits() {
   }
 }
 
-// Convert numeric stages, string stages, or fallback gracefully
+// Convert numeric stages, string stages, or fallback to 'Sourced'
 function getStageLabel(stage) {
-  if (!stage) return 'Sourced'; // Fixed: Default to 'Sourced' instead of 'In Discussion'
+  if (!stage) return 'Sourced';
 
   const map = {
     1: 'Sourced',
