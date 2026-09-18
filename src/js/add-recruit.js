@@ -358,32 +358,40 @@ async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
   try {
-    const buffer = await file.arrayBuffer();
+    // Send standard FormData so backends (Express/Multer or Azure Functions) parse binary correctly
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folderPath', folderPath);
+
     const res = await fetch('/api/upload-document', {
       method: 'POST',
-      headers: {
-        'Content-Type': file.type || 'application/octet-stream',
-        'X-File-Name': encodeURIComponent(file.name),
-        'X-Folder-Path': encodeURIComponent(folderPath)
-      },
-      body: new Uint8Array(buffer)
+      body: formData // Fetch sets correct Multipart headers automatically
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`Upload failed for ${file.name}: ${res.statusText}`);
+      return null;
+    }
+    
     const data = await res.json().catch(() => ({}));
-    return data.fileUrl || null;
+    return data.fileUrl || true;
   } catch (e) {
-    console.warn("File upload skipped or endpoint missing:", e);
+    console.error("Upload error:", e);
     return null;
   }
 }
 
 async function processAllDocumentUploads(candidateFolderName) {
+  let uploadedCount = 0;
   for (const [category, files] of Object.entries(pendingFiles)) {
-    for (const file of files) {
-      await uploadSingleFile(file, `${candidateFolderName}/${category}`);
+    if (files && files.length > 0) {
+      for (const file of files) {
+        const fileUrl = await uploadSingleFile(file, `${candidateFolderName}/${category}`);
+        if (fileUrl) uploadedCount++;
+      }
     }
   }
+  return uploadedCount;
 }
 
 async function handleCandidateSubmit(e) {
