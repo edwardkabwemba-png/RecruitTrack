@@ -5,8 +5,12 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get", "post", "put"],
-      "route": "recruits"
+      "methods": [
+        "get",
+        "post",
+        "put"
+      ],
+      "route": "recruits/{id?}"
     },
     {
       "type": "http",
