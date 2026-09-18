@@ -20,6 +20,7 @@ const STAGES = [
 ];
 
 let currentStageIndex = 0;
+let existingDocStatuses = {};
 
 document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -64,7 +65,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindFileInput('fileCerts', 'badgeCerts', 'Certifications');
   bindFileInput('fileDegree', 'badgeDegree', 'Degrees');
 
-  // Add click handlers directly to stage nodes
   document.querySelectorAll('.stage-node').forEach((node, index) => {
     node.style.cursor = 'pointer';
     node.addEventListener('click', () => {
@@ -81,7 +81,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateStageUI();
 });
 
-// Helper for safe element selection
 function getElem(id) {
   return document.getElementById(id);
 }
@@ -161,8 +160,6 @@ function bindFileInput(elementId, badgeId, category) {
   });
 }
 
-let existingDocStatuses = {};
-
 async function loadExistingCandidateData(recruitId) {
   try {
     const res = await fetch(`/api/recruits?action=getOne&id=${recruitId}`);
@@ -171,7 +168,6 @@ async function loadExistingCandidateData(recruitId) {
     const data = await res.json();
     if (!data || !data.RecruitID) return;
 
-    // Preserve existing document statuses in memory
     existingDocStatuses = {
       docCvStatus: data.DocCvStatus || 'Pending',
       docIdStatus: data.DocIdStatus || 'Pending',
@@ -180,14 +176,12 @@ async function loadExistingCandidateData(recruitId) {
       docDegreesStatus: data.DocDegreesStatus || 'Pending'
     };
 
-    // Restore UI badges for previously uploaded documents
     if (data.DocCvStatus === 'Uploaded') updateBadgeUI('badgeCv', 'Received');
     if (data.DocIdStatus === 'Uploaded') updateBadgeUI('badgeId', 'Received');
     if (data.DocPaySlipsStatus > 0) updateBadgeUI('badgePayslips', `${data.DocPaySlipsStatus} Received`);
     if (data.DocCertsStatus === 'Uploaded') updateBadgeUI('badgeCerts', 'Received');
     if (data.DocDegreesStatus === 'Uploaded') updateBadgeUI('badgeDegree', 'Received');
 
-    // Standard text inputs
     setVal('firstName', data.FirstName);
     setVal('surname', data.Surname);
     setVal('email', data.Email);
@@ -202,41 +196,27 @@ async function loadExistingCandidateData(recruitId) {
     setVal('idNumber', data.IdNumber);
     setVal('noticePeriod', data.NoticePeriod);
 
-    // Numeric inputs (Rates)
     setVal('currentRate', data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '');
     setVal('expectedRate', data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '');
 
-    // Date Input Formatting
     const dateSourcedInput = getElem('dateSourced');
     if (dateSourcedInput && data.DateSourced) {
       dateSourcedInput.value = new Date(data.DateSourced).toISOString().split('T')[0];
     }
 
-    // Dropdowns
     setVal('recruiterSelect', data.RecruiterUserID);
     setVal('sourceSelect', data.SourceID);
     setVal('roleSelect', data.RoleID);
-
-    // Other Skills Text
     setVal('otherSkills', data.OtherSkills);
 
-    // Restore Skills Tags
-    if (data.Skills) {
-      restoreTagBadges('skillsContainer', data.Skills, true);
-    }
+    if (data.Skills) restoreTagBadges('skillsContainer', data.Skills, true);
+    if (data.Certifications) restoreTagBadges('certsContainer', data.Certifications, false);
 
-    // Restore Certifications Tags
-    if (data.Certifications) {
-      restoreTagBadges('certsContainer', data.Certifications, false);
-    }
-
-    // Set Header Display Name
     const displayTitle = getElem('displayCandidateName');
     if (displayTitle && (data.FirstName || data.Surname)) {
       displayTitle.textContent = `${data.FirstName || ''} ${data.Surname || ''}`.trim();
     }
 
-    // Set Lifecycle Stage in Stepper UI
     const stageName = data.Stage || data.LifecycleStage || 'Sourced';
     const stageIndex = STAGES.indexOf(stageName);
     if (stageIndex !== -1) {
@@ -249,7 +229,6 @@ async function loadExistingCandidateData(recruitId) {
   }
 }
 
-// Helper to set badge styles dynamically
 function updateBadgeUI(badgeId, text) {
   const badge = getElem(badgeId);
   if (badge) {
@@ -386,41 +365,36 @@ function setupTagDropdown(selectId, containerId) {
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
-  try {
-    // Send standard FormData so backends (Express/Multer or Azure Functions) parse binary correctly
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('folderPath', folderPath);
+  const buffer = await file.arrayBuffer();
 
-    const res = await fetch('/api/upload-document', {
-      method: 'POST',
-      body: formData // Fetch sets correct Multipart headers automatically
-    });
+  const res = await fetch('/api/upload-document', {
+    method: 'POST',
+    headers: {
+      'Content-Type': file.type || 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(file.name),
+      'X-Folder-Path': encodeURIComponent(folderPath)
+    },
+    body: new Uint8Array(buffer)
+  });
 
-    if (!res.ok) {
-      console.error(`Upload failed for ${file.name}: ${res.statusText}`);
-      return null;
-    }
-    
-    const data = await res.json().catch(() => ({}));
-    return data.fileUrl || true;
-  } catch (e) {
-    console.error("Upload error:", e);
-    return null;
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Upload failed for ${file.name} (${res.status}): ${errText || res.statusText}`);
   }
+
+  const data = await res.json().catch(() => ({}));
+  return data.fileUrl || true;
 }
 
 async function processAllDocumentUploads(candidateFolderName) {
-  let uploadedCount = 0;
   for (const [category, files] of Object.entries(pendingFiles)) {
     if (files && files.length > 0) {
       for (const file of files) {
-        const fileUrl = await uploadSingleFile(file, `${candidateFolderName}/${category}`);
-        if (fileUrl) uploadedCount++;
+        const folderPath = `${candidateFolderName}/${category}`;
+        await uploadSingleFile(file, folderPath);
       }
     }
   }
-  return uploadedCount;
 }
 
 async function handleCandidateSubmit(e) {
@@ -441,7 +415,7 @@ async function handleCandidateSubmit(e) {
   const saveBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('.btn-primary');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving Candidate...';
+    saveBtn.textContent = 'Uploading Documents & Saving...';
   }
 
   try {
@@ -474,11 +448,11 @@ async function handleCandidateSubmit(e) {
       idType: getElem('idType')?.value || null,
       idNumber: getElem('idNumber')?.value?.trim() || null,
       stage: STAGES[currentStageIndex],
-      docCvStatus: pendingFiles.CV.length > 0 ? 'Uploaded' : 'Pending',
-      docIdStatus: pendingFiles.ID_Visa.length > 0 ? 'Uploaded' : 'Pending',
-      docPaySlipsStatus: pendingFiles.PaySlips.length,
-      docCertsStatus: pendingFiles.Certifications.length > 0 ? 'Uploaded' : 'Pending',
-      docDegreesStatus: pendingFiles.Degrees.length > 0 ? 'Uploaded' : 'Pending'
+      docCvStatus: pendingFiles.CV.length > 0 ? 'Uploaded' : (existingDocStatuses.docCvStatus || 'Pending'),
+      docIdStatus: pendingFiles.ID_Visa.length > 0 ? 'Uploaded' : (existingDocStatuses.docIdStatus || 'Pending'),
+      docPaySlipsStatus: pendingFiles.PaySlips.length > 0 ? pendingFiles.PaySlips.length : (existingDocStatuses.docPaySlipsStatus || 0),
+      docCertsStatus: pendingFiles.Certifications.length > 0 ? 'Uploaded' : (existingDocStatuses.docCertsStatus || 'Pending'),
+      docDegreesStatus: pendingFiles.Degrees.length > 0 ? 'Uploaded' : (existingDocStatuses.docDegreesStatus || 'Pending')
     };
 
     const targetUrl = editingRecruitId ? `/api/recruits?id=${editingRecruitId}` : '/api/recruits';
