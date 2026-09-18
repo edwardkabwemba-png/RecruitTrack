@@ -27,14 +27,14 @@ async function fetchRecentRecruits() {
             ${r.Email || 'N/A'}<br>
             <small style="color: #64748b;">${r.Phone || r.PhoneNumber || ''}</small>
           </td>
-          <td>${r.PositionTitle ? `${r.PositionTitle} @ ${r.ClientName}` : 'Unassigned'}</td>
+          <td>${r.PositionTitle ? `${r.PositionTitle} @${r.ClientName}` : 'Unassigned'}</td>
           <td>${r.RecruiterName || 'Unassigned'}</td>
           <td>
             <span class="badge ${badgeClass}">${stageName}</span>
           </td>
           <td>${r.CreatedDate ? new Date(r.CreatedDate).toLocaleDateString() : 'N/A'}</td>
           <td>
-            <a href="edit-recruit.html?id=${r.RecruitID}" 
+            <a href="add-recruit.html?id=${r.RecruitID}" 
                style="padding: 5px 12px; background: #2b6cb0; color: #fff; text-decoration: none; border-radius: 4px; font-size: 0.8rem; font-weight: 600; display: inline-block;">
               Edit
             </a>
@@ -49,8 +49,10 @@ async function fetchRecentRecruits() {
   }
 }
 
-// Convert numeric stages or stage codes into human-readable labels
+// Convert numeric stages, string stages, or fallback gracefully
 function getStageLabel(stage) {
+  if (!stage) return 'Sourced'; // Fixed: Default to 'Sourced' instead of 'In Discussion'
+
   const map = {
     1: 'Sourced',
     2: 'In Discussion',
@@ -61,7 +63,7 @@ function getStageLabel(stage) {
     7: 'Hired'
   };
 
-  return map[stage] || stage || 'In Discussion';
+  return map[stage] || stage;
 }
 
 // Map lifecycle stage to matching CSS badge styles
@@ -74,6 +76,6 @@ function getStageBadgeClass(stageName) {
     case 'Interviewed': return 'badge-interviewed';
     case 'Offer Sent': return 'badge-offer';
     case 'Hired': return 'badge-hired';
-    default: return 'badge-discussion';
+    default: return 'badge-sourced';
   }
 }
