@@ -2,6 +2,15 @@ let selectedSkills = new Set();
 let selectedCerts = new Set();
 let currentStage = 'Sourced';
 
+// Document state tracking
+let docStates = {
+  DocCvStatus: 'Pending',
+  DocIdStatus: 'Pending',
+  DocPaySlipsStatus: 0,
+  DocCertsStatus: 'Pending',
+  DocDegreesStatus: 'Pending'
+};
+
 document.addEventListener("DOMContentLoaded", async () => {
   const urlParams = new URLSearchParams(window.location.search);
   const recruitId = urlParams.get('id');
@@ -12,11 +21,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  // FIXED: Await dropdown population BEFORE fetching/assigning recruit details
   await loadDropdowns();
   await loadRecruitDetails(recruitId);
   setupFormSubmit();
   setupTagHandlers();
   setupLifecycleClick();
+  setupDocumentHandlers();
 });
 
 async function loadDropdowns() {
@@ -26,7 +37,8 @@ async function loadDropdowns() {
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName');
-    populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle');
+    // FIXED: Support both PositionTitle and RoleTitle
+    populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'PositionTitle');
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName');
   } catch (err) {
@@ -34,11 +46,14 @@ async function loadDropdowns() {
   }
 }
 
-function populateSelect(elemId, items, valueKey, textKey) {
+function populateSelect(elemId, items, valueKey, primaryTextKey, secondaryTextKey) {
   const sel = document.getElementById(elemId);
   if (!sel || !items) return;
   sel.innerHTML = `<option value="">Select Option...</option>` + 
-    items.map(i => `<option value="${i[valueKey]}">${i[textKey]}</option>`).join('');
+    items.map(i => {
+      const label = i[primaryTextKey] || i[secondaryTextKey] || 'Option';
+      return `<option value="${i[valueKey]}">${label}</option>`;
+    }).join('');
 }
 
 // Helper function to clean raw JSON strings or comma lists into clean array items
@@ -79,6 +94,8 @@ async function loadRecruitDetails(id) {
     document.getElementById('phone').value = data.Phone || '';
     document.getElementById('idType').value = data.IdType || 'ID';
     document.getElementById('idNumber').value = data.IdNumber || '';
+    
+    // Role selection safely sets because options are preloaded
     document.getElementById('roleSelect').value = data.RoleID || '';
 
     if (document.getElementById('senioritySelect')) {
@@ -96,15 +113,23 @@ async function loadRecruitDetails(id) {
     cleanTagItems(data.Certifications).forEach(c => selectedCerts.add(c));
     renderTags('certsContainer', selectedCerts);
 
-    // Set Lifecycle Stage
-    setLifecycleStage(data.Stage || data.LifecycleStage || 'Sourced');
+    // FIXED: Stage detection prioritizing LifecycleStage & Stage
+    const stageVal = data.LifecycleStage || data.Stage || 'Sourced';
+    setLifecycleStage(stageVal);
+
+    // Save initial document states
+    docStates.DocCvStatus = data.DocCvStatus || 'Pending';
+    docStates.DocIdStatus = data.DocIdStatus || 'Pending';
+    docStates.DocPaySlipsStatus = data.DocPaySlipsStatus || 0;
+    docStates.DocCertsStatus = data.DocCertsStatus || 'Pending';
+    docStates.DocDegreesStatus = data.DocDegreesStatus || 'Pending';
 
     // Set Document Badges
-    updateDocBadge('badgeCv', data.DocCvStatus);
-    updateDocBadge('badgeId', data.DocIdStatus);
-    updateDocBadge('badgePayslips', data.DocPaySlipsStatus ? 'Received' : 'Pending');
-    updateDocBadge('badgeCerts', data.DocCertsStatus);
-    updateDocBadge('badgeDegree', data.DocDegreesStatus);
+    updateDocBadge('badgeCv', docStates.DocCvStatus);
+    updateDocBadge('badgeId', docStates.DocIdStatus);
+    updateDocBadge('badgePayslips', docStates.DocPaySlipsStatus);
+    updateDocBadge('badgeCerts', docStates.DocCertsStatus);
+    updateDocBadge('badgeDegree', docStates.DocDegreesStatus);
 
   } catch (err) {
     console.error("Failed to load recruit data:", err);
@@ -114,7 +139,7 @@ async function loadRecruitDetails(id) {
 function updateDocBadge(elemId, status) {
   const badge = document.getElementById(elemId);
   if (!badge) return;
-  if (status && (status === 'Received' || status === 'Uploaded' || status === 1 || status === '1')) {
+  if (status && (status === 'Received' || status === 'Uploaded' || status === 1 || status === '1' || status > 0)) {
     badge.className = 'status-badge badge-received';
     badge.textContent = 'Received';
   } else {
@@ -141,7 +166,32 @@ function setupLifecycleClick() {
   document.querySelectorAll('#lifecycleContainer .lifecycle-item').forEach(item => {
     item.addEventListener('click', () => {
       const stage = item.getAttribute('data-stage');
-      setLifecycleStage(stage);
+      if (stage) setLifecycleStage(stage);
+    });
+  });
+}
+
+function setupDocumentHandlers() {
+  // Enables file/checkbox document status toggles if present on form
+  const docMap = [
+    { inputId: 'fileCv', badgeId: 'badgeCv', key: 'DocCvStatus' },
+    { inputId: 'fileId', badgeId: 'badgeId', key: 'DocIdStatus' },
+    { inputId: 'filePayslips', badgeId: 'badgePayslips', key: 'DocPaySlipsStatus', isNum: true },
+    { inputId: 'fileCerts', badgeId: 'badgeCerts', key: 'DocCertsStatus' },
+    { inputId: 'fileDegree', badgeId: 'badgeDegree', key: 'DocDegreesStatus' }
+  ];
+
+  docMap.forEach(item => {
+    const el = document.getElementById(item.inputId);
+    if (!el) return;
+    el.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files.length > 0) {
+        docStates[item.key] = item.isNum ? 1 : 'Uploaded';
+        updateDocBadge(item.badgeId, docStates[item.key]);
+      } else if (e.target.type === 'checkbox') {
+        docStates[item.key] = e.target.checked ? (item.isNum ? 1 : 'Uploaded') : (item.isNum ? 0 : 'Pending');
+        updateDocBadge(item.badgeId, docStates[item.key]);
+      }
     });
   });
 }
@@ -217,11 +267,17 @@ function setupFormSubmit() {
       skills: Array.from(selectedSkills).join(', '),
       certifications: Array.from(selectedCerts).join(', '),
       otherSkills: document.getElementById('otherSkills').value,
-      stage: currentStage
+      stage: currentStage,
+      
+      // Included document status variables in update payload
+      docCvStatus: docStates.DocCvStatus,
+      docIdStatus: docStates.DocIdStatus,
+      docPaySlipsStatus: docStates.DocPaySlipsStatus,
+      docCertsStatus: docStates.DocCertsStatus,
+      docDegreesStatus: docStates.DocDegreesStatus
     };
 
     try {
-      // Fix: Call standard Azure Function endpoint pattern using query params instead of sub-route
       const res = await fetch(`/api/recruits?action=update&id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
