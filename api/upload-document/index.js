@@ -35,11 +35,15 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // 3. Azure Blob Upload Logic
-    const connectionString = process.env.AzureWebJobsStorage || process.env.BlobConnectionString;
-    if (!connectionString) {
-      throw new Error("Missing Azure Storage connection string setting.");
-    }
+// Change this line in upload-document/index.js:
+const connectionString = 
+  process.env.CUSTOM_STORAGE_CONNECTION_STRING || 
+  process.env.AzureWebJobsStorage || 
+  process.env.BlobConnectionString;
+
+if (!connectionString) {
+  throw new Error("Missing Azure Storage connection string setting.");
+}
 
     const containerName = process.env.BlobContainerName || 'recruit-documents';
     const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
