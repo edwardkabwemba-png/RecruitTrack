@@ -67,98 +67,160 @@ module.exports = async function (context, req) {
       }
     }
 
-    // PUT REQUEST (FULL CANDIDATE UPDATE)
-    if (req.method === 'PUT') {
+    // POST & PUT REQUESTS (CREATE & UPDATE CANDIDATE)
+    if (req.method === 'POST' || req.method === 'PUT') {
       let body = req.body || {};
       if (typeof body === 'string') {
         try { body = JSON.parse(body); } catch (e) {}
       }
 
-      // Check query string (`?id=21`), route parameters, or request body for the Recruit ID
       const rawId = req.query.id || (context.bindingData && context.bindingData.id) || body.recruitId;
-      const recruitId = parseInt(rawId, 10);
-
-      if (isNaN(recruitId)) {
-        context.res.status = 400;
-        context.res.body = JSON.stringify({ message: "Invalid Recruit ID." });
-        return;
-      }
+      const recruitId = rawId ? parseInt(rawId, 10) : null;
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
 
       try {
-        // 1. Update Candidate Master Data
-        const recruitReq = new sql.Request(transaction);
-        await recruitReq
-          .input('RecruitID', sql.Int, recruitId)
-          .input('FirstName', sql.NVarChar(100), body.firstName)
-          .input('Surname', sql.NVarChar(100), body.surname)
-          .input('Email', sql.NVarChar(150), body.email)
-          .input('Phone', sql.NVarChar(50), body.phone)
-          .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence)
-          .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel)
-          .input('TotalYearsExperience', sql.Decimal(4, 1), body.totalYearsExperience ? parseFloat(body.totalYearsExperience) : null)
-          .input('IdType', sql.NVarChar(50), body.idType)
-          .input('IdNumber', sql.NVarChar(100), body.idNumber)
-          .input('CurrentRate', sql.Decimal(18, 2), body.currentRate ? parseFloat(body.currentRate) : null)
-          .input('ExpectedRate', sql.Decimal(18, 2), body.expectedRate ? parseFloat(body.expectedRate) : 0.00)
-          .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
-          .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
-          .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
-          .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
-          .query(`
-            UPDATE dbo.Recruits
-            SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
-                CountryOfResidency = @CountryOfResidency, SeniorityLevel = @SeniorityLevel,
-                TotalYearsExperience = @TotalYearsExperience, IdType = @IdType, IdNumber = @IdNumber,
-                CurrentRate = @CurrentRate, ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
-                Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
-            WHERE RecruitID = @RecruitID;
-          `);
+        let activeRecruitId = recruitId;
 
-        // 2. Update Application, Stage & Document Statuses
-        const appReq = new sql.Request(transaction);
-        await appReq
-          .input('RecruitID', sql.Int, recruitId)
-          .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
-          .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
-          .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
-          .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
-          .input('LifecycleStage', sql.NVarChar(50), body.stage || 'Sourced')
-          .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
-          .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
-          .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus !== undefined ? parseInt(body.docPaySlipsStatus, 10) : 0)
-          .input('DocCertsStatus', sql.NVarChar(50), body.docCertsStatus || 'Pending')
-          .input('DocDegreesStatus', sql.NVarChar(50), body.docDegreesStatus || 'Pending')
-          .query(`
-            UPDATE dbo.Applications
-            SET RoleID = @RoleID, 
-                RecruiterUserID = @RecruiterUserID, 
-                SourceID = @SourceID,
-                DateSourced = @DateSourced, 
-                LifecycleStage = @LifecycleStage,
-                DocCvStatus = @DocCvStatus,
-                DocIdStatus = @DocIdStatus,
-                DocPaySlipsStatus = @DocPaySlipsStatus,
-                DocCertsStatus = @DocCertsStatus,
-                DocDegreesStatus = @DocDegreesStatus
-            WHERE RecruitID = @RecruitID;
-          `);
+        if (req.method === 'POST' || !activeRecruitId) {
+          // 1a. INSERT NEW RECRUIT
+          const recruitReq = new sql.Request(transaction);
+          const insertRecruitRes = await recruitReq
+            .input('FirstName', sql.NVarChar(100), body.firstName)
+            .input('Surname', sql.NVarChar(100), body.surname)
+            .input('Email', sql.NVarChar(150), body.email)
+            .input('Phone', sql.NVarChar(50), body.phone)
+            .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence)
+            .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel)
+            .input('TotalYearsExperience', sql.Decimal(4, 1), body.totalYearsExperience ? parseFloat(body.totalYearsExperience) : null)
+            .input('IdType', sql.NVarChar(50), body.idType)
+            .input('IdNumber', sql.NVarChar(100), body.idNumber)
+            .input('CurrentRate', sql.Decimal(18, 2), body.currentRate ? parseFloat(body.currentRate) : null)
+            .input('ExpectedRate', sql.Decimal(18, 2), body.expectedRate ? parseFloat(body.expectedRate) : 0.00)
+            .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
+            .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
+            .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
+            .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
+            .query(`
+              INSERT INTO dbo.Recruits (
+                FirstName, Surname, Email, Phone, CountryOfResidency, SeniorityLevel,
+                TotalYearsExperience, IdType, IdNumber, CurrentRate, ExpectedRate,
+                NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
+              )
+              OUTPUT INSERTED.RecruitID
+              VALUES (
+                @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @SeniorityLevel,
+                @TotalYearsExperience, @IdType, @IdNumber, @CurrentRate, @ExpectedRate,
+                @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
+              );
+            `);
+
+          activeRecruitId = insertRecruitRes.recordset[0].RecruitID;
+
+          // 2a. INSERT APPLICATION
+          const appReq = new sql.Request(transaction);
+          await appReq
+            .input('RecruitID', sql.Int, activeRecruitId)
+            .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
+            .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
+            .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
+            .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
+            .input('LifecycleStage', sql.NVarChar(50), body.stage || 'Sourced')
+            .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
+            .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
+            .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus !== undefined ? parseInt(body.docPaySlipsStatus, 10) : 0)
+            .input('DocCertsStatus', sql.NVarChar(50), body.docCertsStatus || 'Pending')
+            .input('DocDegreesStatus', sql.NVarChar(50), body.docDegreesStatus || 'Pending')
+            .query(`
+              INSERT INTO dbo.Applications (
+                RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced,
+                LifecycleStage, DocCvStatus, DocIdStatus, DocPaySlipsStatus,
+                DocCertsStatus, DocDegreesStatus
+              )
+              VALUES (
+                @RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced,
+                @LifecycleStage, @DocCvStatus, @DocIdStatus, @DocPaySlipsStatus,
+                @DocCertsStatus, @DocDegreesStatus
+              );
+            `);
+
+        } else {
+          // 1b. UPDATE RECRUIT MASTER
+          const recruitReq = new sql.Request(transaction);
+          await recruitReq
+            .input('RecruitID', sql.Int, activeRecruitId)
+            .input('FirstName', sql.NVarChar(100), body.firstName)
+            .input('Surname', sql.NVarChar(100), body.surname)
+            .input('Email', sql.NVarChar(150), body.email)
+            .input('Phone', sql.NVarChar(50), body.phone)
+            .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence)
+            .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel)
+            .input('TotalYearsExperience', sql.Decimal(4, 1), body.totalYearsExperience ? parseFloat(body.totalYearsExperience) : null)
+            .input('IdType', sql.NVarChar(50), body.idType)
+            .input('IdNumber', sql.NVarChar(100), body.idNumber)
+            .input('CurrentRate', sql.Decimal(18, 2), body.currentRate ? parseFloat(body.currentRate) : null)
+            .input('ExpectedRate', sql.Decimal(18, 2), body.expectedRate ? parseFloat(body.expectedRate) : 0.00)
+            .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
+            .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
+            .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
+            .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
+            .query(`
+              UPDATE dbo.Recruits
+              SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
+                  CountryOfResidency = @CountryOfResidency, SeniorityLevel = @SeniorityLevel,
+                  TotalYearsExperience = @TotalYearsExperience, IdType = @IdType, IdNumber = @IdNumber,
+                  CurrentRate = @CurrentRate, ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
+                  Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
+              WHERE RecruitID = @RecruitID;
+            `);
+
+          // 2b. UPDATE APPLICATION
+          const appReq = new sql.Request(transaction);
+          await appReq
+            .input('RecruitID', sql.Int, activeRecruitId)
+            .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
+            .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
+            .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
+            .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
+            .input('LifecycleStage', sql.NVarChar(50), body.stage || 'Sourced')
+            .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
+            .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
+            .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus !== undefined ? parseInt(body.docPaySlipsStatus, 10) : 0)
+            .input('DocCertsStatus', sql.NVarChar(50), body.docCertsStatus || 'Pending')
+            .input('DocDegreesStatus', sql.NVarChar(50), body.docDegreesStatus || 'Pending')
+            .query(`
+              UPDATE dbo.Applications
+              SET RoleID = @RoleID, 
+                  RecruiterUserID = @RecruiterUserID, 
+                  SourceID = @SourceID,
+                  DateSourced = @DateSourced, 
+                  LifecycleStage = @LifecycleStage,
+                  DocCvStatus = @DocCvStatus,
+                  DocIdStatus = @DocIdStatus,
+                  DocPaySlipsStatus = @DocPaySlipsStatus,
+                  DocCertsStatus = @DocCertsStatus,
+                  DocDegreesStatus = @DocDegreesStatus
+              WHERE RecruitID = @RecruitID;
+            `);
+        }
 
         await transaction.commit();
 
         context.res.status = 200;
-        context.res.body = JSON.stringify({ message: "Candidate details updated successfully." });
+        context.res.body = JSON.stringify({ 
+          message: req.method === 'POST' ? "Candidate created successfully." : "Candidate updated successfully.",
+          recruitId: activeRecruitId 
+        });
         return;
 
       } catch (txError) {
         if (transaction._aborted !== true) {
           try { await transaction.rollback(); } catch (_) {}
         }
-        context.log.error("Update Transaction Error:", txError.message);
+        context.log.error("Transaction Error:", txError.message);
         context.res.status = 500;
-        context.res.body = JSON.stringify({ message: "Database error during update.", error: txError.message });
+        context.res.body = JSON.stringify({ message: "Database error during processing.", error: txError.message });
         return;
       }
     }
