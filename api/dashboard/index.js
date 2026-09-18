@@ -55,11 +55,11 @@ module.exports = async function (context, req) {
         c.ClientName,
         a.DateSourced,
         ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
-        (CASE WHEN a.DocCvStatus = 'Received' THEN 1 ELSE 0 END +
-         CASE WHEN a.DocIdStatus = 'Received' THEN 1 ELSE 0 END +
-         CASE WHEN a.DocPaySlipsStatus = 'Received' THEN 1 ELSE 0 END +
-         CASE WHEN a.DocCertsStatus = 'Received' THEN 1 ELSE 0 END +
-         CASE WHEN a.DocDegreesStatus = 'Received' THEN 1 ELSE 0 END) AS DocsCompleted
+        (CASE WHEN a.DocCvStatus = 'Uploaded' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocIdStatus = 'Uploaded' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocPaySlipsStatus > 0 THEN 1 ELSE 0 END +
+         CASE WHEN a.DocCertsStatus = 'Uploaded' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocDegreesStatus = 'Uploaded' THEN 1 ELSE 0 END) AS DocsCompleted
       FROM dbo.Recruits r
       INNER JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
       LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
