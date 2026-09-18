@@ -209,6 +209,43 @@ function setupTagHandlers() {
     });
   }
 
+  function setLifecycleStage(stage) {
+  const stages = ['Sourced', 'In Discussion', 'Screened', 'CV Prepared', 'Interviewed', 'Offer Sent', 'Hired'];
+  
+  // Case-insensitive lookup + alternate naming fallback
+  let targetIndex = -1;
+  const stageLower = String(stage).toLowerCase().trim();
+
+  stages.forEach((s, idx) => {
+    if (s.toLowerCase() === stageLower || 
+       (s === 'Interviewed' && stageLower === 'interview')) {
+      targetIndex = idx;
+      currentStage = s; // Normalize and save target stage to update payload
+    }
+  });
+
+  if (targetIndex === -1) {
+    targetIndex = typeof stage === 'number' ? stage - 1 : 0;
+    currentStage = stages[targetIndex] || 'Sourced';
+  }
+
+  // Update Visual Indicators
+  document.querySelectorAll('#lifecycleContainer .lifecycle-item').forEach((item, idx) => {
+    const node = item.querySelector('.stage-node');
+    if (!node) return;
+
+    node.classList.remove('active', 'completed', 'pending');
+
+    if (idx < targetIndex) {
+      node.classList.add('completed');
+    } else if (idx === targetIndex) {
+      node.classList.add('active');
+    } else {
+      node.classList.add('pending');
+    }
+  });
+}
+
   const certSel = document.getElementById('certSelect');
   if (certSel) {
     certSel.addEventListener('change', (e) => {

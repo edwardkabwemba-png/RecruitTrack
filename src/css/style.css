@@ -416,3 +416,72 @@ td {
 .doc-link:hover {
   text-decoration: underline;
 }
+
+/* Lifecycle Stepper Styling */
+#lifecycleContainer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 20px 0;
+  padding: 15px 10px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.lifecycle-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  flex: 1;
+  position: relative;
+}
+
+.lifecycle-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  width: 100%;
+  height: 2px;
+  background-color: #e2e8f0;
+  z-index: 1;
+}
+
+.stage-node {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background-color: #ffffff;
+  border: 2px solid #cbd5e1;
+  display: inline-block;
+  z-index: 2;
+  transition: all 0.2s ease;
+}
+
+/* Active Stage Highlight */
+.stage-node.active {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.25);
+}
+
+/* Completed Stages */
+.stage-node.completed {
+  background-color: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+/* Lifecycle Text Labels */
+.stage-label {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #64748b;
+  text-align: center;
+}
+
+.lifecycle-item:hover .stage-label {
+  color: #1d4ed8;
+}
