@@ -7,26 +7,32 @@ let allCandidates = [];
 
 async function loadDashboardData() {
   try {
-    const res = await fetch('/api/dashboard');
+    // Read user details stored during login
+    const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+    const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id;
+
+    // Pass the userId in both query param and headers
+    const res = await fetch(`/api/dashboard?userId=${currentUserId}`, {
+      headers: {
+        "x-user-id": currentUserId
+      }
+    });
+
     if (!res.ok) throw new Error('Failed to load dashboard data.');
     const data = await res.json();
 
-    // Safe extraction of user details with fallbacks
-    const userName = (data.currentUser && data.currentUser.name) ? data.currentUser.name : 'Jigyasa K.';
-    const userRole = (data.currentUser && data.currentUser.role) ? data.currentUser.role : 'Recruiter';
+    // Update user display pill
+    if (data.currentUser && data.currentUser.name) {
+      document.getElementById('userPill').textContent = `Signed in as: ${data.currentUser.name} (${data.currentUser.role || 'Recruiter'})`;
+    }
 
-    document.getElementById('userPill').textContent = `Signed in as: ${userName} (${userRole})`;
-
-    // Render Sections
     renderRoles(data.roles || []);
     allCandidates = data.candidates || [];
     renderCandidates(allCandidates);
 
   } catch (err) {
     console.error(err);
-    document.getElementById('userPill').textContent = 'Signed in as: Jigyasa K. (Recruiter)';
     document.getElementById('rolesContainer').innerHTML = `<p style="color: #ef4444;">Error loading roles.</p>`;
-    document.getElementById('candidatesContainer').innerHTML = `<p style="color: #ef4444;">Error loading candidates.</p>`;
   }
 }
 
