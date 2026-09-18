@@ -365,6 +365,8 @@ function setupTagDropdown(selectId, containerId) {
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
+  // Clean folderPath to avoid invalid URI components
+  const sanitizedFolderPath = folderPath.replace(/\s+/g, '_');
   const buffer = await file.arrayBuffer();
 
   const res = await fetch('/api/upload-document', {
@@ -372,18 +374,18 @@ async function uploadSingleFile(file, folderPath) {
     headers: {
       'Content-Type': file.type || 'application/octet-stream',
       'X-File-Name': encodeURIComponent(file.name),
-      'X-Folder-Path': encodeURIComponent(folderPath)
+      'X-Folder-Path': encodeURIComponent(sanitizedFolderPath)
     },
-    body: new Uint8Array(buffer)
+    body: buffer // Send raw ArrayBuffer directly
   });
 
   if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`Upload failed for ${file.name} (${res.status}): ${errText || res.statusText}`);
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(`Upload failed (${res.status}): ${errorData.error || res.statusText}`);
   }
 
-  const data = await res.json().catch(() => ({}));
-  return data.fileUrl || true;
+  const data = await res.json();
+  return data.fileUrl;
 }
 
 async function processAllDocumentUploads(candidateFolderName) {
