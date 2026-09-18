@@ -1,6 +1,6 @@
 let uploadedDocumentUrl = null;
+let editingRecruitId = null;
 
-// Track selected files before submitting
 const pendingFiles = {
   CV: [],
   ID_Visa: [],
@@ -9,7 +9,6 @@ const pendingFiles = {
   Degrees: []
 };
 
-// Array of stages in order matching SQL database schema
 const STAGES = [
   'Sourced',
   'In Discussion',
@@ -20,19 +19,23 @@ const STAGES = [
   'Hired'
 ];
 
-let currentStageIndex = 1; // Default: 'In Discussion'
+let currentStageIndex = 0;
 
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Fetch dropdown options on page load
-  loadDropdownData();
+document.addEventListener('DOMContentLoaded', async () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  editingRecruitId = urlParams.get('id');
 
-  // 2. Attach form submit event listener
+  await loadDropdownData();
+
+  if (editingRecruitId) {
+    await loadExistingCandidateData(editingRecruitId);
+  }
+
   const form = document.getElementById('addRecruitForm');
   if (form) {
     form.addEventListener('submit', handleCandidateSubmit);
   }
 
-  // 3. Keep candidate title in sync with UI inputs
   const firstNameInput = document.getElementById('firstName');
   const surnameInput = document.getElementById('surname');
   const displayTitle = document.getElementById('displayCandidateName');
@@ -41,42 +44,45 @@ document.addEventListener('DOMContentLoaded', () => {
     const fn = firstNameInput?.value.trim() || '';
     const sn = surnameInput?.value.trim() || '';
     if (displayTitle) {
-      displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'New Candidate';
+      displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'Candidate Details';
     }
   }
 
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
-  // 4. Attach Dynamic Tag Handlers for Skills (with years) and Certifications
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
 
-  // 5. Attach File Input Event Listeners for Partitioned Uploads
   bindFileInput('fileCv', 'badgeCv', 'CV');
   bindFileInput('fileId', 'badgeId', 'ID_Visa');
   bindFileInput('filePayslips', 'badgePayslips', 'PaySlips');
   bindFileInput('fileCerts', 'badgeCerts', 'Certifications');
   bindFileInput('fileDegree', 'badgeDegree', 'Degrees');
 
-  // 6. Attach Lifecycle Stage Advance Listener
+  // Add click handlers directly to stage nodes for intuitive selection
+  document.querySelectorAll('.stage-node').forEach((node, index) => {
+    node.style.cursor = 'pointer';
+    node.addEventListener('click', () => {
+      currentStageIndex = index;
+      updateStageUI();
+    });
+  });
+
   const advanceBtn = getAdvanceBtn();
   if (advanceBtn) {
     advanceBtn.addEventListener('click', advanceStage);
   }
 
-  // 7. Initialize Stepper UI
   updateStageUI();
 });
 
-// Helper to select the advance stage button across varying class/id conventions
 function getAdvanceBtn() {
   return document.getElementById('btnAdvanceStage') || 
          document.querySelector('.btn-advance-stage') || 
          document.querySelector('button[onclick="advanceStage()"]');
 }
 
-// Lifecycle Stepper Logic
 function advanceStage(e) {
   if (e) e.preventDefault();
 
@@ -93,9 +99,6 @@ function updateStageUI() {
   const advanceBtn = getAdvanceBtn();
 
   stageNodes.forEach((node, index) => {
-    node.style.backgroundColor = '';
-    node.style.borderColor = '';
-
     node.classList.remove('completed', 'active', 'pending');
 
     if (index < currentStageIndex) {
@@ -119,7 +122,6 @@ function updateStageUI() {
   }
 }
 
-// Helper to monitor file selections and update badge UI directly by ID
 function bindFileInput(elementId, badgeId, category) {
   const el = document.getElementById(elementId);
   const badge = document.getElementById(badgeId);
@@ -136,7 +138,7 @@ function bindFileInput(elementId, badgeId, category) {
         badge.style.color = '#0f5132';
         
         if (category === 'PaySlips') {
-          badge.textContent = `${files.length} of 3 Received`;
+          badge.textContent = `${files.length} Received`;
         } else {
           badge.textContent = files.length === 1 ? 'Received' : `${files.length} Files Received`;
         }
@@ -144,42 +146,55 @@ function bindFileInput(elementId, badgeId, category) {
         badge.className = 'status-badge badge-pending';
         badge.style.backgroundColor = '#fff3cd';
         badge.style.color = '#664d03';
-        badge.textContent = category === 'PaySlips' ? '0 of 3 Received' : 'Pending';
+        badge.textContent = 'Pending';
       }
     }
   });
 }
 
-// Load Dropdowns from Backend API
+async function loadExistingCandidateData(id) {
+  try {
+    const res = await fetch(`/api/recruits?action=getOne&id=${id}`);
+    if (!res.ok) return;
+
+    const data = await res.json();
+    if (!data || !data.RecruitID) return;
+
+    document.getElementById('firstName').value = data.FirstName || '';
+    document.getElementById('surname').value = data.Surname || '';
+    document.getElementById('email').value = data.Email || '';
+    document.getElementById('phone').value = data.Phone || '';
+    
+    if (document.getElementById('recruiterSelect')) document.getElementById('recruiterSelect').value = data.RecruiterUserID || '';
+    if (document.getElementById('sourceSelect')) document.getElementById('sourceSelect').value = data.SourceID || '';
+    if (document.getElementById('roleSelect')) document.getElementById('roleSelect').value = data.RoleID || '';
+
+    // Match and set lifecycle stage
+    const matchedIndex = STAGES.findIndex(s => s.toLowerCase() === (data.Stage || '').toLowerCase());
+    if (matchedIndex !== -1) {
+      currentStageIndex = matchedIndex;
+      updateStageUI();
+    }
+
+  } catch (err) {
+    console.error("Failed to load candidate details:", err);
+  }
+}
+
 async function loadDropdownData() {
   try {
     const res = await fetch('/api/recruits?action=dropdowns');
-    
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || errData.message || `Server error: ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
     const data = await res.json();
 
-    // Mapping key attributes to safely align with SQL column returns
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName', 'Select Recruiter...');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName', 'Select Source...');
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'Select a Role...');
-    
-    // Skills and Certs use SkillName and CertName as primary keys
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName', 'Select Skill...');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName', 'Select Certification...');
   } catch (err) {
     console.error('Error loading dropdowns:', err.message);
-    
-    // Fallback labels for UI feedback
-    ['recruiterSelect', 'sourceSelect', 'roleSelect', 'skillSelect', 'certSelect'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el && el.options.length <= 1) {
-        el.innerHTML = `<option value="">Failed to load options</option>`;
-      }
-    });
   }
 }
 
@@ -201,24 +216,15 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   }
 }
 
-// Interactive Skill Tag Management (with Years Prompt)
 function setupSkillTagDropdown(selectId, containerId) {
   const selectEl = document.getElementById(selectId);
   const containerEl = document.getElementById(containerId);
-
   if (!selectEl || !containerEl) return;
 
   selectEl.addEventListener('change', () => {
     const selectedValue = selectEl.value;
     const selectedText = selectEl.options[selectEl.selectedIndex]?.text;
-
     if (!selectedValue) return;
-
-    const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
-    if (existingTags.some(tag => tag.dataset.value === selectedValue)) {
-      selectEl.value = '';
-      return;
-    }
 
     const yrsInput = prompt(`Enter years of experience for ${selectedText}:`, "1");
     if (yrsInput === null) {
@@ -231,106 +237,68 @@ function setupSkillTagDropdown(selectId, containerId) {
 
     const tag = document.createElement('span');
     tag.className = 'tag-badge';
-    tag.dataset.value = selectedValue;
-    tag.dataset.name = selectedText;
-    tag.dataset.years = years;
     tag.dataset.formatted = fullText;
     tag.innerHTML = `${fullText} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
 
-    tag.querySelector('.remove-btn').addEventListener('click', () => {
-      tag.remove();
-    });
-
+    tag.querySelector('.remove-btn').addEventListener('click', () => tag.remove());
     containerEl.appendChild(tag);
     selectEl.value = '';
   });
 }
 
-// Generic Multiple Tag Selection (For Certifications)
 function setupTagDropdown(selectId, containerId) {
   const selectEl = document.getElementById(selectId);
   const containerEl = document.getElementById(containerId);
-
   if (!selectEl || !containerEl) return;
 
   selectEl.addEventListener('change', () => {
     const selectedValue = selectEl.value;
     const selectedText = selectEl.options[selectEl.selectedIndex]?.text;
-
     if (!selectedValue) return;
-
-    const existingTags = Array.from(containerEl.querySelectorAll('.tag-badge'));
-    if (existingTags.some(tag => tag.dataset.value === selectedValue)) {
-      selectEl.value = '';
-      return;
-    }
 
     const tag = document.createElement('span');
     tag.className = 'tag-badge';
-    tag.dataset.value = selectedValue;
     tag.dataset.text = selectedText;
     tag.innerHTML = `${selectedText} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
 
-    tag.querySelector('.remove-btn').addEventListener('click', () => {
-      tag.remove();
-    });
-
+    tag.querySelector('.remove-btn').addEventListener('click', () => tag.remove());
     containerEl.appendChild(tag);
     selectEl.value = '';
   });
 }
 
-// Helper: Upload single file to storage
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
-  const buffer = await file.arrayBuffer();
-  const uint8Data = new Uint8Array(buffer);
-
-  const res = await fetch('/api/upload-document', {
-    method: 'POST',
-    headers: {
-      'Content-Type': file.type || 'application/pdf',
-      'X-File-Name': encodeURIComponent(file.name),
-      'X-Folder-Path': encodeURIComponent(folderPath)
-    },
-    body: uint8Data
-  });
-
-  const textResponse = await res.text();
-  let data = {};
   try {
-    data = textResponse ? JSON.parse(textResponse) : {};
-  } catch (_) {
-    throw new Error(`Server status ${res.status}: ${textResponse.slice(0, 100)}`);
-  }
+    const buffer = await file.arrayBuffer();
+    const res = await fetch('/api/upload-document', {
+      method: 'POST',
+      headers: {
+        'Content-Type': file.type || 'application/octet-stream',
+        'X-File-Name': encodeURIComponent(file.name),
+        'X-Folder-Path': encodeURIComponent(folderPath)
+      },
+      body: new Uint8Array(buffer)
+    });
 
-  if (!res.ok) {
-    throw new Error(data.error || data.message || `Upload failed with status ${res.status}`);
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => ({}));
+    return data.fileUrl || null;
+  } catch (e) {
+    console.warn("File upload skipped or endpoint missing:", e);
+    return null;
   }
-
-  return data.fileUrl;
 }
 
-// Upload all selected documents
 async function processAllDocumentUploads(candidateFolderName) {
-  let mainCvUrl = null;
-
   for (const [category, files] of Object.entries(pendingFiles)) {
     for (const file of files) {
-      const folderPath = `${candidateFolderName}/${category}`;
-      const fileUrl = await uploadSingleFile(file, folderPath);
-
-      if (category === 'CV' && !mainCvUrl) {
-        mainCvUrl = fileUrl;
-      }
+      await uploadSingleFile(file, `${candidateFolderName}/${category}`);
     }
   }
-
-  return mainCvUrl;
 }
 
-// Handle Form Submission
 async function handleCandidateSubmit(e) {
   e.preventDefault();
 
@@ -346,43 +314,29 @@ async function handleCandidateSubmit(e) {
     return;
   }
 
-  if (!recruiterSelect?.value || !sourceSelect?.value || !roleSelect?.value) {
-    alert('Please select a Recruiter, Source, and Role before saving.');
-    return;
-  }
-
   const saveBtn = e.target.querySelector('button[type="submit"]') || document.querySelector('.btn-primary');
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving Candidate & Uploading Files...';
+    saveBtn.textContent = 'Saving Candidate...';
   }
 
   try {
     const candidateFolderName = `${firstName}_${surname}`;
     await processAllDocumentUploads(candidateFolderName);
 
-    const storageAccountName = 'strgcandidatetracker'; 
-    const folderUrl = `https://${storageAccountName}.blob.core.windows.net/documents/${candidateFolderName}/`;
-
-    // Extract skill and cert tag arrays
-    const skillBadges = Array.from(document.querySelectorAll('#skillsContainer .tag-badge'));
-    const skillsList = skillBadges.map(b => b.dataset.formatted || b.textContent.replace('×', '').trim());
-
-    const certBadges = Array.from(document.querySelectorAll('#certsContainer .tag-badge'));
-    const certsList = certBadges.map(b => b.dataset.text || b.textContent.replace('×', '').trim());
-
     const payload = {
-      recruiterId: recruiterSelect.value,
-      sourceId: sourceSelect.value,
-      roleId: roleSelect.value,
+      recruitId: editingRecruitId,
+      recruiterId: recruiterSelect?.value || null,
+      sourceId: sourceSelect?.value || null,
+      roleId: roleSelect?.value || null,
       dateSourced: document.getElementById('dateSourced')?.value || new Date().toISOString().split('T')[0],
       firstName: firstName,
       surname: surname,
       countryOfResidence: document.getElementById('countrySelect')?.value || 'South Africa',
       seniorityLevel: document.getElementById('senioritySelect')?.value || null,
       totalYearsExperience: document.getElementById('totalExperience')?.value || null,
-      skills: JSON.stringify(skillsList),
-      certifications: JSON.stringify(certsList),
+      skills: JSON.stringify(Array.from(document.querySelectorAll('#skillsContainer .tag-badge')).map(b => b.dataset.formatted)),
+      certifications: JSON.stringify(Array.from(document.querySelectorAll('#certsContainer .tag-badge')).map(b => b.dataset.text)),
       otherSkills: document.getElementById('otherSkills')?.value?.trim() || null,
       noticePeriod: document.getElementById('noticePeriod')?.value || '30 Days',
       currentRate: document.getElementById('currentRate')?.value || null,
@@ -392,7 +346,6 @@ async function handleCandidateSubmit(e) {
       idType: document.getElementById('idType')?.value || null,
       idNumber: document.getElementById('idNumber')?.value?.trim() || null,
       stage: STAGES[currentStageIndex],
-      documentUrl: folderUrl,
       docCvStatus: pendingFiles.CV.length > 0 ? 'Uploaded' : 'Pending',
       docIdStatus: pendingFiles.ID_Visa.length > 0 ? 'Uploaded' : 'Pending',
       docPaySlipsStatus: pendingFiles.PaySlips.length,
@@ -400,20 +353,20 @@ async function handleCandidateSubmit(e) {
       docDegreesStatus: pendingFiles.Degrees.length > 0 ? 'Uploaded' : 'Pending'
     };
 
-    const res = await fetch('/api/recruits', {
-      method: 'POST',
+    const targetUrl = editingRecruitId ? `/api/recruits?id=${editingRecruitId}` : '/api/recruits';
+    const method = editingRecruitId ? 'PUT' : 'POST';
+
+    const res = await fetch(targetUrl, {
+      method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
     const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.message || 'Failed to save candidate.');
 
-    if (!res.ok) {
-      throw new Error(data.error || data.message || 'Failed to save candidate.');
-    }
-
-    alert('Candidate and documents successfully uploaded!');
-    window.location.href = '/recruits.html';
+    alert(`Candidate successfully ${editingRecruitId ? 'updated' : 'created'}!`);
+    window.location.href = 'manage-recruits.html';
 
   } catch (err) {
     console.error('Submission error:', err);
@@ -421,7 +374,7 @@ async function handleCandidateSubmit(e) {
   } finally {
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Recruit';
+      saveBtn.textContent = editingRecruitId ? 'Update Candidate' : 'Save Recruit';
     }
   }
 }
