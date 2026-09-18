@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // FIXED: Await dropdown population BEFORE fetching/assigning recruit details
+  // Ensure dropdowns are fully loaded before setting candidate values
   await loadDropdowns();
   await loadRecruitDetails(recruitId);
   setupFormSubmit();
@@ -37,7 +37,7 @@ async function loadDropdowns() {
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName');
-    // FIXED: Support both PositionTitle and RoleTitle
+    // Role selection populated with fallback support
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'PositionTitle');
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName');
@@ -56,7 +56,6 @@ function populateSelect(elemId, items, valueKey, primaryTextKey, secondaryTextKe
     }).join('');
 }
 
-// Helper function to clean raw JSON strings or comma lists into clean array items
 function cleanTagItems(rawInput) {
   if (!rawInput) return [];
   try {
@@ -95,8 +94,11 @@ async function loadRecruitDetails(id) {
     document.getElementById('idType').value = data.IdType || 'ID';
     document.getElementById('idNumber').value = data.IdNumber || '';
     
-    // Role selection safely sets because options are preloaded
-    document.getElementById('roleSelect').value = data.RoleID || '';
+    // Set Role drop down value
+    const roleSel = document.getElementById('roleSelect');
+    if (roleSel) {
+      roleSel.value = data.RoleID || '';
+    }
 
     if (document.getElementById('senioritySelect')) {
       document.getElementById('senioritySelect').value = data.SeniorityLevel || '';
@@ -113,7 +115,7 @@ async function loadRecruitDetails(id) {
     cleanTagItems(data.Certifications).forEach(c => selectedCerts.add(c));
     renderTags('certsContainer', selectedCerts);
 
-    // FIXED: Stage detection prioritizing LifecycleStage & Stage
+    // Lifecycle Stage
     const stageVal = data.LifecycleStage || data.Stage || 'Sourced';
     setLifecycleStage(stageVal);
 
@@ -172,7 +174,6 @@ function setupLifecycleClick() {
 }
 
 function setupDocumentHandlers() {
-  // Enables file/checkbox document status toggles if present on form
   const docMap = [
     { inputId: 'fileCv', badgeId: 'badgeCv', key: 'DocCvStatus' },
     { inputId: 'fileId', badgeId: 'badgeId', key: 'DocIdStatus' },
@@ -241,8 +242,26 @@ function setupFormSubmit() {
   const form = document.getElementById('editRecruitForm');
   if (!form) return;
 
+  // Enforce HTML attribute level validation as fallback
+  const roleSel = document.getElementById('roleSelect');
+  if (roleSel) roleSel.required = true;
+
   form.onsubmit = async (e) => {
     e.preventDefault();
+
+    const selectedRoleId = document.getElementById('roleSelect').value;
+
+    // Strict JS Validation to ensure Role is selected
+    if (!selectedRoleId) {
+      alert("Please select a target Role before saving candidate updates.");
+      if (roleSel) {
+        roleSel.focus();
+        roleSel.style.borderColor = '#ef4444';
+      }
+      return;
+    } else if (roleSel) {
+      roleSel.style.borderColor = '';
+    }
 
     const id = document.getElementById('recruitId').value;
     const bodyPayload = {
@@ -261,7 +280,7 @@ function setupFormSubmit() {
       phone: document.getElementById('phone').value,
       idType: document.getElementById('idType').value,
       idNumber: document.getElementById('idNumber').value,
-      roleId: document.getElementById('roleSelect').value,
+      roleId: selectedRoleId,
       seniorityLevel: document.getElementById('senioritySelect') ? document.getElementById('senioritySelect').value : '',
       totalYearsExperience: document.getElementById('totalExperience') ? document.getElementById('totalExperience').value : '',
       skills: Array.from(selectedSkills).join(', '),
@@ -269,7 +288,7 @@ function setupFormSubmit() {
       otherSkills: document.getElementById('otherSkills').value,
       stage: currentStage,
       
-      // Included document status variables in update payload
+      // Included document status variables
       docCvStatus: docStates.DocCvStatus,
       docIdStatus: docStates.DocIdStatus,
       docPaySlipsStatus: docStates.DocPaySlipsStatus,
