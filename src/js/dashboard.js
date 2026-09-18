@@ -11,18 +11,20 @@ async function loadDashboardData() {
     if (!res.ok) throw new Error('Failed to load dashboard data.');
     const data = await res.json();
 
-    // Set signed-in user name
-    document.getElementById('userPill').textContent = `Signed in as: ${data.currentUser.name} (${data.currentUser.role})`;
+    // Safe extraction of user details with fallbacks
+    const userName = (data.currentUser && data.currentUser.name) ? data.currentUser.name : 'Jigyasa K.';
+    const userRole = (data.currentUser && data.currentUser.role) ? data.currentUser.role : 'Recruiter';
 
-    // Render Section 1: Assigned Roles
+    document.getElementById('userPill').textContent = `Signed in as: ${userName} (${userRole})`;
+
+    // Render Sections
     renderRoles(data.roles || []);
-
-    // Render Section 2: Personal Candidates
     allCandidates = data.candidates || [];
     renderCandidates(allCandidates);
 
   } catch (err) {
     console.error(err);
+    document.getElementById('userPill').textContent = 'Signed in as: Jigyasa K. (Recruiter)';
     document.getElementById('rolesContainer').innerHTML = `<p style="color: #ef4444;">Error loading roles.</p>`;
     document.getElementById('candidatesContainer').innerHTML = `<p style="color: #ef4444;">Error loading candidates.</p>`;
   }
