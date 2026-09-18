@@ -14,16 +14,17 @@ module.exports = async function (context, req) {
     try {
       const userRes = await pool.request()
         .input('UserID', sql.Int, currentUserId)
-        .query("SELECT UserID, FullName FROM dbo.Users WHERE UserID = @UserID");
+        .query("SELECT UserID, FullName, Role FROM dbo.Users WHERE UserID = @UserID");
 
       if (userRes.recordset.length > 0 && userRes.recordset[0].FullName) {
         currentUser.name = userRes.recordset[0].FullName;
+        currentUser.role = userRes.recordset[0].Role || "Recruiter";
       }
     } catch (uErr) {
       context.log.warn("User lookup non-fatal error:", uErr.message);
     }
 
-    // 2. Fetch Section 1: Active/Frozen Roles and Sourcing Progress
+    // 2. Fetch Section 1: Active/Frozen Roles filtered for the logged-in user's assigned roles
     const rolesQuery = `
       SELECT 
         r.RoleID,
@@ -41,11 +42,14 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
       LEFT JOIN dbo.Applications a ON r.RoleID = a.RoleID
+      WHERE a.RecruiterUserID = @RecruiterUserID OR a.RecruiterUserID IS NULL
       GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName;
     `;
-    const rolesRes = await pool.request().query(rolesQuery);
+    const rolesRes = await pool.request()
+      .input('RecruiterUserID', sql.Int, currentUserId)
+      .query(rolesQuery);
 
-    // 3. Fetch Section 2: Personal Candidates
+    // 3. Fetch Section 2: Personal Candidates belonging ONLY to the logged-in user
     const candidatesQuery = `
       SELECT 
         r.RecruitID,
@@ -65,9 +69,12 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
       LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
+      WHERE a.RecruiterUserID = @RecruiterUserID
       ORDER BY r.RecruitID DESC;
     `;
-    const candidatesRes = await pool.request().query(candidatesQuery);
+    const candidatesRes = await pool.request()
+      .input('RecruiterUserID', sql.Int, currentUserId)
+      .query(candidatesQuery);
 
     context.res.status = 200;
     context.res.body = JSON.stringify({
