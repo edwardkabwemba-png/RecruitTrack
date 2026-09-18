@@ -1,87 +1,82 @@
-const { Connection, Request } = require('tedious');
+const sql = require('mssql');
 
 module.exports = async function (context, req) {
-  const config = {
-    server: process.env.DB_SERVER,
-    authentication: {
-      type: 'default',
-      options: {
-        userName: process.env.DB_USER,
-        password: process.env.DB_PASSWORD
-      }
-    },
-    options: {
-      database: process.env.DB_NAME,
-      encrypt: true,
-      trustServerCertificate: false
-    }
-  };
+  context.res = { headers: { 'Content-Type': 'application/json' } };
 
   try {
-    const data = await new Promise((resolve, reject) => {
-      const connection = new Connection(config);
+    const pool = await sql.connect(process.env.SqlConnectionString);
 
-      connection.on('connect', (err) => {
-        if (err) return reject(err);
+    // Mock/Session User ID (Replace with auth context if present)
+    const currentUserId = req.headers['x-user-id'] || 1;
 
-        const sqlQuery = `
-          SELECT 
-            p.PositionID, p.PositionName, p.IsActive, p.RequiredSkills, c.ClientName,
-            COUNT(r.RecruitID) AS TotalCandidates
-          FROM dbo.Positions p
-          LEFT JOIN dbo.Clients c ON p.ClientID = c.ClientID
-          LEFT JOIN dbo.Recruits r ON p.PositionID = r.PositionID
-          GROUP BY p.PositionID, p.PositionName, p.IsActive, p.RequiredSkills, c.ClientName;
+    // Fetch Current User Details
+    const userRes = await pool.request()
+      .input('UserID', sql.Int, currentUserId)
+      .query("SELECT UserID, FullName, Role FROM dbo.Users WHERE UserID = @UserID");
 
-          SELECT 
-            r.RecruitID, r.FirstName, r.Surname, r.DateSourced, r.CvUrl,
-            p.PositionName, o.OutcomeName
-          FROM dbo.Recruits r
-          LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
-          LEFT JOIN dbo.Outcomes o ON r.OutcomeID = o.OutcomeID
-          ORDER BY r.DateSourced DESC;
-        `;
+    const user = userRes.recordset[0] || { FullName: "Jigyasa K.", Role: "Recruiter" };
 
-        let roles = [];
-        let candidates = [];
-        let querySetIndex = 0;
+    // 1. Fetch Section 1 Roles & Progression Counts
+    const rolesQuery = `
+      SELECT 
+        r.RoleID,
+        r.Status,
+        p.PositionTitle,
+        c.ClientName,
+        r.RequiredSkills,
+        COUNT(a.ApplicationID) AS TotalCandidates,
+        SUM(CASE WHEN a.LifecycleStage = 'Sourced' THEN 1 ELSE 0 END) AS SourcedCount,
+        SUM(CASE WHEN a.LifecycleStage = 'Screened' THEN 1 ELSE 0 END) AS ScreenedCount,
+        SUM(CASE WHEN a.LifecycleStage = 'CV Prepared' THEN 1 ELSE 0 END) AS CvPreparedCount,
+        SUM(CASE WHEN a.LifecycleStage = 'Interviewed' THEN 1 ELSE 0 END) AS InterviewedCount,
+        SUM(CASE WHEN a.LifecycleStage = 'Offer Sent' THEN 1 ELSE 0 END) AS OfferSentCount,
+        SUM(CASE WHEN a.LifecycleStage = 'Hired' THEN 1 ELSE 0 END) AS HiredCount
+      FROM dbo.Roles r
+      JOIN dbo.Positions p ON r.PositionID = p.PositionID
+      JOIN dbo.Clients c ON r.ClientID = c.ClientID
+      LEFT JOIN dbo.Applications a ON r.RoleID = a.RoleID
+      WHERE r.Status IN ('Active', 'Frozen')
+      GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName, r.RequiredSkills;
+    `;
+    const rolesRes = await pool.request().query(rolesQuery);
 
-        const request = new Request(sqlQuery, (err) => {
-          connection.close();
-          if (err) return reject(err);
-          resolve({ roles, candidates });
-        });
+    // 2. Fetch Section 2 Recruiter's Own Candidates
+    const candidatesQuery = `
+      SELECT 
+        r.RecruitID,
+        r.FirstName,
+        r.Surname,
+        p.PositionTitle,
+        c.ClientName,
+        a.DateSourced,
+        ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
+        (CASE WHEN a.DocCvStatus = 'Received' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocIdStatus = 'Received' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocPaySlipsStatus = 'Received' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocCertsStatus = 'Received' THEN 1 ELSE 0 END +
+         CASE WHEN a.DocDegreesStatus = 'Received' THEN 1 ELSE 0 END) AS DocsCompleted
+      FROM dbo.Recruits r
+      JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
+      LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
+      LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
+      LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
+      WHERE a.RecruiterUserID = @RecruiterUserID
+      ORDER BY a.DateSourced DESC;
+    `;
+    const candidatesRes = await pool.request()
+      .input('RecruiterUserID', sql.Int, currentUserId)
+      .query(candidatesQuery);
 
-        request.on('row', (columns) => {
-          let rowObj = {};
-          columns.forEach(col => {
-            rowObj[col.metadata.colName] = col.value;
-          });
-
-          if (querySetIndex === 0) roles.push(rowObj);
-          else candidates.push(rowObj);
-        });
-
-        request.on('doneInProc', () => {
-          querySetIndex++;
-        });
-
-        connection.execSql(request);
-      });
-
-      connection.connect();
+    context.res.status = 200;
+    context.res.body = JSON.stringify({
+      currentUser: { name: user.FullName, role: user.Role },
+      roles: rolesRes.recordset || [],
+      candidates: candidatesRes.recordset || []
     });
 
-    context.res = {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: data
-    };
-  } catch (err) {
-    context.res = {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: { error: err.message }
-    };
+  } catch (error) {
+    context.log.error("Dashboard API Error:", error);
+    context.res.status = 500;
+    context.res.body = JSON.stringify({ message: "Server error", error: error.message });
   }
 };

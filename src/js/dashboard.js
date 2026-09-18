@@ -1,106 +1,144 @@
-let globalCandidates = [];
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadDashboardData();
+  setupSearch();
+});
 
-// Fetch data from Azure Function API on load
-async function loadDashboard() {
-  const rolesContainer = document.getElementById('rolesContainer');
-  const candidateRows = document.getElementById('candidateRows');
+let allCandidates = [];
 
+async function loadDashboardData() {
   try {
-    // Updated route to match api/dashboard folder
-    const response = await fetch('/api/dashboard');
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: Failed to fetch dashboard data`);
-    }
+    const res = await fetch('/api/dashboard');
+    if (!res.ok) throw new Error('Failed to load dashboard data.');
+    const data = await res.json();
 
-    const data = await response.json();
-    
+    // Set signed-in user name
+    document.getElementById('userPill').textContent = `Signed in as: ${data.currentUser.name} (${data.currentUser.role})`;
+
+    // Render Section 1: Assigned Roles
     renderRoles(data.roles || []);
-    globalCandidates = data.candidates || [];
-    renderCandidates(globalCandidates);
+
+    // Render Section 2: Personal Candidates
+    allCandidates = data.candidates || [];
+    renderCandidates(allCandidates);
+
   } catch (err) {
-    if (rolesContainer) {
-      rolesContainer.innerHTML = `<p style="font-size: 0.85rem; color: #ef4444;">Error loading roles: ${err.message}</p>`;
-    }
-    if (candidateRows) {
-      candidateRows.innerHTML = `<tr><td colspan="5" style="text-align: center; color: #ef4444;">Error loading candidates.</td></tr>`;
-    }
+    console.error(err);
+    document.getElementById('rolesContainer').innerHTML = `<p style="color: #ef4444;">Error loading roles.</p>`;
+    document.getElementById('candidatesContainer').innerHTML = `<p style="color: #ef4444;">Error loading candidates.</p>`;
   }
 }
 
-// Render Section 1: Active Roles
 function renderRoles(roles) {
   const container = document.getElementById('rolesContainer');
-  if (!container) return;
-
-  if (!roles.length) {
-    container.innerHTML = '<p style="font-size: 0.85rem; color: #64748b;">No active sourcing roles assigned.</p>';
+  if (roles.length === 0) {
+    container.innerHTML = `<p style="color: #64748b; font-size: 0.85rem;">No active roles currently assigned to you.</p>`;
     return;
   }
 
-  container.innerHTML = roles.map(role => `
-    <div class="role-card">
-      <div class="role-card-header">
-        <div class="role-card-title">
-          ${role.PositionName} — <span style="color: #64748b; font-weight: 400;">${role.ClientName || 'Internal'}</span>
-          <span class="badge ${role.IsActive ? 'badge-active' : 'badge-frozen'}">
-            ${role.IsActive ? 'Active' : 'Frozen'}
-          </span>
-        </div>
-        <button onclick="window.location.href='add-recruit.html?jobId=${role.PositionID}'" class="btn-primary" style="padding: 4px 10px; font-size: 0.75rem;">+ Add Recruit</button>
-      </div>
-      <div style="font-size: 0.8rem; color: #475569; margin-top: 6px;">
-        <strong>Required Skills:</strong> ${role.RequiredSkills || 'N/A'}
-      </div>
-      <div style="font-size: 0.75rem; color: #64748b; margin-top: 6px;">
-        Total Candidates Sourced: <strong>${role.TotalCandidates || 0}</strong>
-      </div>
-    </div>
-  `).join('');
-}
-
-// Render Section 2: Candidate Table Rows
-function renderCandidates(candidates) {
-  const tbody = document.getElementById('candidateRows');
-  if (!tbody) return;
-
-  if (!candidates.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #64748b;">No candidates found.</td></tr>';
-    return;
-  }
-
-  tbody.innerHTML = candidates.map(c => {
-    // Process comma-separated document URLs
-    const urls = c.cvUrl ? c.cvUrl.split(',').map(u => u.trim()).filter(Boolean) : [];
-    
-    const docLinks = urls.map((url, idx) => 
-      `<a href="${url}" target="_blank" class="doc-link">Doc ${idx + 1}</a>`
-    ).join('') || '<span style="color: #94a3b8;">No documents</span>';
+  container.innerHTML = roles.map(r => {
+    const total = r.TotalCandidates || 1;
+    const sourcedPct = ((r.SourcedCount || 0) / total) * 100;
+    const screenedPct = (((r.ScreenedCount || 0) + (r.CvPreparedCount || 0)) / total) * 100;
+    const interviewPct = (((r.InterviewedCount || 0) + (r.OfferSentCount || 0)) / total) * 100;
+    const hiredPct = ((r.HiredCount || 0) / total) * 100;
 
     return `
-      <tr>
-        <td><strong>${c.FirstName} ${c.Surname}</strong></td>
-        <td>${c.PositionName || 'Unassigned'}</td>
-        <td>${c.DateSourced || 'N/A'}</td>
-        <td><span class="badge badge-active">${c.OutcomeName || 'In Progress'}</span></td>
-        <td>${docLinks} <span style="font-size: 0.75rem; color: #64748b;">(${urls.length})</span></td>
-      </tr>
+      <div class="role-card">
+        <div class="role-header">
+          <div class="role-title-group">
+            <button class="toggle-btn" onclick="toggleDetails('role-desc-${r.RoleID}', this)">+</button>
+            <span>${r.PositionTitle}</span>
+            <span style="font-weight: normal; color: #64748b;">— Client: ${r.ClientName}</span>
+            <span class="badge badge-code">#RL-0${r.RoleID}</span>
+            <span class="badge ${r.Status === 'Active' ? 'badge-active' : 'badge-frozen'}">${r.Status}</span>
+          </div>
+          <a href="add-recruit.html?roleId=${r.RoleID}" class="btn-sm">+ Add Recruit</a>
+        </div>
+
+        <div id="role-desc-${r.RoleID}" class="role-details" style="display: none;">
+          <strong>Skills required:</strong> ${r.RequiredSkills || 'N/A'} &mdash; 
+          <strong>Education:</strong> ${r.Education || 'Degree Required'} &mdash; 
+          <strong>Seniority:</strong> ${r.Seniority || 'Mid-Senior'}
+        </div>
+
+        <div class="progress-group">
+          <div style="display: flex; justify-content: space-between;">
+            <span>Role total (${r.TotalCandidates} candidates)</span>
+            <span>${r.ScreenedCount || 0} Screened · ${r.InterviewedCount || 0} Interview · ${r.HiredCount || 0} Hired</span>
+          </div>
+          <div class="progress-bar-container">
+            <div class="progress-segment bg-sourced" style="width: ${sourcedPct}%"></div>
+            <div class="progress-segment bg-screened" style="width: ${screenedPct}%"></div>
+            <div class="progress-segment bg-interview" style="width: ${interviewPct}%"></div>
+            <div class="progress-segment bg-hired" style="width: ${hiredPct}%"></div>
+          </div>
+        </div>
+      </div>
     `;
   }).join('');
 }
 
-// Search Filter Listener
-document.addEventListener('DOMContentLoaded', () => {
-  const searchInput = document.getElementById('searchInput');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      const query = e.target.value.toLowerCase();
-      const filtered = globalCandidates.filter(c => 
-        `${c.FirstName} ${c.Surname}`.toLowerCase().includes(query) ||
-        (c.PositionName && c.PositionName.toLowerCase().includes(query))
-      );
-      renderCandidates(filtered);
-    });
+function toggleDetails(elemId, btn) {
+  const el = document.getElementById(elemId);
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+    btn.textContent = '–';
+  } else {
+    el.style.display = 'none';
+    btn.textContent = '+';
+  }
+}
+
+function renderCandidates(candidates) {
+  const container = document.getElementById('candidatesContainer');
+  if (candidates.length === 0) {
+    container.innerHTML = `<p style="color: #64748b; font-size: 0.85rem;">No candidates sourced yet.</p>`;
+    return;
   }
 
-  loadDashboard();
-});
+  const stagePercentages = {
+    'Sourced': 14,
+    'In Discussion': 28,
+    'Screened': 43,
+    'CV Prepared': 57,
+    'Interviewed': 71,
+    'Offer Sent': 85,
+    'Hired': 100
+  };
+
+  container.innerHTML = candidates.map(c => {
+    const pct = stagePercentages[c.Stage] || 14;
+    return `
+      <div class="candidate-row">
+        <div class="candidate-info">
+          <a href="edit-recruit.html?id=${c.RecruitID}" style="font-weight: bold; color: #1d4ed8; text-decoration: none;">
+            ${c.FirstName} ${c.Surname}
+          </a>
+        </div>
+        <div class="candidate-role">${c.PositionTitle} @ ${c.ClientName}</div>
+        <div class="candidate-role">Sourced ${c.DateSourced ? new Date(c.DateSourced).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}</div>
+        <div class="candidate-stage">
+          <span class="badge badge-code">${c.Stage || 'Sourced'}</span>
+        </div>
+        <div class="candidate-progress">
+          <div class="progress-bar-container" style="flex: 1; margin: 0;">
+            <div class="progress-segment ${pct === 100 ? 'bg-hired' : 'bg-screened'}" style="width: ${pct}%"></div>
+          </div>
+          <span style="font-size: 0.75rem; color: #64748b; width: 30px;">${pct}%</span>
+        </div>
+        <div class="candidate-docs">${c.DocsCompleted || 0}/5 docs</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function setupSearch() {
+  document.getElementById('candidateSearch').addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase();
+    const filtered = allCandidates.filter(c => 
+      `${c.FirstName} ${c.Surname}`.toLowerCase().includes(query) ||
+      `${c.PositionTitle} ${c.ClientName}`.toLowerCase().includes(query)
+    );
+    renderCandidates(filtered);
+  });
+}
