@@ -6,7 +6,9 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
-    // GET REQUESTS
+    // ==========================================
+    // 1. GET REQUESTS
+    // ==========================================
     if (req.method === 'GET') {
       const { action, id } = req.query;
 
@@ -15,8 +17,8 @@ module.exports = async function (context, req) {
           SELECT TOP 1 
             r.*, 
             a.ApplicationID, a.RoleID, a.RecruiterUserID, a.SourceID, a.DateSourced, 
-            a.LifecycleStage AS Stage, a.DocCvStatus, a.DocIdStatus, a.DocPaySlipsStatus, 
-            a.DocCertsStatus, a.DocDegreesStatus
+            ISNULL(a.LifecycleStage, 'Sourced') AS Stage, a.DocCvStatus, a.DocIdStatus, 
+            a.DocPaySlipsStatus, a.DocCertsStatus, a.DocDegreesStatus
           FROM dbo.Recruits r
           LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
           WHERE r.RecruitID = @RecruitID;
@@ -67,7 +69,9 @@ module.exports = async function (context, req) {
       }
     }
 
-    // POST & PUT REQUESTS (CREATE & UPDATE CANDIDATE)
+    // ==========================================
+    // 2. POST & PUT REQUESTS (CREATE & UPDATE)
+    // ==========================================
     if (req.method === 'POST' || req.method === 'PUT') {
       let body = req.body || {};
       if (typeof body === 'string') {
@@ -76,6 +80,9 @@ module.exports = async function (context, req) {
 
       const rawId = req.query.id || (context.bindingData && context.bindingData.id) || body.recruitId;
       const recruitId = rawId ? parseInt(rawId, 10) : null;
+
+      // Extract lifecycle stage safely
+      const targetStage = body.stage || body.lifecycleStage || 'Sourced';
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
@@ -126,7 +133,7 @@ module.exports = async function (context, req) {
             .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
             .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
             .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
-            .input('LifecycleStage', sql.NVarChar(50), body.stage || 'Sourced')
+            .input('LifecycleStage', sql.NVarChar(50), targetStage)
             .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
             .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
             .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus !== undefined ? parseInt(body.docPaySlipsStatus, 10) : 0)
@@ -175,7 +182,7 @@ module.exports = async function (context, req) {
               WHERE RecruitID = @RecruitID;
             `);
 
-          // 2b. UPDATE APPLICATION
+          // 2b. UPSERT APPLICATION (Guarantees LifecycleStage gets created if missing)
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
@@ -183,25 +190,41 @@ module.exports = async function (context, req) {
             .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
             .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
             .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
-            .input('LifecycleStage', sql.NVarChar(50), body.stage || 'Sourced')
+            .input('LifecycleStage', sql.NVarChar(50), targetStage)
             .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
             .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
             .input('DocPaySlipsStatus', sql.Int, body.docPaySlipsStatus !== undefined ? parseInt(body.docPaySlipsStatus, 10) : 0)
             .input('DocCertsStatus', sql.NVarChar(50), body.docCertsStatus || 'Pending')
             .input('DocDegreesStatus', sql.NVarChar(50), body.docDegreesStatus || 'Pending')
             .query(`
-              UPDATE dbo.Applications
-              SET RoleID = @RoleID, 
-                  RecruiterUserID = @RecruiterUserID, 
-                  SourceID = @SourceID,
-                  DateSourced = @DateSourced, 
-                  LifecycleStage = @LifecycleStage,
-                  DocCvStatus = @DocCvStatus,
-                  DocIdStatus = @DocIdStatus,
-                  DocPaySlipsStatus = @DocPaySlipsStatus,
-                  DocCertsStatus = @DocCertsStatus,
-                  DocDegreesStatus = @DocDegreesStatus
-              WHERE RecruitID = @RecruitID;
+              IF EXISTS (SELECT 1 FROM dbo.Applications WHERE RecruitID = @RecruitID)
+              BEGIN
+                UPDATE dbo.Applications
+                SET RoleID = @RoleID, 
+                    RecruiterUserID = @RecruiterUserID, 
+                    SourceID = @SourceID,
+                    DateSourced = @DateSourced, 
+                    LifecycleStage = @LifecycleStage,
+                    DocCvStatus = @DocCvStatus,
+                    DocIdStatus = @DocIdStatus,
+                    DocPaySlipsStatus = @DocPaySlipsStatus,
+                    DocCertsStatus = @DocCertsStatus,
+                    DocDegreesStatus = @DocDegreesStatus
+                WHERE RecruitID = @RecruitID;
+              END
+              ELSE
+              BEGIN
+                INSERT INTO dbo.Applications (
+                  RecruitID, RoleID, RecruiterUserID, SourceID, DateSourced,
+                  LifecycleStage, DocCvStatus, DocIdStatus, DocPaySlipsStatus,
+                  DocCertsStatus, DocDegreesStatus
+                )
+                VALUES (
+                  @RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced,
+                  @LifecycleStage, @DocCvStatus, @DocIdStatus, @DocPaySlipsStatus,
+                  @DocCertsStatus, @DocDegreesStatus
+                );
+              END
             `);
         }
 
