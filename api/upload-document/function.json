@@ -5,8 +5,10 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["post"],
-      "dataType": "binary"
+      "methods": [
+        "post"
+      ],
+      "route": "upload-document"
     },
     {
       "type": "http",

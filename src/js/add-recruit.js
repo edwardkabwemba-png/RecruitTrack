@@ -161,6 +161,8 @@ function bindFileInput(elementId, badgeId, category) {
   });
 }
 
+let existingDocStatuses = {};
+
 async function loadExistingCandidateData(recruitId) {
   try {
     const res = await fetch(`/api/recruits?action=getOne&id=${recruitId}`);
@@ -168,6 +170,22 @@ async function loadExistingCandidateData(recruitId) {
 
     const data = await res.json();
     if (!data || !data.RecruitID) return;
+
+    // Preserve existing document statuses in memory
+    existingDocStatuses = {
+      docCvStatus: data.DocCvStatus || 'Pending',
+      docIdStatus: data.DocIdStatus || 'Pending',
+      docPaySlipsStatus: data.DocPaySlipsStatus || 0,
+      docCertsStatus: data.DocCertsStatus || 'Pending',
+      docDegreesStatus: data.DocDegreesStatus || 'Pending'
+    };
+
+    // Restore UI badges for previously uploaded documents
+    if (data.DocCvStatus === 'Uploaded') updateBadgeUI('badgeCv', 'Received');
+    if (data.DocIdStatus === 'Uploaded') updateBadgeUI('badgeId', 'Received');
+    if (data.DocPaySlipsStatus > 0) updateBadgeUI('badgePayslips', `${data.DocPaySlipsStatus} Received`);
+    if (data.DocCertsStatus === 'Uploaded') updateBadgeUI('badgeCerts', 'Received');
+    if (data.DocDegreesStatus === 'Uploaded') updateBadgeUI('badgeDegree', 'Received');
 
     // Standard text inputs
     setVal('firstName', data.FirstName);
@@ -228,6 +246,17 @@ async function loadExistingCandidateData(recruitId) {
 
   } catch (err) {
     console.error("Error loading candidate data:", err);
+  }
+}
+
+// Helper to set badge styles dynamically
+function updateBadgeUI(badgeId, text) {
+  const badge = getElem(badgeId);
+  if (badge) {
+    badge.className = 'status-badge badge-received';
+    badge.style.backgroundColor = '#d1e7dd';
+    badge.style.color = '#0f5132';
+    badge.textContent = text;
   }
 }
 
