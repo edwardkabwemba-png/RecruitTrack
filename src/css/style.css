@@ -452,3 +452,32 @@ td {
 .lifecycle-item:hover .stage-label {
   color: #1d4ed8;
 }
+
+/* Candidate Section Badges */
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Badge Color Variations */
+.badge-sourced    { background-color: #e0f2fe !important; color: #0369a1 !important; }
+.badge-discussion { background-color: #fef3c7 !important; color: #92400e !important; }
+.badge-screened   { background-color: #e0e7ff !important; color: #3730a3 !important; }
+.badge-cv         { background-color: #f3e8ff !important; color: #6b21a8 !important; }
+.badge-interviewed{ background-color: #fce7f3 !important; color: #be185d !important; }
+.badge-offer      { background-color: #ffedd5 !important; color: #9a3412 !important; }
+.badge-hired      { background-color: #dcfce7 !important; color: #166534 !important; }
+
+/* Progress Bar Fill Colors */
+.bg-sourced    { background-color: #0284c7 !important; }
+.bg-discussion { background-color: #d97706 !important; }
+.bg-screened   { background-color: #4f46e5 !important; }
+.bg-cv         { background-color: #9333ea !important; }
+.bg-interview  { background-color: #be185d !important; }
+.bg-offer      { background-color: #ea580c !important; }
+.bg-hired      { background-color: #16a34a !important; }
