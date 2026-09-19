@@ -6,6 +6,10 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
+    // Read active logged-in user from headers or query params
+    const loggedInUserHeader = req.headers['x-user-id'] || req.query.userId;
+    const activeUserId = loggedInUserHeader ? parseInt(loggedInUserHeader, 10) : null;
+
     // GET REQUESTS
     if (req.method === 'GET') {
       const { action, id } = req.query;
@@ -78,6 +82,9 @@ module.exports = async function (context, req) {
       const recruitId = rawId ? parseInt(rawId, 10) : null;
       const targetStage = body.stage || body.lifecycleStage || 'Sourced';
 
+      // Determine RecruiterUserID: use form value if provided, else fall back to the editing user
+      const assignedRecruiterId = body.recruiterId ? parseInt(body.recruiterId, 10) : activeUserId;
+
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
 
@@ -124,7 +131,7 @@ module.exports = async function (context, req) {
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
             .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
-            .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
+            .input('RecruiterUserID', sql.Int, assignedRecruiterId)
             .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
             .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
             .input('LifecycleStage', sql.NVarChar(50), targetStage)
@@ -176,12 +183,12 @@ module.exports = async function (context, req) {
               WHERE RecruitID = @RecruitID;
             `);
 
-          // 2b. UPSERT APPLICATION
+          // 2b. UPSERT APPLICATION (UPDATES RecruiterUserID to editing recruiter)
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
             .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
-            .input('RecruiterUserID', sql.Int, body.recruiterId ? parseInt(body.recruiterId, 10) : null)
+            .input('RecruiterUserID', sql.Int, assignedRecruiterId)
             .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
             .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
             .input('LifecycleStage', sql.NVarChar(50), targetStage)
@@ -195,7 +202,7 @@ module.exports = async function (context, req) {
               BEGIN
                 UPDATE dbo.Applications
                 SET RoleID = @RoleID, 
-                    RecruiterUserID = @RecruiterUserID, 
+                    RecruiterUserID = ISNULL(@RecruiterUserID, RecruiterUserID), 
                     SourceID = @SourceID,
                     DateSourced = @DateSourced, 
                     LifecycleStage = @LifecycleStage,
