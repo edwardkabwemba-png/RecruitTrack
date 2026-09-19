@@ -32,12 +32,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadDropdowns() {
   try {
-    const res = await fetch('/api/recruits?action=dropdowns');
+    const res = await fetch('/api/add-recruit?action=dropdowns');
     const data = await res.json();
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName');
-    // Role selection populated with fallback support
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'PositionTitle');
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName');
@@ -62,14 +61,14 @@ function cleanTagItems(rawInput) {
     const parsed = JSON.parse(rawInput);
     if (Array.isArray(parsed)) return parsed.map(s => String(s).replace(/[\[\]"']/g, '').trim());
   } catch (e) {
-    // If not valid JSON, treat as comma-delimited text
+    // Treat as comma-delimited text if not JSON
   }
   return String(rawInput).split(',').map(s => s.replace(/[\[\]"']/g, '').trim()).filter(Boolean);
 }
 
 async function loadRecruitDetails(id) {
   try {
-    const res = await fetch(`/api/recruits?action=getOne&id=${id}`);
+    const res = await fetch(`/api/add-recruit?action=getOne&id=${id}`);
     const data = await res.json();
 
     document.getElementById('recruitId').value = data.RecruitID || id;
@@ -78,7 +77,6 @@ async function loadRecruitDetails(id) {
     }
     document.getElementById('displayCandidateName').textContent = `${data.FirstName || ''} ${data.Surname || ''}`;
 
-    document.getElementById('recruiterSelect').value = data.RecruiterUserID || '';
     document.getElementById('dateSourced').value = data.DateSourced ? data.DateSourced.substring(0, 10) : '';
     document.getElementById('firstName').value = data.FirstName || '';
     document.getElementById('surname').value = data.Surname || '';
@@ -98,6 +96,12 @@ async function loadRecruitDetails(id) {
     const roleSel = document.getElementById('roleSelect');
     if (roleSel) {
       roleSel.value = data.RoleID || '';
+    }
+
+    // Set Recruiter drop down value
+    const recruiterSel = document.getElementById('recruiterSelect');
+    if (recruiterSel) {
+      recruiterSel.value = data.RecruiterUserID || '';
     }
 
     if (document.getElementById('senioritySelect')) {
@@ -151,16 +155,35 @@ function updateDocBadge(elemId, status) {
 }
 
 function setLifecycleStage(stage) {
-  currentStage = stage;
   const stages = ['Sourced', 'In Discussion', 'Screened', 'CV Prepared', 'Interviewed', 'Offer Sent', 'Hired'];
-  const targetIndex = typeof stage === 'number' ? stage - 1 : stages.indexOf(stage);
+  let targetIndex = -1;
+  const stageLower = String(stage).toLowerCase().trim();
+
+  stages.forEach((s, idx) => {
+    if (s.toLowerCase() === stageLower || (s === 'Interviewed' && stageLower === 'interview')) {
+      targetIndex = idx;
+      currentStage = s;
+    }
+  });
+
+  if (targetIndex === -1) {
+    targetIndex = typeof stage === 'number' ? stage - 1 : 0;
+    currentStage = stages[targetIndex] || 'Sourced';
+  }
 
   document.querySelectorAll('#lifecycleContainer .lifecycle-item').forEach((item, idx) => {
     const node = item.querySelector('.stage-node');
     if (!node) return;
-    node.className = 'stage-node';
-    if (idx < targetIndex) node.classList.add('completed');
-    if (idx === targetIndex) node.classList.add('active');
+
+    node.classList.remove('active', 'completed', 'pending');
+
+    if (idx < targetIndex) {
+      node.classList.add('completed');
+    } else if (idx === targetIndex) {
+      node.classList.add('active');
+    } else {
+      node.classList.add('pending');
+    }
   });
 }
 
@@ -209,43 +232,6 @@ function setupTagHandlers() {
     });
   }
 
-  function setLifecycleStage(stage) {
-  const stages = ['Sourced', 'In Discussion', 'Screened', 'CV Prepared', 'Interviewed', 'Offer Sent', 'Hired'];
-  
-  // Case-insensitive lookup + alternate naming fallback
-  let targetIndex = -1;
-  const stageLower = String(stage).toLowerCase().trim();
-
-  stages.forEach((s, idx) => {
-    if (s.toLowerCase() === stageLower || 
-       (s === 'Interviewed' && stageLower === 'interview')) {
-      targetIndex = idx;
-      currentStage = s; // Normalize and save target stage to update payload
-    }
-  });
-
-  if (targetIndex === -1) {
-    targetIndex = typeof stage === 'number' ? stage - 1 : 0;
-    currentStage = stages[targetIndex] || 'Sourced';
-  }
-
-  // Update Visual Indicators
-  document.querySelectorAll('#lifecycleContainer .lifecycle-item').forEach((item, idx) => {
-    const node = item.querySelector('.stage-node');
-    if (!node) return;
-
-    node.classList.remove('active', 'completed', 'pending');
-
-    if (idx < targetIndex) {
-      node.classList.add('completed');
-    } else if (idx === targetIndex) {
-      node.classList.add('active');
-    } else {
-      node.classList.add('pending');
-    }
-  });
-}
-
   const certSel = document.getElementById('certSelect');
   if (certSel) {
     certSel.addEventListener('change', (e) => {
@@ -279,7 +265,6 @@ function setupFormSubmit() {
   const form = document.getElementById('editRecruitForm');
   if (!form) return;
 
-  // Enforce HTML attribute level validation as fallback
   const roleSel = document.getElementById('roleSelect');
   if (roleSel) roleSel.required = true;
 
@@ -288,7 +273,6 @@ function setupFormSubmit() {
 
     const selectedRoleId = document.getElementById('roleSelect').value;
 
-    // Strict JS Validation to ensure Role is selected
     if (!selectedRoleId) {
       alert("Please select a target Role before saving candidate updates.");
       if (roleSel) {
@@ -300,11 +284,15 @@ function setupFormSubmit() {
       roleSel.style.borderColor = '';
     }
 
+    // Retrieve active logged-in user ID from browser storage
+    const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+    const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id || '';
+
     const id = document.getElementById('recruitId').value;
     const bodyPayload = {
       recruitId: id,
       applicationId: document.getElementById('applicationId') ? document.getElementById('applicationId').value : '',
-      recruiterId: document.getElementById('recruiterSelect').value,
+      recruiterId: document.getElementById('recruiterSelect').value || currentUserId,
       dateSourced: document.getElementById('dateSourced').value,
       firstName: document.getElementById('firstName').value,
       surname: document.getElementById('surname').value,
@@ -325,7 +313,6 @@ function setupFormSubmit() {
       otherSkills: document.getElementById('otherSkills').value,
       stage: currentStage,
       
-      // Included document status variables
       docCvStatus: docStates.DocCvStatus,
       docIdStatus: docStates.DocIdStatus,
       docPaySlipsStatus: docStates.DocPaySlipsStatus,
@@ -334,9 +321,12 @@ function setupFormSubmit() {
     };
 
     try {
-      const res = await fetch(`/api/recruits?action=update&id=${id}`, {
+      const res = await fetch(`/api/add-recruit?id=${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': currentUserId
+        },
         body: JSON.stringify(bodyPayload)
       });
 
