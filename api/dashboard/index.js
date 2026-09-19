@@ -42,7 +42,7 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
       LEFT JOIN dbo.Applications a ON r.RoleID = a.RoleID
-      WHERE Status = 'Active' AND a.RecruiterUserID = @RecruiterUserID OR a.RecruiterUserID IS NULL 
+      WHERE r.Status = 'Active' and a.RecruiterUserID = @RecruiterUserID OR a.RecruiterUserID IS NULL 
       GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName;
     `;
     const rolesRes = await pool.request()
@@ -69,7 +69,7 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
       LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
-      WHERE Status = 'Active' AND a.RecruiterUserID = @RecruiterUserID
+      WHERE r.Status = 'Active' and a.RecruiterUserID = @RecruiterUserID
       ORDER BY r.RecruitID DESC;
     `;
     const candidatesRes = await pool.request()
