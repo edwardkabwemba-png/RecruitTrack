@@ -10,7 +10,7 @@ async function loadDashboardData(searchTerm = '') {
   try {
     // Read user details stored during login
     const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-    const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id;
+    const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id || '';
 
     // Build URL with optional search parameter
     let url = `/api/dashboard?userId=${currentUserId}`;
@@ -122,22 +122,29 @@ function renderCandidates(candidates) {
   };
 
   container.innerHTML = candidates.map(c => {
-    const pct = stagePercentages[c.Stage] || 14;
+    // Extract and normalize stage values
+    const rawStage = c.Stage || c.LifecycleStage;
+    const stageName = getStageLabel(rawStage);
+    const badgeClass = getStageBadgeClass(stageName);
+    const bgClass = getStageBgClass(stageName);
+
+    const pct = stagePercentages[stageName] || 14;
+
     return `
       <div class="candidate-row">
         <div class="candidate-info">
           <a href="edit-recruit.html?id=${c.RecruitID}" style="font-weight: bold; color: #1d4ed8; text-decoration: none;">
-            ${c.FirstName} ${c.Surname}
+            ${c.FirstName || ''} ${c.Surname || ''}
           </a>
         </div>
-        <div class="candidate-role">${c.PositionTitle} @ ${c.ClientName}</div>
+        <div class="candidate-role">${c.PositionTitle ? `${c.PositionTitle} @${c.ClientName || ''}` : 'Unassigned'}</div>
         <div class="candidate-role">Sourced ${c.DateSourced ? new Date(c.DateSourced).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}</div>
         <div class="candidate-stage">
-          <span class="badge badge-code">${c.Stage || 'Sourced'}</span>
+          <span class="badge ${badgeClass}">${stageName}</span>
         </div>
         <div class="candidate-progress">
           <div class="progress-bar-container" style="flex: 1; margin: 0;">
-            <div class="progress-segment ${pct === 100 ? 'bg-hired' : 'bg-screened'}" style="width: ${pct}%"></div>
+            <div class="progress-segment ${bgClass}" style="width: ${pct}%"></div>
           </div>
           <span style="font-size: 0.75rem; color: #64748b; width: 30px;">${pct}%</span>
         </div>
@@ -160,4 +167,49 @@ function setupSearch() {
       loadDashboardData(query);
     }, 300);
   });
+}
+
+// Helper: Convert numeric stage IDs or strings to normalized label
+function getStageLabel(stage) {
+  if (!stage) return 'Sourced';
+
+  const map = {
+    1: 'Sourced',
+    2: 'In Discussion',
+    3: 'Screened',
+    4: 'CV Prepared',
+    5: 'Interviewed',
+    6: 'Offer Sent',
+    7: 'Hired'
+  };
+
+  return map[stage] || stage;
+}
+
+// Helper: Map lifecycle stage label to CSS badge class
+function getStageBadgeClass(stageName) {
+  switch (stageName) {
+    case 'Sourced': return 'badge-sourced';
+    case 'In Discussion': return 'badge-discussion';
+    case 'Screened': return 'badge-screened';
+    case 'CV Prepared': return 'badge-cv';
+    case 'Interviewed': return 'badge-interviewed';
+    case 'Offer Sent': return 'badge-offer';
+    case 'Hired': return 'badge-hired';
+    default: return 'badge-sourced';
+  }
+}
+
+// Helper: Map lifecycle stage label to progress bar background class
+function getStageBgClass(stageName) {
+  switch (stageName) {
+    case 'Sourced': return 'bg-sourced';
+    case 'In Discussion': return 'bg-discussion';
+    case 'Screened': return 'bg-screened';
+    case 'CV Prepared': return 'bg-cv';
+    case 'Interviewed': return 'bg-interview';
+    case 'Offer Sent': return 'bg-offer';
+    case 'Hired': return 'bg-hired';
+    default: return 'bg-sourced';
+  }
 }
