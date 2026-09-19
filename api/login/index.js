@@ -42,21 +42,12 @@ module.exports = async function (context, req) {
       return;
     }
 
+    // Success response
     context.res.status = 200;
     context.res.body = JSON.stringify({
       message: "Login successful",
       user: { id: user.UserID, email: user.Email, name: user.FullName }
     });
-
-    // Example code inside login.js submit handler
-if (response.ok) {
-  const userData = await response.json();
-  
-  // Make sure to store the logged-in user object (containing UserID: 4 for 'test')
-  localStorage.setItem("user", JSON.stringify(userData)); 
-  
-  window.location.href = "dashboard.html";
-}
 
   } catch (error) {
     context.res.status = 500;
