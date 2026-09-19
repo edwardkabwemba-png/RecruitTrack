@@ -6,8 +6,9 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
-    // Read logged in user ID from headers, query string, or default to 1
+    // Read logged in user ID and search term
     const currentUserId = req.headers['x-user-id'] || req.query.userId || 1;
+    const searchTerm = (req.query.search || req.query.q || '').trim();
 
     // 1. Fetch Current User Details safely
     let currentUser = { name: "Test User", role: "Recruiter" };
@@ -24,7 +25,14 @@ module.exports = async function (context, req) {
       context.log.warn("User lookup non-fatal error:", uErr.message);
     }
 
-    // 2. Fetch Section 1: Active/Frozen Roles filtered for the logged-in user's assigned roles
+    // 2. Fetch Roles (If search is present, include CLOSED roles and filter by Position or Candidate Name)
+    let rolesWhereClause = "WHERE a.RecruiterUserID = @RecruiterUserID";
+    if (searchTerm) {
+      rolesWhereClause += " AND (p.PositionTitle LIKE @Search OR EXISTS (SELECT 1 FROM dbo.Recruits rec INNER JOIN dbo.Applications app ON rec.RecruitID = app.RecruitID WHERE app.RoleID = r.RoleID AND (rec.FirstName LIKE @Search OR rec.Surname LIKE @Search)))";
+    } else {
+      rolesWhereClause += " AND r.Status = 'Active'";
+    }
+
     const rolesQuery = `
       SELECT 
         r.RoleID,
@@ -42,14 +50,24 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
       LEFT JOIN dbo.Applications a ON r.RoleID = a.RoleID
-      WHERE r.Status = 'Active' and a.RecruiterUserID = @RecruiterUserID
+      ${rolesWhereClause}
       GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName;
     `;
-    const rolesRes = await pool.request()
-      .input('RecruiterUserID', sql.Int, currentUserId)
-      .query(rolesQuery);
 
-    // 3. Fetch Section 2: Personal Candidates belonging ONLY to the logged-in user
+    const rolesRequest = pool.request().input('RecruiterUserID', sql.Int, currentUserId);
+    if (searchTerm) {
+      rolesRequest.input('Search', sql.VarChar, `%${searchTerm}%`);
+    }
+    const rolesRes = await rolesRequest.query(rolesQuery);
+
+    // 3. Fetch Candidates (If search is present, include CLOSED roles and filter by Candidate Name or Position)
+    let candidatesWhereClause = "WHERE a.RecruiterUserID = @RecruiterUserID";
+    if (searchTerm) {
+      candidatesWhereClause += " AND (r.FirstName LIKE @Search OR r.Surname LIKE @Search OR p.PositionTitle LIKE @Search)";
+    } else {
+      candidatesWhereClause += " AND ro.Status = 'Active'";
+    }
+
     const candidatesQuery = `
      SELECT 
         r.RecruitID,
@@ -69,12 +87,15 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
       LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
-      WHERE ro.Status = 'Active' and a.RecruiterUserID = @RecruiterUserID
+      ${candidatesWhereClause}
       ORDER BY r.RecruitID DESC;
     `;
-    const candidatesRes = await pool.request()
-      .input('RecruiterUserID', sql.Int, currentUserId)
-      .query(candidatesQuery);
+
+    const candidatesRequest = pool.request().input('RecruiterUserID', sql.Int, currentUserId);
+    if (searchTerm) {
+      candidatesRequest.input('Search', sql.VarChar, `%${searchTerm}%`);
+    }
+    const candidatesRes = await candidatesRequest.query(candidatesQuery);
 
     context.res.status = 200;
     context.res.body = JSON.stringify({

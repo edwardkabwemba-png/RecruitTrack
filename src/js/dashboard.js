@@ -4,15 +4,22 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 let allCandidates = [];
+let searchDebounceTimeout = null;
 
-async function loadDashboardData() {
+async function loadDashboardData(searchTerm = '') {
   try {
     // Read user details stored during login
     const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
     const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id;
 
+    // Build URL with optional search parameter
+    let url = `/api/dashboard?userId=${currentUserId}`;
+    if (searchTerm.trim()) {
+      url += `&search=${encodeURIComponent(searchTerm.trim())}`;
+    }
+
     // Pass the userId in both query param and headers
-    const res = await fetch(`/api/dashboard?userId=${currentUserId}`, {
+    const res = await fetch(url, {
       headers: {
         "x-user-id": currentUserId
       }
@@ -141,12 +148,16 @@ function renderCandidates(candidates) {
 }
 
 function setupSearch() {
-  document.getElementById('candidateSearch').addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase();
-    const filtered = allCandidates.filter(c => 
-      `${c.FirstName} ${c.Surname}`.toLowerCase().includes(query) ||
-      `${c.PositionTitle} ${c.ClientName}`.toLowerCase().includes(query)
-    );
-    renderCandidates(filtered);
+  const searchInput = document.getElementById('candidateSearch') || document.getElementById('searchInput');
+  if (!searchInput) return;
+
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value;
+
+    // Debounce database query by 300ms so database isn't hit on every single keypress
+    clearTimeout(searchDebounceTimeout);
+    searchDebounceTimeout = setTimeout(() => {
+      loadDashboardData(query);
+    }, 300);
   });
 }
