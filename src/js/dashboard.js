@@ -122,7 +122,7 @@ function renderCandidates(candidates) {
   };
 
   container.innerHTML = candidates.map(c => {
-    // Extract and normalize stage values
+    // Extract & normalize stage
     const rawStage = c.Stage || c.LifecycleStage;
     const stageName = getStageLabel(rawStage);
     const badgeClass = getStageBadgeClass(stageName);
@@ -143,10 +143,10 @@ function renderCandidates(candidates) {
           <span class="badge ${badgeClass}">${stageName}</span>
         </div>
         <div class="candidate-progress">
-          <div class="progress-bar-container" style="flex: 1; margin: 0;">
-            <div class="progress-segment ${bgClass}" style="width: ${pct}%"></div>
+          <div class="progress-bar-container" style="flex: 1; margin: 0; background-color: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
+            <div class="progress-segment ${bgClass}" style="width: ${pct}%; height: 100%;"></div>
           </div>
-          <span style="font-size: 0.75rem; color: #64748b; width: 30px;">${pct}%</span>
+          <span style="font-size: 0.75rem; color: #64748b; width: 35px; text-align: right;">${pct}%</span>
         </div>
         <div class="candidate-docs">${c.DocsCompleted || 0}/5 docs</div>
       </div>
