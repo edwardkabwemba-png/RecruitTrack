@@ -30,21 +30,37 @@
     .role-title-group { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 0.95rem; }
     .toggle-btn { cursor: pointer; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 6px; }
     
-    .badge { padding: 3px 8px; border-radius: 12px; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; }
+    /* Base Badge Style */
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; }
+    
+    /* Core Status & Code Badges */
     .badge-code { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
     .badge-active { background: #dcfce7; color: #166534; }
     .badge-frozen { background: #fef3c7; color: #92400e; }
 
+    /* Candidate Stage Badges (Matching manage-recruits) */
+    .badge-sourced     { background: #e0f2fe; color: #0369a1; }
+    .badge-discussion  { background: #eff6ff; color: #1d4ed8; }
+    .badge-screened    { background: #fef3c7; color: #92400e; }
+    .badge-cv          { background: #f3e8ff; color: #6b21a8; }
+    .badge-interviewed { background: #e0e7ff; color: #3730a3; }
+    .badge-offer       { background: #ffedd5; color: #9a3412; }
+    .badge-hired       { background: #dcfce7; color: #166534; }
+
     .role-details { background: #fff; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; color: #475569; margin: 10px 0; }
     
-    /* Progress Bars */
+    /* Progress Bars & Segment Colors */
     .progress-group { margin-top: 10px; font-size: 0.75rem; color: #64748b; }
     .progress-bar-container { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; margin: 4px 0 10px 0; }
-    .progress-segment { height: 100%; }
-    .bg-sourced { background: #cbd5e1; }
-    .bg-screened { background: #60a5fa; }
-    .bg-interview { background: #f59e0b; }
-    .bg-hired { background: #10b981; }
+    .progress-segment { height: 100%; transition: width 0.3s ease; }
+
+    .bg-sourced    { background: #cbd5e1; }
+    .bg-discussion { background: #3b82f6; }
+    .bg-screened   { background: #60a5fa; }
+    .bg-cv         { background: #a855f7; }
+    .bg-interview  { background: #f59e0b; }
+    .bg-offer      { background: #f97316; }
+    .bg-hired      { background: #10b981; }
 
     /* Candidates Table List */
     .candidate-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; background: #fff; font-size: 0.85rem; }
