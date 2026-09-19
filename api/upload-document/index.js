@@ -1,79 +1,73 @@
 const { BlobServiceClient } = require('@azure/storage-blob');
 
 module.exports = async function (context, req) {
-  context.log("Upload document request received.");
+  context.res = { headers: { 'Content-Type': 'application/json' } };
+
+  if (req.method !== 'POST') {
+    context.res.status = 405;
+    context.res.body = JSON.stringify({ message: 'Method not allowed' });
+    return;
+  }
 
   try {
-    // 1. Read headers (case-insensitive)
-    const rawFileName = req.headers['x-file-name'] || req.headers['X-File-Name'];
-    const rawFolderPath = req.headers['x-folder-path'] || req.headers['X-Folder-Path'];
-
-    if (!rawFileName || !rawFolderPath) {
-      context.res = {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: "Missing required headers: X-File-Name or X-Folder-Path" })
-      };
+    const connStr = process.env.CUSTOM_STORAGE_CONNECTION_STRING;
+    if (!connStr) {
+      context.res.status = 500;
+      context.res.body = JSON.stringify({ message: "Missing CUSTOM_STORAGE_CONNECTION_STRING in Azure settings." });
       return;
     }
 
-    const fileName = decodeURIComponent(rawFileName);
-    const folderPath = decodeURIComponent(rawFolderPath);
-
-    // 2. Extract binary body buffer safely
-    let fileBuffer = req.body;
-    if (typeof fileBuffer === 'string') {
-      fileBuffer = Buffer.from(fileBuffer, 'binary');
+    // Resolve binary data into a Node Buffer from any incoming format
+    let fileBuffer = null;
+    if (Buffer.isBuffer(req.body)) {
+      fileBuffer = req.body;
+    } else if (req.rawBody) {
+      fileBuffer = Buffer.isBuffer(req.rawBody) 
+        ? req.rawBody 
+        : Buffer.from(req.rawBody, typeof req.rawBody === 'string' ? 'utf8' : 'binary');
+    } else if (typeof req.body === 'string') {
+      fileBuffer = Buffer.from(req.body, 'base64');
+    } else if (req.body && req.body.data) {
+      fileBuffer = Buffer.from(req.body.data);
     }
 
     if (!fileBuffer || fileBuffer.length === 0) {
-      context.res = {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: "File buffer is empty or null." })
-      };
+      context.res.status = 400;
+      context.res.body = JSON.stringify({ message: 'No valid file binary data received in request.' });
       return;
     }
 
-// Change this line in upload-document/index.js:
-const connectionString = 
-  process.env.CUSTOM_STORAGE_CONNECTION_STRING || 
-  process.env.AzureWebJobsStorage || 
-  process.env.BlobConnectionString;
+    // Extract headers
+    const rawFileName = decodeURIComponent(req.headers['x-file-name'] || `doc-${Date.now()}.pdf`);
+    const folderPath = decodeURIComponent(req.headers['x-folder-path'] || 'Unsorted');
+    
+    const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const cleanFolderPath = folderPath.replace(/[^a-zA-Z0-9_\-/]/g, '_');
 
-if (!connectionString) {
-  throw new Error("Missing Azure Storage connection string setting.");
-}
+    // Folder path format: FirstName_Surname/Category/timestamp-filename.pdf
+    const blobName = `${cleanFolderPath}/${Date.now()}-${cleanFileName}`;
 
-    const containerName = process.env.BlobContainerName || 'recruit-documents';
-    const blobServiceClient = BlobServiceClient.fromConnectionString(connectionString);
-    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
+    const containerClient = blobServiceClient.getContainerClient('documents');
+    
+    await containerClient.createIfNotExists({ access: 'blob' });
 
-    await containerClient.createIfNotExists({ access: 'container' });
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    const blobPath = `${folderPath}/${fileName}`;
-    const blockBlobClient = containerClient.getBlockBlobClient(blobPath);
-    const contentType = req.headers['content-type'] || 'application/octet-stream';
-
+    // Upload verified Buffer
     await blockBlobClient.uploadData(fileBuffer, {
-      blobHTTPHeaders: { blobContentType: contentType }
+      blobHTTPHeaders: { blobContentType: req.headers['content-type'] || 'application/pdf' }
     });
 
-    context.res = {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: "Upload successful",
-        fileUrl: blockBlobClient.url
-      })
-    };
+    context.res.status = 200;
+    context.res.body = JSON.stringify({
+      message: 'Upload successful',
+      fileUrl: blockBlobClient.url
+    });
 
-  } catch (error) {
-    context.log.error("Upload error:", error);
-    context.res = {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message })
-    };
+  } catch (err) {
+    context.log.error('Upload Error:', err.message);
+    context.res.status = 500;
+    context.res.body = JSON.stringify({ message: 'File upload failed', error: err.message });
   }
 };
