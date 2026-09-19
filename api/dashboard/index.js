@@ -69,7 +69,7 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
       LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
-      WHERE r.Status = 'Active' and a.RecruiterUserID = @RecruiterUserID
+      WHERE ro.Status = 'Active' 
       ORDER BY r.RecruitID DESC;
     `;
     const candidatesRes = await pool.request()
