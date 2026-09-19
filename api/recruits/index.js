@@ -35,7 +35,7 @@ module.exports = async function (context, req) {
         const query = `
           SELECT TOP 50 
             r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate,
-            a.ApplicationID, p.PositionTitle, c.ClientName, u.FullName AS RecruiterName,
+            a.ApplicationID, a.RoleID, p.PositionTitle, c.ClientName, u.FullName AS RecruiterName,
             s.SourceName, ISNULL(a.LifecycleStage, 'Sourced') AS Stage, a.DateSourced
           FROM dbo.Recruits r
           LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
@@ -82,7 +82,11 @@ module.exports = async function (context, req) {
       const recruitId = rawId ? parseInt(rawId, 10) : null;
       const targetStage = body.stage || body.lifecycleStage || 'Sourced';
 
-      // Determine RecruiterUserID: use form value if provided, else fall back to the editing user
+      // Parse Role ID from body or URL query
+      const rawRoleId = body.roleId || req.query.roleId;
+      const parsedRoleId = rawRoleId ? parseInt(rawRoleId, 10) : null;
+
+      // Determine RecruiterUserID: use form value if provided, else fall back to active logged-in user
       const assignedRecruiterId = body.recruiterId ? parseInt(body.recruiterId, 10) : activeUserId;
 
       const transaction = new sql.Transaction(pool);
@@ -130,7 +134,7 @@ module.exports = async function (context, req) {
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
-            .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
+            .input('RoleID', sql.Int, parsedRoleId)
             .input('RecruiterUserID', sql.Int, assignedRecruiterId)
             .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
             .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
@@ -183,11 +187,11 @@ module.exports = async function (context, req) {
               WHERE RecruitID = @RecruitID;
             `);
 
-          // 2b. UPSERT APPLICATION (UPDATES RecruiterUserID to editing recruiter)
+          // 2b. UPSERT APPLICATION (PRESERVES EXISTING ROLE IF NULL IS PASSED)
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
-            .input('RoleID', sql.Int, body.roleId ? parseInt(body.roleId, 10) : null)
+            .input('RoleID', sql.Int, parsedRoleId)
             .input('RecruiterUserID', sql.Int, assignedRecruiterId)
             .input('SourceID', sql.Int, body.sourceId ? parseInt(body.sourceId, 10) : null)
             .input('DateSourced', sql.Date, body.dateSourced ? new Date(body.dateSourced) : new Date())
@@ -201,11 +205,11 @@ module.exports = async function (context, req) {
               IF EXISTS (SELECT 1 FROM dbo.Applications WHERE RecruitID = @RecruitID)
               BEGIN
                 UPDATE dbo.Applications
-                SET RoleID = @RoleID, 
-                    RecruiterUserID = ISNULL(@RecruiterUserID, RecruiterUserID), 
-                    SourceID = @SourceID,
-                    DateSourced = @DateSourced, 
-                    LifecycleStage = @LifecycleStage,
+                SET RoleID = COALESCE(@RoleID, RoleID), 
+                    RecruiterUserID = COALESCE(@RecruiterUserID, RecruiterUserID), 
+                    SourceID = COALESCE(@SourceID, SourceID),
+                    DateSourced = COALESCE(@DateSourced, DateSourced), 
+                    LifecycleStage = COALESCE(@LifecycleStage, LifecycleStage),
                     DocCvStatus = @DocCvStatus,
                     DocIdStatus = @DocIdStatus,
                     DocPaySlipsStatus = @DocPaySlipsStatus,
