@@ -42,7 +42,7 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
       LEFT JOIN dbo.Applications a ON r.RoleID = a.RoleID
-      WHERE Status != 'closed' AND a.RecruiterUserID = @RecruiterUserID OR a.RecruiterUserID IS NULL 
+      WHERE Status = 'Active' AND a.RecruiterUserID = @RecruiterUserID OR a.RecruiterUserID IS NULL 
       GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName;
     `;
     const rolesRes = await pool.request()
