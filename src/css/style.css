@@ -1,5 +1,5 @@
 :root {
-  --bg-body: #f0f3f6;
+  --bg-body: #f4f6f8;
   --card-bg: #ffffff;
   --primary-navy: #1b253e;
   --text-main: #1f2937;
@@ -15,13 +15,27 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-body {
-  background-color: var(--bg-body);
+html, body {
+  width: 100%;
+  height: 100%;
   min-height: 100vh;
-  display: flex;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body { 
+  display: flex; 
+  background-color: var(--bg-body); 
+  color: #333; 
+}
+
+/* Login Page Wrapper Layout */
+body.page-login {
   align-items: center;
   justify-content: center;
   padding: 1rem;
+  background-color: #f0f3f6;
 }
 
 .login-card {
@@ -169,61 +183,10 @@ body {
   opacity: 0.93;
 }
 
-.stage-node {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background-color: #e9ecef;
-  border: 2px solid #ced4da;
-  display: inline-block;
-  transition: all 0.3s ease;
-}
-
-/* Active blue circle */
-.stage-node.active {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.2);
-}
-
-/* Completed past stages */
-.stage-node.completed {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-}
-
-/* Future stages */
-.stage-node.pending {
-  background-color: #e9ecef;
-  border-color: #ced4da;
-}
-
-* { 
-  box-sizing: border-box; 
-  margin: 0; 
-  padding: 0; 
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-}
-
-html, body {
-  width: 100%;
-  height: 100%;
-  min-height: 100vh;
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-body { 
-  display: flex; 
-  background-color: #f4f6f8; 
-  color: #333; 
-}
-
+/* Application Layout Structure */
 .sidebar { 
   width: 240px; 
-  min-width: 240px; /* Prevents sidebar from shrinking */
+  min-width: 240px; 
   min-height: 100vh;
   background-color: #1e293b; 
   color: #94a3b8; 
@@ -276,7 +239,7 @@ body {
 
 .main-content { 
   flex: 1; 
-  width: calc(100% - 240px); /* Takes remaining full width */
+  width: calc(100% - 240px);
   min-height: 100vh;
   overflow-y: auto; 
   padding: 25px 35px; 
@@ -347,11 +310,13 @@ td {
   color: #334155; 
 }
 
+/* Consolidated Badge Styling */
 .badge { 
-  padding: 3px 8px; 
+  display: inline-block;
+  padding: 3px 10px; 
   border-radius: 12px; 
   font-size: 0.7rem; 
-  font-weight: bold; 
+  font-weight: 700; 
   text-transform: uppercase; 
 }
 
@@ -363,8 +328,33 @@ td {
 .badge-offer { background: #ffedd5; color: #9a3412; }
 .badge-hired { background: #dcfce7; color: #166534; }
 
+.badge-active { background: #e1f5ee; color: #0f6e56; }
+.badge-frozen { background: #faeeda; color: #854f0b; }
+.badge-code { background: #f1f5f9; color: #475569; }
 
-/* Dashboard Role Cards & Badges */
+/* Dashboard Progress Bar Classes */
+.progress-bar-container {
+  background-color: #e2e8f0;
+  border-radius: 6px;
+  height: 8px;
+  overflow: hidden;
+  display: flex;
+}
+
+.progress-segment {
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.bg-sourced    { background-color: #0284c7; }
+.bg-discussion { background-color: #2563eb; }
+.bg-screened   { background-color: #d97706; }
+.bg-cv         { background-color: #9333ea; }
+.bg-interview  { background-color: #4f46e5; }
+.bg-offer      { background-color: #ea580c; }
+.bg-hired      { background-color: #16a34a; }
+
+/* Dashboard Role Cards */
 .role-card {
   background: #ffffff;
   border: 1px solid #e2e8f0;
@@ -373,36 +363,11 @@ td {
   margin-bottom: 12px;
 }
 
-.role-card-header {
+.role-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 8px;
-}
-
-.role-card-title {
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #1e293b;
-}
-
-.badge {
-  display: inline-block;
-  font-size: 0.7rem;
-  padding: 2px 8px;
-  border-radius: 99px;
-  font-weight: 600;
-  text-transform: uppercase;
-}
-
-.badge-active {
-  background: #e1f5ee;
-  color: #0f6e56;
-}
-
-.badge-frozen {
-  background: #faeeda;
-  color: #854f0b;
 }
 
 .doc-link {
@@ -417,7 +382,7 @@ td {
   text-decoration: underline;
 }
 
-/* Lifecycle Stepper Styling */
+/* Lifecycle Stepper Component */
 #lifecycleContainer {
   display: flex;
   justify-content: space-between;
@@ -441,7 +406,7 @@ td {
 .lifecycle-item:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: 8px;
+  top: 9px;
   left: 50%;
   width: 100%;
   height: 2px;
@@ -460,20 +425,22 @@ td {
   transition: all 0.2s ease;
 }
 
-/* Active Stage Highlight */
 .stage-node.active {
   background-color: #1d4ed8;
   border-color: #1d4ed8;
   box-shadow: 0 0 0 4px rgba(29, 78, 216, 0.25);
 }
 
-/* Completed Stages */
 .stage-node.completed {
   background-color: #1d4ed8;
   border-color: #1d4ed8;
 }
 
-/* Lifecycle Text Labels */
+.stage-node.pending {
+  background-color: #ffffff;
+  border-color: #cbd5e1;
+}
+
 .stage-label {
   margin-top: 8px;
   font-size: 0.75rem;
