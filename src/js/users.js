@@ -6,12 +6,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const fullName = document.getElementById('fullName').value.trim();
     const email = document.getElementById('email').value.trim();
     const role = document.getElementById('userRole').value;
+    const password = document.getElementById('password').value; // Read password input
 
     try {
       const res = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email, role })
+        body: JSON.stringify({ fullName, email, role, password }) // Send password in payload
       });
 
       const data = await res.json();
