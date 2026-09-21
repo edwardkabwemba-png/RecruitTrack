@@ -1,5 +1,5 @@
 const sql = require('mssql');
-const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
@@ -28,16 +28,14 @@ module.exports = async function (context, req) {
     if (req.method === 'POST') {
       const { fullName, email, role, password } = req.body || {};
 
-      // Validate required fields including password
       if (!fullName || !email || !password) {
         context.res.status = 400;
         context.res.body = JSON.stringify({ message: "Full Name, Email, and Password are required." });
         return;
       }
 
-      // Hash the password securely (10 salt rounds)
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash(password, salt);
+      // Hash password using SHA-512
+      const passwordHash = crypto.createHash('sha512').update(password).digest('hex');
 
       // Generate initials from Full Name
       const initials = fullName
@@ -47,7 +45,6 @@ module.exports = async function (context, req) {
         .slice(0, 2)
         .join('');
 
-      // Insert user record into DB
       await pool.request()
         .input('FullName', sql.NVarChar(100), fullName)
         .input('Email', sql.NVarChar(150), email)
