@@ -1,4 +1,5 @@
 const sql = require('mssql');
+const bcrypt = require('bcryptjs');
 
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
@@ -25,14 +26,20 @@ module.exports = async function (context, req) {
     }
 
     if (req.method === 'POST') {
-      const { fullName, email, role } = req.body || {};
+      const { fullName, email, role, password } = req.body || {};
 
-      if (!fullName || !email) {
+      // Validate required fields including password
+      if (!fullName || !email || !password) {
         context.res.status = 400;
-        context.res.body = JSON.stringify({ message: "Full Name and Email are required." });
+        context.res.body = JSON.stringify({ message: "Full Name, Email, and Password are required." });
         return;
       }
 
+      // Hash the password securely (10 salt rounds)
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+
+      // Generate initials from Full Name
       const initials = fullName
         .split(' ')
         .filter(n => n)
@@ -40,15 +47,17 @@ module.exports = async function (context, req) {
         .slice(0, 2)
         .join('');
 
+      // Insert user record into DB
       await pool.request()
         .input('FullName', sql.NVarChar(100), fullName)
         .input('Email', sql.NVarChar(150), email)
+        .input('PasswordHash', sql.NVarChar(255), passwordHash)
         .input('Role', sql.NVarChar(50), role || 'Recruiter')
         .input('AvatarInitials', sql.NVarChar(5), initials)
         .input('IsActive', sql.Bit, 1)
         .query(`
-          INSERT INTO dbo.Users (FullName, Email, Role, AvatarInitials, IsActive)
-          VALUES (@FullName, @Email, @Role, @AvatarInitials, @IsActive)
+          INSERT INTO dbo.Users (FullName, Email, PasswordHash, Role, AvatarInitials, IsActive)
+          VALUES (@FullName, @Email, @PasswordHash, @Role, @AvatarInitials, @IsActive)
         `);
 
       context.res.status = 201;
