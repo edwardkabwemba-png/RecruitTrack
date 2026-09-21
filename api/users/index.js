@@ -1,6 +1,11 @@
 const sql = require('mssql');
 const crypto = require('crypto');
 
+// SHA-256 helper matching the login endpoint
+function hashPasswordSHA256(password) {
+  return crypto.createHash('sha256').update(password).digest('hex');
+}
+
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
@@ -34,8 +39,8 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Hash password using SHA-512
-      const passwordHash = crypto.createHash('sha512').update(password).digest('hex');
+      // Hash password using SHA-256 (64 characters)
+      const passwordHash = hashPasswordSHA256(password);
 
       // Generate initials from Full Name
       const initials = fullName
@@ -48,7 +53,7 @@ module.exports = async function (context, req) {
       await pool.request()
         .input('FullName', sql.NVarChar(100), fullName)
         .input('Email', sql.NVarChar(150), email)
-        .input('PasswordHash', sql.NVarChar(255), passwordHash)
+        .input('PasswordHash', sql.NVarChar(100), passwordHash)
         .input('Role', sql.NVarChar(50), role || 'Recruiter')
         .input('AvatarInitials', sql.NVarChar(5), initials)
         .input('IsActive', sql.Bit, 1)
