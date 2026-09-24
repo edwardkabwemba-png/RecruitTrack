@@ -203,13 +203,19 @@ function addSelectedSkill(type) {
   if (!skillId) return;
 
   let label = skillText;
+  let years = null;
+
   if (type === 'reqSkill') {
     const yrsInput = document.getElementById('skillYearsInput');
-    const yrs = yrsInput ? yrsInput.value : '';
-    if (yrs) label += ` — ${yrs} yrs`;
+    yrs = yrsInput ? parseInt(yrsInput.value, 10) : null;
+    if (yrs && !isNaN(yrs)) {
+      label += ` — ${yrs} yrs`;
+      years = yrs;
+    }
   }
 
-  const skillItem = { id: skillId, label: label };
+  // Include years property in the object
+  const skillItem = { id: skillId, label: label, years: years };
 
   if (type === 'reqSkill') {
     if (!selectedReqSkills.some(s => s.id === skillId)) selectedReqSkills.push(skillItem);
