@@ -25,7 +25,7 @@ module.exports = async function (context, req) {
       context.log.warn("User lookup non-fatal error:", uErr.message);
     }
 
-    // 2. Fetch Roles (If search is present, include CLOSED roles and filter by Position or Candidate Name)
+    // 2. Fetch Roles with Required Skills included
     let rolesWhereClause = "WHERE a.RecruiterUserID = @RecruiterUserID";
     if (searchTerm) {
       rolesWhereClause += " AND (p.PositionTitle LIKE @Search OR EXISTS (SELECT 1 FROM dbo.Recruits rec INNER JOIN dbo.Applications app ON rec.RecruitID = app.RecruitID WHERE app.RoleID = r.RoleID AND (rec.FirstName LIKE @Search OR rec.Surname LIKE @Search)))";
@@ -39,6 +39,7 @@ module.exports = async function (context, req) {
         ISNULL(r.Status, 'Active') AS Status,
         p.PositionTitle,
         c.ClientName,
+        skReq.RequiredSkills,
         COUNT(a.ApplicationID) AS TotalCandidates,
         SUM(CASE WHEN a.LifecycleStage = 'Sourced' THEN 1 ELSE 0 END) AS SourcedCount,
         SUM(CASE WHEN a.LifecycleStage = 'Screened' THEN 1 ELSE 0 END) AS ScreenedCount,
@@ -50,8 +51,20 @@ module.exports = async function (context, req) {
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
       LEFT JOIN dbo.Applications a ON r.RoleID = a.RoleID
+
+      -- Aggregate Required Skills for Dashboard Cards/Tables
+      OUTER APPLY (
+        SELECT STRING_AGG(
+          CONCAT(sl.SkillName, CASE WHEN rs.MinYears > 0 THEN CONCAT(' (', CAST(rs.MinYears AS VARCHAR(10)), ' yrs)') ELSE '' END),
+          ', '
+        ) AS RequiredSkills
+        FROM dbo.RoleSkills rs
+        JOIN dbo.SkillLibrary sl ON rs.SkillID = sl.SkillID
+        WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1
+      ) skReq
+
       ${rolesWhereClause}
-      GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName;
+      GROUP BY r.RoleID, r.Status, p.PositionTitle, c.ClientName, skReq.RequiredSkills;
     `;
 
     const rolesRequest = pool.request().input('RecruiterUserID', sql.Int, currentUserId);
@@ -60,7 +73,7 @@ module.exports = async function (context, req) {
     }
     const rolesRes = await rolesRequest.query(rolesQuery);
 
-    // 3. Fetch Candidates (If search is present, include CLOSED roles and filter by Candidate Name or Position)
+    // 3. Fetch Candidates
     let candidatesWhereClause = "WHERE a.RecruiterUserID = @RecruiterUserID";
     if (searchTerm) {
       candidatesWhereClause += " AND (r.FirstName LIKE @Search OR r.Surname LIKE @Search OR p.PositionTitle LIKE @Search)";
@@ -69,7 +82,7 @@ module.exports = async function (context, req) {
     }
 
     const candidatesQuery = `
-     SELECT 
+      SELECT 
         r.RecruitID,
         r.FirstName,
         r.Surname,
