@@ -22,9 +22,26 @@ const STAGES = [
 let currentStageIndex = 0;
 let existingDocStatuses = {};
 
+// Helper function to set default active recruiter
+function defaultActiveRecruiter() {
+  const recruiterSelect = getElem('recruiterSelect');
+  // Retrieve logged-in User ID from localStorage, sessionStorage, or global window variable
+  const currentUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId;
+
+  if (recruiterSelect && currentUserId && !editingRecruitId) {
+    recruiterSelect.value = currentUserId;
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   editingRecruitId = urlParams.get('id');
+
+  // 1. Default 'Date Sourced' to today's date if empty
+  const dateSourcedInput = getElem('dateSourced');
+  if (dateSourcedInput && !dateSourcedInput.value) {
+    dateSourcedInput.value = new Date().toISOString().split('T')[0];
+  }
 
   await loadDropdownData();
 
@@ -34,6 +51,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (headerTitle) headerTitle.textContent = "Edit Recruit";
 
     await loadExistingCandidateData(editingRecruitId);
+  } else {
+    // 2. Default recruiter to active logged-in user when creating a new recruit
+    defaultActiveRecruiter();
   }
 
   const form = document.getElementById('addRecruitForm') || document.getElementById('recruitForm');
@@ -323,9 +343,12 @@ async function loadDropdownData() {
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'Select a Role...');
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName', 'Select Skill...');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName', 'Select Certification...');
-
-    // Populate Current Role Dropdown from Positions Table
     populatePositionSelect('currentRoleSelect', data.positions, 'Select Current Role...');
+
+    // Default to active recruiter if we are creating a new recruit
+    if (!editingRecruitId) {
+      defaultActiveRecruiter();
+    }
   } catch (err) {
     console.error('Error loading dropdowns:', err.message);
   }

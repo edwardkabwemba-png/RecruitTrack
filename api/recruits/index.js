@@ -89,8 +89,6 @@ module.exports = async function (context, req) {
         const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
         const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
         const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
-        
-        // ADDED: Query active positions and their classifications
         const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
 
         context.res.status = 200;
@@ -100,7 +98,7 @@ module.exports = async function (context, req) {
           roles: roles.recordset,
           skills: skills.recordset,
           certifications: certs.recordset,
-          positions: positions.recordset // ADDED: Positions array
+          positions: positions.recordset
         };
         return;
       }
@@ -121,7 +119,12 @@ module.exports = async function (context, req) {
 
       const targetStage = body.stage || body.lifecycleStage || (isCreate ? 'Sourced' : null);
       const parsedRoleId = safeParseInt(body.roleId || req.query.roleId);
+      
+      // Defaults assignedRecruiterId to activeUserId if body.recruiterId is not provided
       const assignedRecruiterId = safeParseInt(body.recruiterId) || activeUserId;
+      
+      // Defaults dateSourced to the current date if body.dateSourced is empty or missing
+      const parsedDateSourced = safeParseDate(body.dateSourced);
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
@@ -173,7 +176,7 @@ module.exports = async function (context, req) {
             .input('RoleID', sql.Int, parsedRoleId)
             .input('RecruiterUserID', sql.Int, assignedRecruiterId)
             .input('SourceID', sql.Int, safeParseInt(body.sourceId))
-            .input('DateSourced', sql.Date, safeParseDate(body.dateSourced))
+            .input('DateSourced', sql.Date, parsedDateSourced)
             .input('LifecycleStage', sql.NVarChar(50), targetStage)
             .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || 'Pending')
             .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || 'Pending')
@@ -226,14 +229,14 @@ module.exports = async function (context, req) {
               WHERE RecruitID = @RecruitID;
             `);
 
-          // 2b. UPSERT APPLICATION (Preserves values if parameters are null)
+          // 2b. UPSERT APPLICATION
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
             .input('RoleID', sql.Int, parsedRoleId)
             .input('RecruiterUserID', sql.Int, assignedRecruiterId)
             .input('SourceID', sql.Int, safeParseInt(body.sourceId))
-            .input('DateSourced', sql.Date, body.dateSourced ? safeParseDate(body.dateSourced) : null)
+            .input('DateSourced', sql.Date, parsedDateSourced)
             .input('LifecycleStage', sql.NVarChar(50), targetStage)
             .input('DocCvStatus', sql.NVarChar(50), body.docCvStatus || null)
             .input('DocIdStatus', sql.NVarChar(50), body.docIdStatus || null)
@@ -264,7 +267,7 @@ module.exports = async function (context, req) {
                   DocCertsStatus, DocDegreesStatus
                 )
                 VALUES (
-                  @RecruitID, @RoleID, @RecruiterUserID, @SourceID, ISNULL(@DateSourced, GETDATE()),
+                  @RecruitID, @RoleID, @RecruiterUserID, @SourceID, @DateSourced,
                   ISNULL(@LifecycleStage, 'Sourced'), ISNULL(@DocCvStatus, 'Pending'), 
                   ISNULL(@DocIdStatus, 'Pending'), ISNULL(@DocPaySlipsStatus, 0),
                   ISNULL(@DocCertsStatus, 'Pending'), ISNULL(@DocDegreesStatus, 'Pending')
