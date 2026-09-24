@@ -56,19 +56,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
-  // Auto-fill Role Classification when Current Role changes
-  const currentRoleSelect = getElem('currentRoleSelect') || getElem('currentRole');
-  const roleClassificationSelect = getElem('roleClassification');
-
-  if (currentRoleSelect && roleClassificationSelect) {
-    currentRoleSelect.addEventListener('change', () => {
-      const selectedOption = currentRoleSelect.options[currentRoleSelect.selectedIndex];
-      const classification = selectedOption?.dataset?.classification || '';
-      if (classification) {
-        roleClassificationSelect.value = classification;
-      }
-    });
-  }
+  // Auto-fill Role Classification when Current Role selection changes
+  setupCurrentRoleAutoFill();
 
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
@@ -174,6 +163,24 @@ function bindFileInput(elementId, badgeId, category) {
   });
 }
 
+function setupCurrentRoleAutoFill() {
+  const currentRoleSelect = getElem('currentRoleSelect') || getElem('currentRole');
+  const roleClassificationSelect = getElem('roleClassification');
+
+  if (!currentRoleSelect || !roleClassificationSelect) return;
+
+  currentRoleSelect.addEventListener('change', () => {
+    const selectedOption = currentRoleSelect.options[currentRoleSelect.selectedIndex];
+    const classification = selectedOption?.dataset?.classification || '';
+    
+    if (classification) {
+      roleClassificationSelect.value = classification;
+    } else if (!currentRoleSelect.value) {
+      roleClassificationSelect.value = '';
+    }
+  });
+}
+
 async function loadExistingCandidateData(recruitId) {
   try {
     const res = await fetch(`/api/recruits?action=getOne&id=${recruitId}`);
@@ -201,10 +208,18 @@ async function loadExistingCandidateData(recruitId) {
     setVal('email', data.Email);
     setVal('phone', data.Phone);
     
-    // Set Current Role Title & Role Classification
-    setVal('currentRoleSelect', data.CurrentRole);
-    setVal('currentRole', data.CurrentRole);
-    setVal('roleClassification', data.RoleClassification);
+    // Set Current Role & Role Classification
+    const currentRoleElem = getElem('currentRoleSelect') || getElem('currentRole');
+    if (currentRoleElem) {
+      currentRoleElem.value = data.CurrentRole || '';
+      // Dispatch change event so Role Classification auto-fills if configured
+      currentRoleElem.dispatchEvent(new Event('change'));
+    }
+    
+    // Override classification if explicit value exists in DB
+    if (data.RoleClassification) {
+      setVal('roleClassification', data.RoleClassification);
+    }
     
     setVal('countrySelect', data.CountryOfResidency);
     setVal('countryOfResidence', data.CountryOfResidency);

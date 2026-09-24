@@ -417,13 +417,25 @@
           <label>Role Applied For *</label>
           <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
         </div>
+
+        <!-- UPDATED: Changed from text input to drop-down -->
         <div>
           <label>Current Role</label>
-          <input type="text" id="currentRole" placeholder="e.g. Data Analyst">
+          <select id="currentRole">
+            <option value="">Select Current Role...</option>
+            <option value="Data Analyst">Data Analyst</option>
+            <option value="Data Engineer">Data Engineer</option>
+            <option value="Software Engineer">Software Engineer</option>
+            <option value="Business Analyst">Business Analyst</option>
+            <option value="Project Manager">Project Manager</option>
+            <option value="DevOps Engineer">DevOps Engineer</option>
+          </select>
         </div>
+
+        <!-- UPDATED: Readonly input for auto-fill -->
         <div>
           <label>Role Classification</label>
-          <input type="text" id="roleClassification" placeholder="e.g. Big Data">
+          <input type="text" id="roleClassification" readonly placeholder="Auto-filled based on Current Role" style="background-color: #f7fafc; cursor: not-allowed;">
         </div>
       </div>
     </div>
