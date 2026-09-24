@@ -34,13 +34,11 @@
     .stage-node.active { box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25); }
     .stage-label { margin-top: 8px; font-size: 0.85rem; color: #6c757d; font-weight: 500; }
     .lifecycle-item:has(.stage-node.active) .stage-label, .lifecycle-item:has(.stage-node.completed) .stage-label { color: #212529; font-weight: 600; }
-    .doc-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .doc-table td { padding: 12px; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
-    .doc-table td:first-child { width: 30%; font-weight: 500; }
-    .doc-table td:nth-child(2) { width: 25%; }
     .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
     .badge-pending { background-color: #fefcbf; color: #975a16; }
     .badge-received { background-color: #c6f6d5; color: #22543d; }
+    .form-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+    .mb-3 { margin-bottom: 1rem; }
   </style>
 </head>
 <body>
@@ -143,6 +141,26 @@
       <h3>C. Skills & Experience</h3>
       <div class="form-grid mb-3">
         <div>
+          <label>Current Role Title</label>
+          <input type="text" id="currentRole" placeholder="e.g., Senior Full Stack Developer">
+        </div>
+        <div>
+          <label>Role Classification</label>
+          <select id="roleClassification">
+            <option value="">Select Classification...</option>
+            <option value="Software Engineering / Development">Software Engineering / Development</option>
+            <option value="Data & Analytics">Data & Analytics</option>
+            <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
+            <option value="Project / Product Management">Project / Product Management</option>
+            <option value="Cybersecurity">Cybersecurity</option>
+            <option value="Quality Assurance / Testing">Quality Assurance / Testing</option>
+            <option value="UI/UX Design">UI/UX Design</option>
+            <option value="Business Analysis">Business Analysis</option>
+            <option value="Executive / Leadership">Executive / Leadership</option>
+            <option value="Other / General Support">Other / General Support</option>
+          </select>
+        </div>
+        <div>
           <label>Current Seniority Level</label>
           <select id="senioritySelect">
             <option value="">Select Seniority Level...</option>
@@ -186,69 +204,49 @@
         <div class="lifecycle-item" data-stage="Hired"><div class="stage-node"></div><span class="stage-label">Hired</span></div>
       </div>
       <select id="lifecycleStage" name="lifecycleStage">
-  <option value="Sourced">Sourced</option>
-  <option value="In Discussion">In Discussion</option>
-  <option value="Screened">Screened</option>
-  <option value="CV Prepared">CV Prepared</option>
-  <option value="Interviewed">Interviewed</option>
-  <option value="Offer Sent">Offer Sent</option>
-  <option value="Hired">Hired</option>
-</select>
+        <option value="Sourced">Sourced</option>
+        <option value="In Discussion">In Discussion</option>
+        <option value="Screened">Screened</option>
+        <option value="CV Prepared">CV Prepared</option>
+        <option value="Interviewed">Interviewed</option>
+        <option value="Offer Sent">Offer Sent</option>
+        <option value="Hired">Hired</option>
+      </select>
     </div>
 
-<!-- Documents Section -->
-<div class="form-card">
-  <h3 class="section-title">Candidate Documents</h3>
-  <div class="document-grid">
-    
-    <div class="doc-item">
-      <div class="doc-info">
-        <label for="fileCv">CV Document</label>
-        <span id="badgeCv" class="status-badge badge-pending">Pending</span>
+    <!-- Documents Section -->
+    <div class="section-card">
+      <h3>Candidate Documents</h3>
+      <div class="form-grid">
+        <div class="doc-item">
+          <label for="fileCv">CV Document <span id="badgeCv" class="status-badge badge-pending">Pending</span></label>
+          <input type="file" id="fileCv" accept=".pdf,.doc,.docx" class="file-input" />
+        </div>
+        <div class="doc-item">
+          <label for="fileId">ID / Passport <span id="badgeId" class="status-badge badge-pending">Pending</span></label>
+          <input type="file" id="fileId" accept=".pdf,.jpg,.png" class="file-input" />
+        </div>
+        <div class="doc-item">
+          <label for="filePayslips">Pay Slips <span id="badgePayslips" class="status-badge badge-pending">Pending</span></label>
+          <input type="file" id="filePayslips" accept=".pdf" class="file-input" />
+        </div>
+        <div class="doc-item">
+          <label for="fileCerts">Certifications <span id="badgeCerts" class="status-badge badge-pending">Pending</span></label>
+          <input type="file" id="fileCerts" accept=".pdf,.jpg,.png" class="file-input" />
+        </div>
+        <div class="doc-item">
+          <label for="fileDegree">Degrees / Qualifications <span id="badgeDegree" class="status-badge badge-pending">Pending</span></label>
+          <input type="file" id="fileDegree" accept=".pdf,.jpg,.png" class="file-input" />
+        </div>
       </div>
-      <input type="file" id="fileCv" accept=".pdf,.doc,.docx" class="file-input" />
     </div>
 
-    <div class="doc-item">
-      <div class="doc-info">
-        <label for="fileId">ID / Passport</label>
-        <span id="badgeId" class="status-badge badge-pending">Pending</span>
-      </div>
-      <input type="file" id="fileId" accept=".pdf,.jpg,.png" class="file-input" />
+    <!-- Form Submit Action Bar -->
+    <div class="form-actions">
+      <button type="button" class="btn btn-secondary" onclick="window.location.href='manage-recruits.html'">Cancel</button>
+      <button type="submit" id="btnUpdateCandidate" class="btn btn-primary">Update Candidate</button>
     </div>
-
-    <div class="doc-item">
-      <div class="doc-info">
-        <label for="filePayslips">Pay Slips</label>
-        <span id="badgePayslips" class="status-badge badge-pending">Pending</span>
-      </div>
-      <input type="file" id="filePayslips" accept=".pdf" class="file-input" />
-    </div>
-
-    <div class="doc-item">
-      <div class="doc-info">
-        <label for="fileCerts">Certifications</label>
-        <span id="badgeCerts" class="status-badge badge-pending">Pending</span>
-      </div>
-      <input type="file" id="fileCerts" accept=".pdf,.jpg,.png" class="file-input" />
-    </div>
-
-    <div class="doc-item">
-      <div class="doc-info">
-        <label for="fileDegree">Degrees / Qualifications</label>
-        <span id="badgeDegree" class="status-badge badge-pending">Pending</span>
-      </div>
-      <input type="file" id="fileDegree" accept=".pdf,.jpg,.png" class="file-input" />
-    </div>
-
-  </div>
-</div>
-
-<!-- Form Submit Action Bar -->
-<div class="form-actions">
-  <button type="button" class="btn btn-secondary" onclick="window.location.href='manage-recruits.html'">Cancel</button>
-  <button type="submit" id="btnUpdateCandidate" class="btn btn-primary">Update Candidate</button>
-</div>
+  </form>
 
   <script src="js/edit-recruit.js"></script>
 </body>

@@ -106,6 +106,8 @@ module.exports = async function (context, req) {
             .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel)
             .input('TotalYearsExperience', sql.Decimal(4, 1), body.totalYearsExperience ? parseFloat(body.totalYearsExperience) : null)
+            .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
+            .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType)
             .input('IdNumber', sql.NVarChar(100), body.idNumber)
             .input('CurrentRate', sql.Decimal(18, 2), body.currentRate ? parseFloat(body.currentRate) : null)
@@ -117,14 +119,14 @@ module.exports = async function (context, req) {
             .query(`
               INSERT INTO dbo.Recruits (
                 FirstName, Surname, Email, Phone, CountryOfResidency, SeniorityLevel,
-                TotalYearsExperience, IdType, IdNumber, CurrentRate, ExpectedRate,
-                NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
+                TotalYearsExperience, CurrentRole, RoleClassification, IdType, IdNumber, 
+                CurrentRate, ExpectedRate, NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
               )
               OUTPUT INSERTED.RecruitID
               VALUES (
                 @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @SeniorityLevel,
-                @TotalYearsExperience, @IdType, @IdNumber, @CurrentRate, @ExpectedRate,
-                @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
+                @TotalYearsExperience, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
+                @CurrentRate, @ExpectedRate, @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
               );
             `);
 
@@ -169,6 +171,8 @@ module.exports = async function (context, req) {
             .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel)
             .input('TotalYearsExperience', sql.Decimal(4, 1), body.totalYearsExperience ? parseFloat(body.totalYearsExperience) : null)
+            .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
+            .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType)
             .input('IdNumber', sql.NVarChar(100), body.idNumber)
             .input('CurrentRate', sql.Decimal(18, 2), body.currentRate ? parseFloat(body.currentRate) : null)
@@ -181,7 +185,8 @@ module.exports = async function (context, req) {
               UPDATE dbo.Recruits
               SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
                   CountryOfResidency = @CountryOfResidency, SeniorityLevel = @SeniorityLevel,
-                  TotalYearsExperience = @TotalYearsExperience, IdType = @IdType, IdNumber = @IdNumber,
+                  TotalYearsExperience = @TotalYearsExperience, CurrentRole = @CurrentRole, 
+                  RoleClassification = @RoleClassification, IdType = @IdType, IdNumber = @IdNumber,
                   CurrentRate = @CurrentRate, ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
                   Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
               WHERE RecruitID = @RecruitID;

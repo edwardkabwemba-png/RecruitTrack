@@ -186,6 +186,8 @@ async function loadExistingCandidateData(recruitId) {
     setVal('surname', data.Surname);
     setVal('email', data.Email);
     setVal('phone', data.Phone);
+    setVal('currentRole', data.CurrentRole);
+    setVal('roleClassification', data.RoleClassification);
     setVal('countrySelect', data.CountryOfResidency);
     setVal('countryOfResidence', data.CountryOfResidency);
     setVal('senioritySelect', data.SeniorityLevel);
@@ -436,6 +438,8 @@ async function handleCandidateSubmit(e) {
       dateSourced: getElem('dateSourced')?.value || new Date().toISOString().split('T')[0],
       firstName: firstName,
       surname: surname,
+      currentRole: getElem('currentRole')?.value?.trim() || null,
+      roleClassification: getElem('roleClassification')?.value?.trim() || null,
       countryOfResidence: countryVal,
       seniorityLevel: seniorityVal,
       totalYearsExperience: expVal,

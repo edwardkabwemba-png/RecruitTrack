@@ -89,68 +89,68 @@
     .badge-received { background-color: #c6f6d5; color: #22543d; }
 
     .lifecycle-container {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  position: relative;
-  margin: 30px 0 20px 0;
-  padding: 0 10px;
-}
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      position: relative;
+      margin: 30px 0 20px 0;
+      padding: 0 10px;
+    }
 
-/* Connecting track behind the circles */
-.lifecycle-container::before {
-  content: '';
-  position: absolute;
-  top: 8px;
-  left: 20px;
-  right: 20px;
-  height: 2px;
-  background-color: #e9ecef;
-  z-index: 1;
-}
+    /* Connecting track behind the circles */
+    .lifecycle-container::before {
+      content: '';
+      position: absolute;
+      top: 8px;
+      left: 20px;
+      right: 20px;
+      height: 2px;
+      background-color: #e9ecef;
+      z-index: 1;
+    }
 
-.lifecycle-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  position: relative;
-  z-index: 2;
-  flex: 1;
-  text-align: center;
-}
+    .lifecycle-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      text-align: center;
+    }
 
-.stage-node {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: #ffffff;
-  border: 3px solid #ced4da;
-  transition: all 0.2s ease-in-out;
-}
+    .stage-node {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background-color: #ffffff;
+      border: 3px solid #ced4da;
+      transition: all 0.2s ease-in-out;
+    }
 
-/* Completed and active stage circle styling */
-.stage-node.completed,
-.stage-node.active {
-  background-color: #0d6efd;
-  border-color: #0d6efd;
-}
+    /* Completed and active stage circle styling */
+    .stage-node.completed,
+    .stage-node.active {
+      background-color: #0d6efd;
+      border-color: #0d6efd;
+    }
 
-.stage-node.active {
-  box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
-}
+    .stage-node.active {
+      box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
+    }
 
-.stage-label {
-  margin-top: 8px;
-  font-size: 0.85rem;
-  color: #6c757d;
-  font-weight: 500;
-}
+    .stage-label {
+      margin-top: 8px;
+      font-size: 0.85rem;
+      color: #6c757d;
+      font-weight: 500;
+    }
 
-.lifecycle-item:has(.stage-node.active) .stage-label,
-.lifecycle-item:has(.stage-node.completed) .stage-label {
-  color: #212529;
-  font-weight: 600;
-}
+    .lifecycle-item:has(.stage-node.active) .stage-label,
+    .lifecycle-item:has(.stage-node.completed) .stage-label {
+      color: #212529;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
@@ -158,7 +158,6 @@
   <h2>Candidate: <span id="displayCandidateName">New Candidate</span></h2>
 
   <form id="addRecruitForm">
-    <!-- Section A: Personal & Contact -->
     <!-- Section A: Personal & Contact -->
     <div class="section-card">
       <h3>A. Personal & Contact</h3>
@@ -212,7 +211,7 @@
           <input type="email" id="email" required placeholder="thabo@example.com">
         </div>
 
- <div>
+        <div>
           <label>Country of Residence *</label>
           <select id="countrySelect" name="countryOfResidence" required>
             <option value="">Select Country...</option>
@@ -413,143 +412,151 @@
     <!-- Section B: Role & Application -->
     <div class="section-card">
       <h3>B. Role & Application</h3>
-      <div>
-        <label>Role *</label>
-        <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
+      <div class="form-grid">
+        <div class="full-width">
+          <label>Role Applied For *</label>
+          <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
+        </div>
+        <div>
+          <label>Current Role</label>
+          <input type="text" id="currentRole" placeholder="e.g. Data Analyst">
+        </div>
+        <div>
+          <label>Role Classification</label>
+          <input type="text" id="roleClassification" placeholder="e.g. Big Data">
+        </div>
       </div>
     </div>
 
     <!-- Section C: Skills & Experience -->
-<div class="section-card">
-  <h3>C. Skills & Experience</h3>
-  
-  <div class="row mb-3">
-    <div class="col-md-6">
-      <label for="senioritySelect" class="form-label">Current Seniority Level</label>
-      <select id="senioritySelect" class="form-select">
-        <option value="">Select Seniority Level...</option>
-        <option value="Junior">Junior</option>
-        <option value="Mid-Level">Mid-Level</option>
-        <option value="Senior">Senior</option>
-        <option value="Lead / Executive">Lead / Executive</option>
-      </select>
-    </div>
-
-    <div class="col-md-6">
-      <label for="totalExperience" class="form-label">Total Years of Experience</label>
-      <input type="number" step="0.5" id="totalExperience" class="form-control" placeholder="e.g. 5.5">
-    </div>
-  </div>
-        
-        <div class="full-width">
-          <label>Skills Held (Select Skill & Years)</label>
-          <div class="form-group">
-  <label for="skillSelect">Skills</label>
-  <select id="skillSelect" name="skills">
-    <option value="">Loading skills...</option>
-  </select>
-</div>
-          <div id="skillsContainer" class="tag-container"></div>
+    <div class="section-card">
+      <h3>C. Skills & Experience</h3>
+      
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <label for="senioritySelect" class="form-label">Current Seniority Level</label>
+          <select id="senioritySelect" class="form-select">
+            <option value="">Select Seniority Level...</option>
+            <option value="Junior">Junior</option>
+            <option value="Mid-Level">Mid-Level</option>
+            <option value="Senior">Senior</option>
+            <option value="Lead / Executive">Lead / Executive</option>
+          </select>
         </div>
 
-        <div class="full-width">
-          <label>Certifications Held</label>
-          <div class="form-group">
-  <label for="certSelect">Certifications</label>
-  <select id="certSelect" name="certifications">
-    <option value="">Loading certifications...</option>
-  </select>
-</div>
-          <div id="certsContainer" class="tag-container"></div>
+        <div class="col-md-6">
+          <label for="totalExperience" class="form-label">Total Years of Experience</label>
+          <input type="number" step="0.5" id="totalExperience" class="form-control" placeholder="e.g. 5.5">
         </div>
+      </div>
+            
+      <div class="full-width">
+        <label>Skills Held (Select Skill & Years)</label>
+        <div class="form-group">
+          <label for="skillSelect">Skills</label>
+          <select id="skillSelect" name="skills">
+            <option value="">Loading skills...</option>
+          </select>
+        </div>
+        <div id="skillsContainer" class="tag-container"></div>
+      </div>
 
-        <div class="full-width">
-          <label>Other Skills / Certifications (Free Text)</label>
-          <input type="text" id="otherSkills" placeholder="e.g. Internal tool experience not in the standard list...">
+      <div class="full-width">
+        <label>Certifications Held</label>
+        <div class="form-group">
+          <label for="certSelect">Certifications</label>
+          <select id="certSelect" name="certifications">
+            <option value="">Loading certifications...</option>
+          </select>
         </div>
+        <div id="certsContainer" class="tag-container"></div>
+      </div>
+
+      <div class="full-width">
+        <label>Other Skills / Certifications (Free Text)</label>
+        <input type="text" id="otherSkills" placeholder="e.g. Internal tool experience not in the standard list...">
       </div>
     </div>
 
-<!-- Section D: Recruitment Lifecycle -->
-<div class="section-card">
-  <h3>D. Recruitment Lifecycle</h3>
-  
-  <div class="lifecycle-container">
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">Sourced</span>
-    </div>
+    <!-- Section D: Recruitment Lifecycle -->
+    <div class="section-card">
+      <h3>D. Recruitment Lifecycle</h3>
+      
+      <div class="lifecycle-container">
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">Sourced</span>
+        </div>
 
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">In Discussion</span>
-    </div>
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">In Discussion</span>
+        </div>
 
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">Screened</span>
-    </div>
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">Screened</span>
+        </div>
 
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">CV Prepared</span>
-    </div>
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">CV Prepared</span>
+        </div>
 
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">Interviewed</span>
-    </div>
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">Interviewed</span>
+        </div>
 
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">Offer Sent</span>
-    </div>
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">Offer Sent</span>
+        </div>
 
-    <div class="lifecycle-item">
-      <div class="stage-node"></div>
-      <span class="stage-label">Hired</span>
-    </div>
-  </div>
+        <div class="lifecycle-item">
+          <div class="stage-node"></div>
+          <span class="stage-label">Hired</span>
+        </div>
+      </div>
 
-  <div style="margin-top: 20px;">
-    <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
-      Advance to Screened
-    </button>
-  </div>
-</div>
+      <div style="margin-top: 20px;">
+        <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
+          Advance to Screened
+        </button>
+      </div>
+    </div>
 
     <!-- Section E: Document Checklist -->
-   <!-- Section E: Document Checklist -->
-<div class="section-card">
-  <h3>E. Document Checklist</h3>
-  <table class="doc-table">
-    <tr>
-      <td>CV</td>
-      <td><span id="badgeCv" class="status-badge badge-pending">Pending</span></td>
-      <td><input type="file" id="fileCv"></td>
-    </tr>
-    <tr>
-      <td>ID or Visa</td>
-      <td><span id="badgeId" class="status-badge badge-pending">Pending</span></td>
-      <td><input type="file" id="fileId"></td>
-    </tr>
-    <tr>
-      <td>Pay Slips (Up to 3)</td>
-      <td><span id="badgePayslips" class="status-badge badge-pending">0 of 3 Received</span></td>
-      <td><input type="file" id="filePayslips" multiple></td>
-    </tr>
-    <tr>
-      <td>Certifications (Up to 5)</td>
-      <td><span id="badgeCerts" class="status-badge badge-pending">Pending</span></td>
-      <td><input type="file" id="fileCerts" multiple></td>
-    </tr>
-    <tr>
-      <td>Degree or Diploma (Up to 3)</td>
-      <td><span id="badgeDegree" class="status-badge badge-pending">Pending</span></td>
-      <td><input type="file" id="fileDegree" multiple></td>
-    </tr>
-  </table>
-</div>
+    <div class="section-card">
+      <h3>E. Document Checklist</h3>
+      <table class="doc-table">
+        <tr>
+          <td>CV</td>
+          <td><span id="badgeCv" class="status-badge badge-pending">Pending</span></td>
+          <td><input type="file" id="fileCv"></td>
+        </tr>
+        <tr>
+          <td>ID or Visa</td>
+          <td><span id="badgeId" class="status-badge badge-pending">Pending</span></td>
+          <td><input type="file" id="fileId"></td>
+        </tr>
+        <tr>
+          <td>Pay Slips (Up to 3)</td>
+          <td><span id="badgePayslips" class="status-badge badge-pending">0 of 3 Received</span></td>
+          <td><input type="file" id="filePayslips" multiple></td>
+        </tr>
+        <tr>
+          <td>Certifications (Up to 5)</td>
+          <td><span id="badgeCerts" class="status-badge badge-pending">Pending</span></td>
+          <td><input type="file" id="fileCerts" multiple></td>
+        </tr>
+        <tr>
+          <td>Degree or Diploma (Up to 3)</td>
+          <td><span id="badgeDegree" class="status-badge badge-pending">Pending</span></td>
+          <td><input type="file" id="fileDegree" multiple></td>
+        </tr>
+      </table>
+    </div>
 
     <div style="text-align: right; margin-top: 10px;">
       <button type="submit" class="btn btn-primary" style="padding: 10px 28px; font-size: 1rem;">Save Recruit</button>

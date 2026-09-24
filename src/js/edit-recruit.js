@@ -92,6 +92,14 @@ async function loadRecruitDetails(id) {
     document.getElementById('idType').value = data.IdType || 'ID';
     document.getElementById('idNumber').value = data.IdNumber || '';
     
+    // Set Current Role Title & Role Classification
+    if (document.getElementById('currentRole')) {
+      document.getElementById('currentRole').value = data.CurrentRole || '';
+    }
+    if (document.getElementById('roleClassification')) {
+      document.getElementById('roleClassification').value = data.RoleClassification || '';
+    }
+
     // Set Role drop down value
     const roleSel = document.getElementById('roleSelect');
     if (roleSel) {
@@ -171,6 +179,10 @@ function setLifecycleStage(stage) {
     currentStage = stages[targetIndex] || 'Sourced';
   }
 
+  // Update dropdown if present
+  const stageSelect = document.getElementById('lifecycleStage');
+  if (stageSelect) stageSelect.value = currentStage;
+
   document.querySelectorAll('#lifecycleContainer .lifecycle-item').forEach((item, idx) => {
     const node = item.querySelector('.stage-node');
     if (!node) return;
@@ -194,6 +206,13 @@ function setupLifecycleClick() {
       if (stage) setLifecycleStage(stage);
     });
   });
+
+  const stageSelect = document.getElementById('lifecycleStage');
+  if (stageSelect) {
+    stageSelect.addEventListener('change', (e) => {
+      setLifecycleStage(e.target.value);
+    });
+  }
 }
 
 function setupDocumentHandlers() {
@@ -306,6 +325,8 @@ function setupFormSubmit() {
       idType: document.getElementById('idType').value,
       idNumber: document.getElementById('idNumber').value,
       roleId: selectedRoleId,
+      currentRole: document.getElementById('currentRole') ? document.getElementById('currentRole').value : '',
+      roleClassification: document.getElementById('roleClassification') ? document.getElementById('roleClassification').value : '',
       seniorityLevel: document.getElementById('senioritySelect') ? document.getElementById('senioritySelect').value : '',
       totalYearsExperience: document.getElementById('totalExperience') ? document.getElementById('totalExperience').value : '',
       skills: Array.from(selectedSkills).join(', '),
