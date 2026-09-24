@@ -31,12 +31,14 @@
 
     /* Modal Component Styles */
     .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; }
-    .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 400px; }
+    .modal-content { background: #fff; padding: 25px; border-radius: 8px; width: 440px; }
     .form-group { margin-bottom: 15px; }
     .form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 5px; }
-    .form-group input { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; }
+    .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.9rem; }
     .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
     .btn-secondary { background: #e2e8f0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; }
+    
+    .badge-classification { background-color: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe; padding: 3px 8px; border-radius: 12px; font-weight: 500; font-size: 0.8rem; display: inline-block; }
   </style>
 </head>
 <body>
@@ -80,11 +82,12 @@
           <tr>
             <th style="width: 120px;">Position ID</th>
             <th>Position Title</th>
+            <th>Classification</th>
             <th style="width: 100px;">Status</th>
           </tr>
         </thead>
         <tbody id="positionTableBody">
-          <tr><td colspan="3" style="text-align: center;">Loading positions...</td></tr>
+          <tr><td colspan="4" style="text-align: center;">Loading positions...</td></tr>
         </tbody>
       </table>
     </div>
@@ -99,6 +102,24 @@
           <label for="positionTitleInput">Position Title <span style="color: #dc2626;">*</span></label>
           <input type="text" id="positionTitleInput" placeholder="e.g. Senior Software Engineer" required>
         </div>
+
+        <div class="form-group">
+          <label for="classificationSelect">Role Classification <span style="color: #dc2626;">*</span></label>
+          <select id="classificationSelect" required>
+            <option value="">Select Classification...</option>
+            <option value="Software Engineering / Development">Software Engineering / Development</option>
+            <option value="Data & Analytics">Data & Analytics</option>
+            <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
+            <option value="Project / Product Management">Project / Product Management</option>
+            <option value="Cybersecurity">Cybersecurity</option>
+            <option value="Quality Assurance / Testing">Quality Assurance / Testing</option>
+            <option value="UI/UX Design">UI/UX Design</option>
+            <option value="Business Analysis">Business Analysis</option>
+            <option value="Executive / Leadership">Executive / Leadership</option>
+            <option value="Other / General Support">Other / General Support</option>
+          </select>
+        </div>
+
         <div class="modal-actions">
           <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
           <button type="submit" class="btn-primary">Save Position</button>
@@ -116,13 +137,14 @@
         const data = await res.json();
         const tbody = document.getElementById('positionTableBody');
         if (!data || data.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="3" style="text-align: center;">No positions found.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No positions found.</td></tr>';
           return;
         }
         tbody.innerHTML = data.map(p => `
           <tr>
             <td style="font-weight: 600; color: #64748b;">#PS-${String(p.PositionID).padStart(4, '0')}</td>
             <td style="font-weight: 500;">${p.PositionTitle}</td>
+            <td><span class="badge-classification">${p.Classification || 'Unclassified'}</span></td>
             <td><span style="color: ${p.IsActive ? '#16a34a' : '#dc2626'}; font-weight: 600;">${p.IsActive ? 'Active' : 'Inactive'}</span></td>
           </tr>
         `).join('');
@@ -137,16 +159,22 @@
     document.getElementById('addPositionForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const positionTitle = document.getElementById('positionTitleInput').value;
+      const classification = document.getElementById('classificationSelect').value;
       
-      if (!positionTitle.trim()) return;
+      if (!positionTitle.trim() || !classification) return;
 
       await fetch('/api/positions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ positionTitle: positionTitle.trim() })
+        body: JSON.stringify({ 
+          positionTitle: positionTitle.trim(),
+          classification: classification
+        })
       });
+
       closeModal();
       document.getElementById('positionTitleInput').value = '';
+      document.getElementById('classificationSelect').value = '';
       fetchPositions();
     });
   </script>
