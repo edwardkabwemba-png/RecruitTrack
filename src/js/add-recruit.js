@@ -56,6 +56,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
+  // Auto-fill Role Classification when Current Role changes
+  const currentRoleSelect = getElem('currentRoleSelect') || getElem('currentRole');
+  const roleClassificationSelect = getElem('roleClassification');
+
+  if (currentRoleSelect && roleClassificationSelect) {
+    currentRoleSelect.addEventListener('change', () => {
+      const selectedOption = currentRoleSelect.options[currentRoleSelect.selectedIndex];
+      const classification = selectedOption?.dataset?.classification || '';
+      if (classification) {
+        roleClassificationSelect.value = classification;
+      }
+    });
+  }
+
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
 
@@ -186,8 +200,12 @@ async function loadExistingCandidateData(recruitId) {
     setVal('surname', data.Surname);
     setVal('email', data.Email);
     setVal('phone', data.Phone);
+    
+    // Set Current Role Title & Role Classification
+    setVal('currentRoleSelect', data.CurrentRole);
     setVal('currentRole', data.CurrentRole);
     setVal('roleClassification', data.RoleClassification);
+    
     setVal('countrySelect', data.CountryOfResidency);
     setVal('countryOfResidence', data.CountryOfResidency);
     setVal('senioritySelect', data.SeniorityLevel);
@@ -290,6 +308,9 @@ async function loadDropdownData() {
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'Select a Role...');
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName', 'Select Skill...');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName', 'Select Certification...');
+
+    // Populate Current Role Dropdown from Positions Table
+    populatePositionSelect('currentRoleSelect', data.positions, 'Select Current Role...');
   } catch (err) {
     console.error('Error loading dropdowns:', err.message);
   }
@@ -308,6 +329,25 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
       
       opt.value = val;
       opt.textContent = text;
+      select.appendChild(opt);
+    });
+  }
+}
+
+// Populate positions dropdown and attach classification as a dataset attribute
+function populatePositionSelect(elementId, items, defaultText) {
+  const select = getElem(elementId) || getElem('currentRole');
+  if (!select) return;
+
+  select.innerHTML = `<option value="">${defaultText}</option>`;
+  if (Array.isArray(items)) {
+    items.forEach(item => {
+      const opt = document.createElement('option');
+      opt.value = item.PositionTitle || '';
+      opt.textContent = item.PositionTitle || '';
+      if (item.Classification) {
+        opt.dataset.classification = item.Classification;
+      }
       select.appendChild(opt);
     });
   }
@@ -367,7 +407,6 @@ function setupTagDropdown(selectId, containerId) {
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
 
-  // Clean folderPath to avoid invalid URI components
   const sanitizedFolderPath = folderPath.replace(/\s+/g, '_');
   const buffer = await file.arrayBuffer();
 
@@ -378,7 +417,7 @@ async function uploadSingleFile(file, folderPath) {
       'X-File-Name': encodeURIComponent(file.name),
       'X-Folder-Path': encodeURIComponent(sanitizedFolderPath)
     },
-    body: buffer // Send raw ArrayBuffer directly
+    body: buffer
   });
 
   if (!res.ok) {
@@ -429,6 +468,7 @@ async function handleCandidateSubmit(e) {
     const countryVal = getElem('countrySelect')?.value || getElem('countryOfResidence')?.value || 'South Africa';
     const seniorityVal = getElem('senioritySelect')?.value || getElem('seniorityLevel')?.value || null;
     const expVal = getElem('totalExperience')?.value || getElem('totalYearsExperience')?.value || null;
+    const currentRoleVal = getElem('currentRoleSelect')?.value || getElem('currentRole')?.value?.trim() || null;
 
     const payload = {
       recruitId: editingRecruitId,
@@ -438,7 +478,7 @@ async function handleCandidateSubmit(e) {
       dateSourced: getElem('dateSourced')?.value || new Date().toISOString().split('T')[0],
       firstName: firstName,
       surname: surname,
-      currentRole: getElem('currentRole')?.value?.trim() || null,
+      currentRole: currentRoleVal,
       roleClassification: getElem('roleClassification')?.value?.trim() || null,
       countryOfResidence: countryVal,
       seniorityLevel: seniorityVal,
