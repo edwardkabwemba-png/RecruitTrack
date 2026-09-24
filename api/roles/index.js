@@ -117,7 +117,8 @@ module.exports = async function (context, req) {
     if (req.method === 'POST') {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
-        minExperience, location, workModel, rateMin, rateMax
+        minExperience, location, workModel, rateMin, rateMax,
+        recruiters, reqSkills, niceSkills, certifications
       } = req.body || {};
 
       if (!positionId || !clientId) {
@@ -126,7 +127,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Check if a valid UserID was resolved
       if (!activeUserId || isNaN(activeUserId)) {
         context.res.status = 400;
         context.res.body = JSON.stringify({ message: "Missing or invalid User ID. Please log in again." });
@@ -146,34 +146,104 @@ module.exports = async function (context, req) {
         return;
       }
 
-      const insertQuery = 
-        'INSERT INTO dbo.Roles ' +
-        '  (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate) ' +
-        'OUTPUT INSERTED.RoleID ' +
-        'VALUES ' +
-        '  (@PositionID, @ClientID, @SeniorityLevel, @MinEducation, @FieldOfStudy, @MinYearsExperience, @Location, @WorkModel, @RateBudgetMin, @RateBudgetMax, @Status, @CreatedByUserID, @CreatedDate)';
+      // Use a SQL Transaction to ensure Role + Skills/Certs/Recruiters are saved atomically
+      const transaction = new sql.Transaction(pool);
+      await transaction.begin();
 
-      const result = await pool.request()
-        .input('PositionID', sql.Int, parseInt(positionId, 10))
-        .input('ClientID', sql.Int, parseInt(clientId, 10))
-        .input('SeniorityLevel', sql.NVarChar(100), seniority || 'Mid')
-        .input('MinEducation', sql.NVarChar(200), education || 'None')
-        .input('FieldOfStudy', sql.NVarChar(300), fieldOfStudy || null)
-        .input('MinYearsExperience', sql.Int, minExperience ? parseInt(minExperience, 10) : 0)
-        .input('Location', sql.NVarChar(300), location || null)
-        .input('WorkModel', sql.NVarChar(100), workModel || 'Hybrid')
-        .input('RateBudgetMin', sql.Decimal(9, 2), rateMin ? parseFloat(rateMin) : null)
-        .input('RateBudgetMax', sql.Decimal(9, 2), rateMax ? parseFloat(rateMax) : null)
-        .input('Status', sql.NVarChar(40), 'Active')
-        .input('CreatedByUserID', sql.Int, activeUserId)
-        .input('CreatedDate', sql.DateTime, new Date())
-        .query(insertQuery);
+      try {
+        // 1. Insert into dbo.Roles
+        const insertRoleQuery = 
+          'INSERT INTO dbo.Roles ' +
+          '  (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate) ' +
+          'OUTPUT INSERTED.RoleID ' +
+          'VALUES ' +
+          '  (@PositionID, @ClientID, @SeniorityLevel, @MinEducation, @FieldOfStudy, @MinYearsExperience, @Location, @WorkModel, @RateBudgetMin, @RateBudgetMax, @Status, @CreatedByUserID, @CreatedDate)';
 
-      const newRoleId = result.recordset[0].RoleID;
+        const roleReq = new sql.Request(transaction);
+        const roleResult = await roleReq
+          .input('PositionID', sql.Int, parseInt(positionId, 10))
+          .input('ClientID', sql.Int, parseInt(clientId, 10))
+          .input('SeniorityLevel', sql.NVarChar(100), seniority || 'Mid')
+          .input('MinEducation', sql.NVarChar(200), education || 'None')
+          .input('FieldOfStudy', sql.NVarChar(300), fieldOfStudy || null)
+          .input('MinYearsExperience', sql.Int, minExperience ? parseInt(minExperience, 10) : 0)
+          .input('Location', sql.NVarChar(300), location || null)
+          .input('WorkModel', sql.NVarChar(100), workModel || 'Hybrid')
+          .input('RateBudgetMin', sql.Decimal(9, 2), rateMin ? parseFloat(rateMin) : null)
+          .input('RateBudgetMax', sql.Decimal(9, 2), rateMax ? parseFloat(rateMax) : null)
+          .input('Status', sql.NVarChar(40), 'Active')
+          .input('CreatedByUserID', sql.Int, activeUserId)
+          .input('CreatedDate', sql.DateTime, new Date())
+          .query(insertRoleQuery);
 
-      context.res.status = 201;
-      context.res.body = JSON.stringify({ message: "Role created successfully", roleId: newRoleId });
-      return;
+        const newRoleId = roleResult.recordset[0].RoleID;
+
+        // 2. Insert Required Skills into dbo.RoleSkills
+        if (Array.isArray(reqSkills) && reqSkills.length > 0) {
+          for (const item of reqSkills) {
+            const skillId = parseInt(item.id, 10);
+            if (!isNaN(skillId)) {
+              const skillReq = new sql.Request(transaction);
+              await skillReq
+                .input('RoleID', sql.Int, newRoleId)
+                .input('SkillID', sql.Int, skillId)
+                .input('IsRequired', sql.Bit, 1)
+                .query('INSERT INTO dbo.RoleSkills (RoleID, SkillID, IsRequired) VALUES (@RoleID, @SkillID, @IsRequired)');
+            }
+          }
+        }
+
+        // 3. Insert Nice-to-Have Skills into dbo.RoleSkills
+        if (Array.isArray(niceSkills) && niceSkills.length > 0) {
+          for (const item of niceSkills) {
+            const skillId = parseInt(item.id, 10);
+            if (!isNaN(skillId)) {
+              const skillReq = new sql.Request(transaction);
+              await skillReq
+                .input('RoleID', sql.Int, newRoleId)
+                .input('SkillID', sql.Int, skillId)
+                .input('IsRequired', sql.Bit, 0)
+                .query('INSERT INTO dbo.RoleSkills (RoleID, SkillID, IsRequired) VALUES (@RoleID, @SkillID, @IsRequired)');
+            }
+          }
+        }
+
+        // 4. Insert Certifications into dbo.RoleCertifications
+        if (Array.isArray(certifications) && certifications.length > 0) {
+          for (const item of certifications) {
+            const certReq = new sql.Request(transaction);
+            await certReq
+              .input('RoleID', sql.Int, newRoleId)
+              .input('CertificationName', sql.NVarChar(200), item.label || item.name || item.id)
+              .query('INSERT INTO dbo.RoleCertifications (RoleID, CertificationName) VALUES (@RoleID, @CertificationName)');
+          }
+        }
+
+        // 5. Insert Recruiters into dbo.RoleRecruiters
+        if (Array.isArray(recruiters) && recruiters.length > 0) {
+          for (const item of recruiters) {
+            const recUserId = parseInt(item.id, 10);
+            if (!isNaN(recUserId)) {
+              const recReq = new sql.Request(transaction);
+              await recReq
+                .input('RoleID', sql.Int, newRoleId)
+                .input('UserID', sql.Int, recUserId)
+                .query('INSERT INTO dbo.RoleRecruiters (RoleID, UserID) VALUES (@RoleID, @UserID)');
+            }
+          }
+        }
+
+        // Commit transaction after all inserts complete
+        await transaction.commit();
+
+        context.res.status = 201;
+        context.res.body = JSON.stringify({ message: "Role created successfully", roleId: newRoleId });
+        return;
+
+      } catch (txError) {
+        await transaction.rollback();
+        throw txError;
+      }
     }
 
   } catch (error) {
