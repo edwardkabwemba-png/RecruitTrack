@@ -8,14 +8,13 @@ let dbCertifications = [];
 let matchedDuplicateRole = null;
 let dbUsers = [];
 
-
 document.addEventListener('DOMContentLoaded', async () => {
   await Promise.all([
     loadPositions(),
     loadClients(),
     loadDatabaseSkills(),
     loadDatabaseCertifications(),
-    loadDatabaseUsers() // Added User Loader
+    loadDatabaseUsers()
   ]);
 
   setCurrentUserDefault();
@@ -116,10 +115,31 @@ async function loadDatabaseCertifications() {
   }
 }
 
+async function loadDatabaseUsers() {
+  try {
+    const res = await fetch('/api/users');
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+
+    dbUsers = await res.json();
+    const select = document.getElementById('recruitersDropdown');
+
+    if (Array.isArray(dbUsers) && select) {
+      dbUsers.forEach(u => {
+        const name = u.FullName || u.fullName || u.Email || u.email;
+        const id = u.UserID || u.id;
+        select.appendChild(new Option(name, id));
+      });
+    }
+  } catch (err) {
+    console.error("Error loading users/recruiters from DB:", err.message);
+  }
+}
+
 function setCurrentUserDefault() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userId = user.id || user.userId || user.UserID;
   if (user.fullName || user.email) {
-    addTag('recruiter', user.fullName || 'Current User', user.id || null);
+    addTag('recruiter', user.fullName || 'Current User', userId || null);
   }
 }
 
@@ -221,6 +241,23 @@ function addSelectedCert() {
   renderTags('certification');
 }
 
+function addSelectedRecruiter() {
+  const select = document.getElementById('recruitersDropdown');
+  if (!select) return;
+
+  const userId = select.value;
+  const userName = select.options[select.selectedIndex]?.text;
+
+  if (!userId) return;
+
+  if (!selectedRecruiters.some(r => r.id === userId)) {
+    selectedRecruiters.push({ id: userId, label: userName });
+  }
+
+  select.value = '';
+  renderTags('recruiter');
+}
+
 function removeTag(type, index) {
   if (type === 'recruiter') selectedRecruiters.splice(index, 1);
   else if (type === 'reqSkill') selectedReqSkills.splice(index, 1);
@@ -242,74 +279,6 @@ function renderTags(type) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  const tagsHtml = list.map((item, idx) => `
-    <span class="tag">
-      ${item.label}
-      <span class="remove-btn" onclick="removeTag('${type}', ${idx})">×</span>
-    </span>
-  `).join('');
-
-  if (type === 'recruiter') {
-    const btnLabel = '+ Add recruiter';
-    container.innerHTML = tagsHtml + `<button type="button" class="btn-add-tag" onclick="promptAddTag('${type}')">${btnLabel}</button>`;
-  } else {
-    container.innerHTML = tagsHtml;
-  }
-}
-
-// Fetch Users / Recruiters from DB
-async function loadDatabaseUsers() {
-  try {
-    const res = await fetch('/api/users');
-    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
-
-    dbUsers = await res.json();
-    const select = document.getElementById('recruitersDropdown');
-
-    if (Array.isArray(dbUsers) && select) {
-      dbUsers.forEach(u => {
-        const name = u.FullName || u.fullName || u.Email || u.email;
-        const id = u.UserID || u.id;
-        select.appendChild(new Option(name, id));
-      });
-    }
-  } catch (err) {
-    console.error("Error loading users/recruiters from DB:", err.message);
-  }
-}
-
-// Add Recruiter from DB Dropdown
-function addSelectedRecruiter() {
-  const select = document.getElementById('recruitersDropdown');
-  if (!select) return;
-
-  const userId = select.value;
-  const userName = select.options[select.selectedIndex]?.text;
-
-  if (!userId) return;
-
-  // Prevent duplicate additions
-  if (!selectedRecruiters.some(r => r.id === userId)) {
-    selectedRecruiters.push({ id: userId, label: userName });
-  }
-
-  select.value = '';
-  renderTags('recruiter');
-}
-
-// Ensure renderTags handles recruiter pills without the old prompt button
-function renderTags(type) {
-  let list = [];
-  let containerId = '';
-
-  if (type === 'recruiter') { list = selectedRecruiters; containerId = 'recruitersContainer'; }
-  else if (type === 'reqSkill') { list = selectedReqSkills; containerId = 'reqSkillsContainer'; }
-  else if (type === 'niceSkill') { list = selectedNiceSkills; containerId = 'niceSkillsContainer'; }
-  else if (type === 'certification') { list = selectedCerts; containerId = 'certificationsContainer'; }
-
-  const container = document.getElementById(containerId);
-  if (!container) return;
-
   container.innerHTML = list.map((item, idx) => `
     <span class="tag">
       ${item.label}
@@ -317,6 +286,7 @@ function renderTags(type) {
     </span>
   `).join('');
 }
+
 // --- BANNER ACTIONS ---
 
 function viewDuplicate() {
@@ -330,7 +300,7 @@ async function joinAsCoRecruiter() {
   await fetch('/api/roles-action', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'Join', roleId: matchedDuplicateRole.RoleID, userId: user.id })
+    body: JSON.stringify({ action: 'Join', roleId: matchedDuplicateRole.RoleID, userId: user.id || user.userId })
   });
   window.location.href = '/roles.html';
 }
@@ -345,34 +315,72 @@ function ignoreDuplicate() {
 async function handleFormSubmit(e) {
   e.preventDefault();
 
+  // Retrieve user details from localStorage
+  const rawUser = localStorage.getItem('user');
+  const user = rawUser ? JSON.parse(rawUser) : null;
+  const activeUserId = user ? (user.id || user.userId || user.UserID || user.sub) : null;
+
+  if (!activeUserId) {
+    alert("Session invalid or missing User ID. Please log in again.");
+    return;
+  }
+
+  // Find Submit Button & Trigger Loading UI
+  const submitBtn = e.target.querySelector('button[type="submit"]') || document.getElementById('submitRoleBtn');
+  const originalBtnContent = submitBtn ? submitBtn.innerHTML : 'Create Role';
+
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `
+      <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true" style="margin-right: 6px;"></span>
+      Creating Role...
+    `;
+  }
+
   const payload = {
-    positionId: document.getElementById('positionSelect').value,
-    clientId: document.getElementById('clientSelect').value,
-    seniority: document.getElementById('seniority').value,
-    education: document.getElementById('education').value,
-    fieldOfStudy: document.getElementById('fieldOfStudy').value,
-    minExperience: document.getElementById('minExperience').value,
-    location: document.getElementById('location').value,
-    workModel: document.getElementById('workModel').value,
-    rateMin: document.getElementById('rateMin').value,
-    rateMax: document.getElementById('rateMax').value,
+    positionId: document.getElementById('positionSelect')?.value,
+    clientId: document.getElementById('clientSelect')?.value,
+    seniority: document.getElementById('seniority')?.value,
+    education: document.getElementById('education')?.value,
+    fieldOfStudy: document.getElementById('fieldOfStudy')?.value,
+    minExperience: document.getElementById('minExperience')?.value,
+    location: document.getElementById('location')?.value,
+    workModel: document.getElementById('workModel')?.value,
+    rateMin: document.getElementById('rateMin')?.value,
+    rateMax: document.getElementById('rateMax')?.value,
     recruiters: selectedRecruiters,
     reqSkills: selectedReqSkills,
     niceSkills: selectedNiceSkills,
     certifications: selectedCerts,
-    otherSkills: document.getElementById('otherSkills').value
+    otherSkills: document.getElementById('otherSkills')?.value,
+    createdByUserId: activeUserId
   };
 
   try {
     const res = await fetch('/api/roles', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-user-id': activeUserId.toString() // Pass user ID in header (Option B)
+      },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error('Failed to create role');
+    const data = await res.json();
+
+    if (!res.ok) {
+      throw new Error(data.message || 'Failed to create role');
+    }
+
     window.location.href = '/roles.html';
   } catch (err) {
-    alert(err.message);
+    console.error("Form Submit Error:", err);
+    alert(err.message || 'Error creating role.');
+
+    // Reset button state on failure so user can try again
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = originalBtnContent;
+    }
   }
 }

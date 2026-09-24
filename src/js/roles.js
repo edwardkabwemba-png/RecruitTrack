@@ -2,33 +2,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchAndRenderRoles();
 });
 
-// Helper function to safely extract active user object and ID
-function getActiveUser() {
-  try {
-    const rawUser = localStorage.getItem('user');
-    if (!rawUser) return null;
-    
-    const user = JSON.parse(rawUser);
-    // Check common ID properties (id, userId, UserID, sub)
-    const userId = user.id || user.userId || user.UserID || user.sub || null;
-    
-    return userId ? { ...user, id: Number(userId) } : null;
-  } catch (e) {
-    console.error("Error reading user from localStorage:", e);
-    return null;
-  }
-}
-
 async function fetchAndRenderRoles() {
   const tbody = document.getElementById('roles-table-body');
   if (!tbody) return;
 
-  const user = getActiveUser();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const activeUserId = user.id || user.userId || user.UserID || null;
 
   try {
+    // Send x-user-id in header if logged in
     const headers = { 'Content-Type': 'application/json' };
-    if (user && user.id) {
-      headers['x-user-id'] = user.id.toString();
+    if (activeUserId) {
+      headers['x-user-id'] = activeUserId.toString();
     }
 
     const res = await fetch('/api/roles', { headers });
@@ -58,7 +43,8 @@ async function fetchAndRenderRoles() {
         ? initialsList.map(i => `<span class="avatar">${i}</span>`).join('') 
         : '-';
 
-      const isUserAssigned = user && user.id ? idList.includes(Number(user.id)) : false;
+      // Robust check for user assignment
+      const isUserAssigned = activeUserId ? idList.includes(Number(activeUserId)) : false;
       const canJoin = !isUserAssigned && idList.length < 2 && status !== 'Closed';
 
       let actionsHtml = '';
@@ -97,10 +83,11 @@ async function fetchAndRenderRoles() {
 }
 
 async function handleRoleAction(action, roleId) {
-  const user = getActiveUser();
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const activeUserId = user.id || user.userId || user.UserID || null;
 
-  if (!user || !user.id) {
-    alert('User session not found. Please log out and sign in again.');
+  if (!activeUserId) {
+    alert("Session invalid or expired. Please log in again.");
     return;
   }
 
@@ -116,13 +103,9 @@ async function handleRoleAction(action, roleId) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'x-user-id': user.id.toString()
+        'x-user-id': activeUserId.toString() // Pass user ID header
       },
-      body: JSON.stringify({ 
-        action, 
-        roleId, 
-        userId: user.id 
-      })
+      body: JSON.stringify({ action, roleId, userId: activeUserId })
     });
 
     const data = await res.json();

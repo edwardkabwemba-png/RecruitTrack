@@ -6,8 +6,14 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
-    // Read active logged-in user ID from header or body
-    const rawUserId = req.headers['x-user-id'] || (req.body && req.body.createdByUserId);
+    // Read active user ID from header, request body, or recruiters array fallback
+    const headerUserId = req.headers['x-user-id'];
+    const bodyUserId = req.body && req.body.createdByUserId;
+    const recruiterUserId = (req.body && Array.isArray(req.body.recruiters) && req.body.recruiters[0]) 
+      ? req.body.recruiters[0].id 
+      : null;
+
+    const rawUserId = headerUserId || bodyUserId || recruiterUserId;
     const activeUserId = rawUserId ? parseInt(rawUserId, 10) : null;
 
     // ==========================================
@@ -120,7 +126,7 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Check if a valid UserID was passed
+      // Check if a valid UserID was resolved
       if (!activeUserId || isNaN(activeUserId)) {
         context.res.status = 400;
         context.res.body = JSON.stringify({ message: "Missing or invalid User ID. Please log in again." });
