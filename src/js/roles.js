@@ -2,14 +2,36 @@ document.addEventListener('DOMContentLoaded', async () => {
   await fetchAndRenderRoles();
 });
 
+// Helper function to safely extract active user object and ID
+function getActiveUser() {
+  try {
+    const rawUser = localStorage.getItem('user');
+    if (!rawUser) return null;
+    
+    const user = JSON.parse(rawUser);
+    // Check common ID properties (id, userId, UserID, sub)
+    const userId = user.id || user.userId || user.UserID || user.sub || null;
+    
+    return userId ? { ...user, id: Number(userId) } : null;
+  } catch (e) {
+    console.error("Error reading user from localStorage:", e);
+    return null;
+  }
+}
+
 async function fetchAndRenderRoles() {
   const tbody = document.getElementById('roles-table-body');
   if (!tbody) return;
 
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const user = getActiveUser();
 
   try {
-    const res = await fetch('/api/roles');
+    const headers = { 'Content-Type': 'application/json' };
+    if (user && user.id) {
+      headers['x-user-id'] = user.id.toString();
+    }
+
+    const res = await fetch('/api/roles', { headers });
     
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
@@ -36,7 +58,7 @@ async function fetchAndRenderRoles() {
         ? initialsList.map(i => `<span class="avatar">${i}</span>`).join('') 
         : '-';
 
-      const isUserAssigned = user.id ? idList.includes(Number(user.id)) : false;
+      const isUserAssigned = user && user.id ? idList.includes(Number(user.id)) : false;
       const canJoin = !isUserAssigned && idList.length < 2 && status !== 'Closed';
 
       let actionsHtml = '';
@@ -75,6 +97,13 @@ async function fetchAndRenderRoles() {
 }
 
 async function handleRoleAction(action, roleId) {
+  const user = getActiveUser();
+
+  if (!user || !user.id) {
+    alert('User session not found. Please log out and sign in again.');
+    return;
+  }
+
   // Confirm with user if attempting to close the ticket/role
   if (action === 'Close') {
     const formattedId = `#RL-${String(roleId).padStart(4, '0')}`;
@@ -82,13 +111,18 @@ async function handleRoleAction(action, roleId) {
     if (!confirmed) return;
   }
 
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-
   try {
     const res = await fetch('/api/roles-action', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, roleId, userId: user.id || null })
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-user-id': user.id.toString()
+      },
+      body: JSON.stringify({ 
+        action, 
+        roleId, 
+        userId: user.id 
+      })
     });
 
     const data = await res.json();

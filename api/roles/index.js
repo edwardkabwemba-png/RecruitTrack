@@ -6,6 +6,10 @@ module.exports = async function (context, req) {
   try {
     const pool = await sql.connect(process.env.SqlConnectionString);
 
+    // Read active logged-in user ID from header or body
+    const rawUserId = req.headers['x-user-id'] || (req.body && req.body.createdByUserId);
+    const activeUserId = rawUserId ? parseInt(rawUserId, 10) : null;
+
     // ==========================================
     // GET ROLES
     // ==========================================
@@ -49,7 +53,7 @@ module.exports = async function (context, req) {
         '  WHERE rr.RoleID = r.RoleID ' +
         ') rec ' +
 
-        // Required Skills Aggregation (JOINs RoleSkills -> SkillLibrary)
+        // Required Skills Aggregation
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG(sl.SkillName, \', \') AS RequiredSkills ' +
         '  FROM dbo.RoleSkills rs ' +
@@ -57,7 +61,7 @@ module.exports = async function (context, req) {
         '  WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1 ' +
         ') skReq ' +
 
-        // Nice-To-Have Skills Aggregation (JOINs RoleSkills -> SkillLibrary)
+        // Nice-To-Have Skills Aggregation
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG(sl.SkillName, \', \') AS NiceToHaveSkills ' +
         '  FROM dbo.RoleSkills rs ' +
@@ -65,7 +69,7 @@ module.exports = async function (context, req) {
         '  WHERE rs.RoleID = r.RoleID AND (rs.IsRequired = 0 OR rs.IsRequired IS NULL) ' +
         ') skNice ' +
 
-        // Certifications Aggregation (From RoleCertifications)
+        // Certifications Aggregation
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG(rc.CertificationName, \', \') AS RequiredCertifications ' +
         '  FROM dbo.RoleCertifications rc ' +
@@ -107,13 +111,32 @@ module.exports = async function (context, req) {
     if (req.method === 'POST') {
       const {
         positionId, clientId, seniority, education, fieldOfStudy,
-        minExperience, location, workModel, rateMin, rateMax,
-        createdByUserId
+        minExperience, location, workModel, rateMin, rateMax
       } = req.body || {};
 
       if (!positionId || !clientId) {
         context.res.status = 400;
         context.res.body = JSON.stringify({ message: "Position and Client are required." });
+        return;
+      }
+
+      // Check if a valid UserID was passed
+      if (!activeUserId || isNaN(activeUserId)) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ message: "Missing or invalid User ID. Please log in again." });
+        return;
+      }
+
+      // Verify the UserID exists in dbo.Users
+      const userCheck = await pool.request()
+        .input('CheckUserID', sql.Int, activeUserId)
+        .query('SELECT TOP 1 UserID FROM dbo.Users WHERE UserID = @CheckUserID');
+
+      if (!userCheck.recordset || userCheck.recordset.length === 0) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ 
+          message: `User with ID ${activeUserId} does not exist in dbo.Users. Please re-authenticate.` 
+        });
         return;
       }
 
@@ -136,7 +159,7 @@ module.exports = async function (context, req) {
         .input('RateBudgetMin', sql.Decimal(9, 2), rateMin ? parseFloat(rateMin) : null)
         .input('RateBudgetMax', sql.Decimal(9, 2), rateMax ? parseFloat(rateMax) : null)
         .input('Status', sql.NVarChar(40), 'Active')
-        .input('CreatedByUserID', sql.Int, createdByUserId ? parseInt(createdByUserId, 10) : 1)
+        .input('CreatedByUserID', sql.Int, activeUserId)
         .input('CreatedDate', sql.DateTime, new Date())
         .query(insertQuery);
 
