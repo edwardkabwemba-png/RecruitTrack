@@ -355,14 +355,23 @@ function populatePositionSelect(elementId, items, defaultText) {
   if (!select) return;
 
   select.innerHTML = `<option value="">${defaultText}</option>`;
+
   if (Array.isArray(items)) {
     items.forEach(item => {
+      // Handles both lowercase 'classification' and capitalized fallback
+      const title = item.PositionTitle || '';
+      const classification = item.classification || item.Classification || '';
+
+      if (!title) return;
+
       const opt = document.createElement('option');
-      opt.value = item.PositionTitle || '';
-      opt.textContent = item.PositionTitle || '';
-      if (item.Classification) {
-        opt.dataset.classification = item.Classification;
+      opt.value = title;
+      opt.textContent = title;
+
+      if (classification) {
+        opt.dataset.classification = classification;
       }
+
       select.appendChild(opt);
     });
   }
