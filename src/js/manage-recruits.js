@@ -1,4 +1,17 @@
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   await fetchRecentRecruits();
 });
 
@@ -7,7 +20,19 @@ async function fetchRecentRecruits() {
   if (!tbody) return;
 
   try {
-    const response = await fetch('/api/recruits?action=recent');
+    const response = await fetch('/api/recruits?action=recent', {
+      headers: {
+        'x-user-id': getStoredUserId()
+      }
+    });
+
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     const data = await response.json();
 
     if (!data || data.length === 0) {

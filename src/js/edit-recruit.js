@@ -11,7 +11,20 @@ let docStates = {
   DocDegreesStatus: 'Pending'
 };
 
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const recruitId = urlParams.get('id');
 
@@ -32,7 +45,17 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadDropdowns() {
   try {
-    const res = await fetch('/api/add-recruit?action=dropdowns');
+    const res = await fetch('/api/add-recruit?action=dropdowns', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     const data = await res.json();
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName');
@@ -68,7 +91,17 @@ function cleanTagItems(rawInput) {
 
 async function loadRecruitDetails(id) {
   try {
-    const res = await fetch(`/api/add-recruit?action=getOne&id=${id}`);
+    const res = await fetch(`/api/add-recruit?action=getOne&id=${id}`, {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     const data = await res.json();
 
     document.getElementById('recruitId').value = data.RecruitID || id;
@@ -303,9 +336,7 @@ function setupFormSubmit() {
       roleSel.style.borderColor = '';
     }
 
-    // Retrieve active logged-in user ID from browser storage
-    const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-    const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id || '';
+    const currentUserId = getStoredUserId();
 
     const id = document.getElementById('recruitId').value;
     const bodyPayload = {
@@ -350,6 +381,13 @@ function setupFormSubmit() {
         },
         body: JSON.stringify(bodyPayload)
       });
+
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
+        window.location.href = "index.html";
+        return;
+      }
 
       if (!res.ok) throw new Error('Failed to update candidate details.');
 

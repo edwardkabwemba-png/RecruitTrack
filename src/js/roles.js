@@ -1,4 +1,17 @@
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   await fetchAndRenderRoles();
 });
 
@@ -6,18 +19,23 @@ async function fetchAndRenderRoles() {
   const tbody = document.getElementById('roles-table-body');
   if (!tbody) return;
 
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const activeUserId = user.id || user.userId || user.UserID || null;
+  const activeUserId = getStoredUserId();
 
   try {
-    // Send x-user-id in header if logged in
-    const headers = { 'Content-Type': 'application/json' };
-    if (activeUserId) {
-      headers['x-user-id'] = activeUserId.toString();
-    }
+    const headers = { 
+      'Content-Type': 'application/json',
+      'x-user-id': activeUserId.toString()
+    };
 
     const res = await fetch('/api/roles', { headers });
     
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
       throw new Error(errData.message || `Server error (Status: ${res.status})`);
@@ -83,11 +101,11 @@ async function fetchAndRenderRoles() {
 }
 
 async function handleRoleAction(action, roleId) {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const activeUserId = user.id || user.userId || user.UserID || null;
+  const activeUserId = getStoredUserId();
 
   if (!activeUserId) {
     alert("Session invalid or expired. Please log in again.");
+    window.location.href = "index.html";
     return;
   }
 
@@ -103,10 +121,17 @@ async function handleRoleAction(action, roleId) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'x-user-id': activeUserId.toString() // Pass user ID header
+        'x-user-id': activeUserId.toString()
       },
       body: JSON.stringify({ action, roleId, userId: activeUserId })
     });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
 
     const data = await res.json();
 

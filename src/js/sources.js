@@ -4,13 +4,45 @@ const API_URL = '/api/sources';
 // Global state for filtering
 let allSources = [];
 
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
+// Load data on page ready with Route Guard
+document.addEventListener('DOMContentLoaded', () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
+  fetchSources();
+});
+
 /**
  * Fetch and display sources on page load
  */
 async function fetchSources() {
   const tbody = document.getElementById('sources-table-body');
+  const activeUserId = getStoredUserId();
+
   try {
-    const res = await fetch(API_URL);
+    const res = await fetch(API_URL, {
+      headers: { 
+        'x-user-id': activeUserId.toString() 
+      }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error('Failed to fetch sources');
     
     allSources = await res.json();
@@ -72,6 +104,14 @@ function closeSourceModal() {
 async function saveSource(event) {
   event.preventDefault();
   
+  const activeUserId = getStoredUserId();
+
+  if (!activeUserId) {
+    alert("Session invalid or expired. Please log in again.");
+    window.location.href = "index.html";
+    return;
+  }
+
   const input = document.getElementById('sourceName');
   const errorMsg = document.getElementById('sourceNameError');
   const SourceName = input ? input.value.trim() : '';
@@ -88,9 +128,19 @@ async function saveSource(event) {
   try {
     const response = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-user-id': activeUserId.toString()
+      },
       body: JSON.stringify({ SourceName })
     });
+
+    if (response.status === 401 || response.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
 
     if (response.ok) {
       closeSourceModal();
@@ -108,10 +158,31 @@ async function saveSource(event) {
  * Delete Source by SourceID
  */
 async function deleteSource(id) {
+  const activeUserId = getStoredUserId();
+
+  if (!activeUserId) {
+    alert("Session invalid or expired. Please log in again.");
+    window.location.href = "index.html";
+    return;
+  }
+
   if (!confirm('Are you sure you want to delete this recruitment source?')) return;
 
   try {
-    const res = await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_URL}/${id}`, { 
+      method: 'DELETE',
+      headers: { 
+        'x-user-id': activeUserId.toString() 
+      }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (res.ok) {
       fetchSources();
     } else {
@@ -151,6 +222,3 @@ window.closeSourceModal = closeSourceModal;
 window.saveSource = saveSource;
 window.deleteSource = deleteSource;
 window.filterSources = filterSources;
-
-// Load data on page ready
-document.addEventListener('DOMContentLoaded', fetchSources);

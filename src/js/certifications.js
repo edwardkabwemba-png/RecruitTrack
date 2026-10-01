@@ -1,6 +1,19 @@
 let allCertifications = [];
 
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   fetchCertifications();
 
   document.getElementById('addCertForm').addEventListener('submit', async (e) => {
@@ -12,9 +25,19 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch('/api/certifications', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-user-id': getStoredUserId()
+        },
         body: JSON.stringify({ certName, issuer, category })
       });
+
+      if (res.status === 401 || res.status === 403) {
+        localStorage.removeItem("user");
+        sessionStorage.removeItem("user");
+        window.location.href = "index.html";
+        return;
+      }
 
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed to save certification');
@@ -31,7 +54,17 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchCertifications() {
   const tbody = document.getElementById('cert-table-body');
   try {
-    const res = await fetch('/api/certifications');
+    const res = await fetch('/api/certifications', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     const text = await res.text();
     allCertifications = text ? JSON.parse(text) : [];
 

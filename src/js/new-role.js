@@ -8,7 +8,20 @@ let dbCertifications = [];
 let matchedDuplicateRole = null;
 let dbUsers = [];
 
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   await Promise.all([
     loadPositions(),
     loadClients(),
@@ -32,7 +45,17 @@ async function loadPositions() {
   if (!select) return;
 
   try {
-    const res = await fetch('/api/positions');
+    const res = await fetch('/api/positions', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
     
     const positions = await res.json();
@@ -54,7 +77,17 @@ async function loadClients() {
   if (!select) return;
 
   try {
-    const res = await fetch('/api/clients');
+    const res = await fetch('/api/clients', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
     const clients = await res.json();
@@ -73,7 +106,17 @@ async function loadClients() {
 
 async function loadDatabaseSkills() {
   try {
-    const res = await fetch('/api/skills');
+    const res = await fetch('/api/skills', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
     dbSkills = await res.json();
@@ -96,7 +139,17 @@ async function loadDatabaseSkills() {
 
 async function loadDatabaseCertifications() {
   try {
-    const res = await fetch('/api/certifications');
+    const res = await fetch('/api/certifications', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
     dbCertifications = await res.json();
@@ -117,7 +170,17 @@ async function loadDatabaseCertifications() {
 
 async function loadDatabaseUsers() {
   try {
-    const res = await fetch('/api/users');
+    const res = await fetch('/api/users', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
     dbUsers = await res.json();
@@ -136,10 +199,10 @@ async function loadDatabaseUsers() {
 }
 
 function setCurrentUserDefault() {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const userId = user.id || user.userId || user.UserID;
-  if (user.fullName || user.email) {
-    addTag('recruiter', user.fullName || 'Current User', userId || null);
+  const user = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
+  const userId = getStoredUserId();
+  if (user.fullName || user.FullName || user.email || user.Email) {
+    addTag('recruiter', user.fullName || user.FullName || user.email || 'Current User', userId || null);
   }
 }
 
@@ -156,7 +219,17 @@ async function checkDuplicate() {
   if (!posId || !clientId) return;
 
   try {
-    const res = await fetch(`/api/roles?positionId=${posId}&clientId=${clientId}`);
+    const res = await fetch(`/api/roles?positionId=${posId}&clientId=${clientId}`, {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     const roles = await res.json();
 
     const activeDup = Array.isArray(roles) ? roles.find(r => r.PositionID == posId && r.ClientID == clientId && r.Status !== 'Closed') : null;
@@ -301,13 +374,24 @@ function viewDuplicate() {
 
 async function joinAsCoRecruiter() {
   if (!matchedDuplicateRole) return;
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const activeUserId = getStoredUserId();
   
-  await fetch('/api/roles-action', {
+  const res = await fetch('/api/roles-action', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'Join', roleId: matchedDuplicateRole.RoleID, userId: user.id || user.userId })
+    headers: { 
+      'Content-Type': 'application/json',
+      'x-user-id': activeUserId
+    },
+    body: JSON.stringify({ action: 'Join', roleId: matchedDuplicateRole.RoleID, userId: activeUserId })
   });
+
+  if (res.status === 401 || res.status === 403) {
+    localStorage.removeItem("user");
+    sessionStorage.removeItem("user");
+    window.location.href = "index.html";
+    return;
+  }
+
   window.location.href = '/roles.html';
 }
 
@@ -321,13 +405,11 @@ function ignoreDuplicate() {
 async function handleFormSubmit(e) {
   e.preventDefault();
 
-  // Retrieve user details from localStorage
-  const rawUser = localStorage.getItem('user');
-  const user = rawUser ? JSON.parse(rawUser) : null;
-  const activeUserId = user ? (user.id || user.userId || user.UserID || user.sub) : null;
+  const activeUserId = getStoredUserId();
 
   if (!activeUserId) {
     alert("Session invalid or missing User ID. Please log in again.");
+    window.location.href = "index.html";
     return;
   }
 
@@ -367,10 +449,17 @@ async function handleFormSubmit(e) {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
-        'x-user-id': activeUserId.toString() // Pass user ID in header (Option B)
+        'x-user-id': activeUserId.toString()
       },
       body: JSON.stringify(payload)
     });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
 
     const data = await res.json();
 
