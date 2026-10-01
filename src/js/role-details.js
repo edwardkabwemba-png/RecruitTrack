@@ -1,6 +1,19 @@
 let currentRoleData = null;
 
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   const roleId = urlParams.get('id');
 
@@ -15,9 +28,23 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function loadRoleDetails(roleId) {
+  const activeUserId = getStoredUserId();
+
   try {
     // Restored path-based routing parameter matching Azure function.json
-    const res = await fetch(`/api/role-details/${roleId}`);
+    const res = await fetch(`/api/role-details/${roleId}`, {
+      headers: { 
+        'x-user-id': activeUserId.toString() 
+      }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`HTTP Error: ${res.status}`);
     
     const data = await res.json();
@@ -215,6 +242,13 @@ function setupModalEvents(roleId) {
     form.onsubmit = async (e) => {
       e.preventDefault();
 
+      const activeUserId = getStoredUserId();
+      if (!activeUserId) {
+        alert("Session invalid or expired. Please log in again.");
+        window.location.href = "index.html";
+        return;
+      }
+
       const payload = {
         seniorityLevel: document.getElementById('editSeniority').value,
         minYearsExperience: parseInt(document.getElementById('editExperience').value, 10),
@@ -227,9 +261,19 @@ function setupModalEvents(roleId) {
       try {
         const res = await fetch(`/api/role-details/${roleId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-id': activeUserId.toString()
+          },
           body: JSON.stringify(payload)
         });
+
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem("user");
+          sessionStorage.removeItem("user");
+          window.location.href = "index.html";
+          return;
+        }
 
         if (!res.ok) throw new Error('Failed to update role details.');
 
@@ -243,14 +287,30 @@ function setupModalEvents(roleId) {
 }
 
 async function executeRoleAction(action, roleId) {
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const activeUserId = getStoredUserId();
+
+  if (!activeUserId) {
+    alert("Session invalid or expired. Please log in again.");
+    window.location.href = "index.html";
+    return;
+  }
 
   try {
     const res = await fetch('/api/roles-action', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, roleId, userId: user.id || null })
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-user-id': activeUserId.toString()
+      },
+      body: JSON.stringify({ action, roleId, userId: activeUserId })
     });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
 
     const data = await res.json();
 
