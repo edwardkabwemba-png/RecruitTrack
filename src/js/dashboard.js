@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   if (!currentUserId) {
     // Redirect unauthenticated users immediately to login page
-    window.location.href = "login.html"; // Adjust filename/path if different (e.g. '/login')
+    window.location.href = "index.html"; // Adjust filename/path if different (e.g. '/login')
     return;
   }
 

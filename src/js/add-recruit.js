@@ -22,11 +22,16 @@ const STAGES = [
 let currentStageIndex = 0;
 let existingDocStatuses = {};
 
+// Helper: Safely retrieve logged-in User ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
 // Helper function to set default active recruiter
 function defaultActiveRecruiter() {
   const recruiterSelect = getElem('recruiterSelect');
-  // Retrieve logged-in User ID from localStorage, sessionStorage, or global window variable
-  const currentUserId = localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId;
+  const currentUserId = getStoredUserId();
 
   if (recruiterSelect && currentUserId && !editingRecruitId) {
     recruiterSelect.value = currentUserId;
@@ -34,6 +39,13 @@ function defaultActiveRecruiter() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // --- ROUTE GUARD: Verify user credentials before running any logic ---
+  const currentUserId = getStoredUserId();
+  if (!currentUserId) {
+    window.location.href = "index.html";
+    return;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   editingRecruitId = urlParams.get('id');
 
@@ -203,7 +215,17 @@ function setupCurrentRoleAutoFill() {
 
 async function loadExistingCandidateData(recruitId) {
   try {
-    const res = await fetch(`/api/recruits?action=getOne&id=${recruitId}`);
+    const res = await fetch(`/api/recruits?action=getOne&id=${recruitId}`, {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) return;
 
     const data = await res.json();
@@ -228,15 +250,12 @@ async function loadExistingCandidateData(recruitId) {
     setVal('email', data.Email);
     setVal('phone', data.Phone);
     
-    // Set Current Role & Role Classification
     const currentRoleElem = getElem('currentRoleSelect') || getElem('currentRole');
     if (currentRoleElem) {
       currentRoleElem.value = data.CurrentRole || '';
-      // Dispatch change event so Role Classification auto-fills if configured
       currentRoleElem.dispatchEvent(new Event('change'));
     }
     
-    // Override classification if explicit value exists in DB
     if (data.RoleClassification) {
       setVal('roleClassification', data.RoleClassification);
     }
@@ -333,7 +352,17 @@ function restoreTagBadges(containerId, dataString, isFormatted) {
 
 async function loadDropdownData() {
   try {
-    const res = await fetch('/api/recruits?action=dropdowns');
+    const res = await fetch('/api/recruits?action=dropdowns', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
+
     if (!res.ok) throw new Error(`Server error: ${res.status}`);
 
     const data = await res.json();
@@ -345,7 +374,6 @@ async function loadDropdownData() {
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName', 'Select Certification...');
     populatePositionSelect('currentRoleSelect', data.positions, 'Select Current Role...');
 
-    // Default to active recruiter if we are creating a new recruit
     if (!editingRecruitId) {
       defaultActiveRecruiter();
     }
@@ -372,7 +400,6 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   }
 }
 
-// Populate positions dropdown and attach classification as a dataset attribute
 function populatePositionSelect(elementId, items, defaultText) {
   const select = getElem(elementId) || getElem('currentRole');
   if (!select) return;
@@ -381,7 +408,6 @@ function populatePositionSelect(elementId, items, defaultText) {
 
   if (Array.isArray(items)) {
     items.forEach(item => {
-      // Handles both lowercase 'classification' and capitalized fallback
       const title = item.PositionTitle || '';
       const classification = item.classification || item.Classification || '';
 
@@ -462,7 +488,8 @@ async function uploadSingleFile(file, folderPath) {
     headers: {
       'Content-Type': file.type || 'application/octet-stream',
       'X-File-Name': encodeURIComponent(file.name),
-      'X-Folder-Path': encodeURIComponent(sanitizedFolderPath)
+      'X-Folder-Path': encodeURIComponent(sanitizedFolderPath),
+      'x-user-id': getStoredUserId()
     },
     body: buffer
   });
@@ -553,9 +580,19 @@ async function handleCandidateSubmit(e) {
 
     const res = await fetch(targetUrl, {
       method: method,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'x-user-id': getStoredUserId()
+      },
       body: JSON.stringify(payload)
     });
+
+    if (res.status === 401 || res.status === 403) {
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "index.html";
+      return;
+    }
 
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || data.message || 'Failed to save candidate.');
