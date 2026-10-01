@@ -1,16 +1,29 @@
 document.addEventListener("DOMContentLoaded", async () => {
-  await loadDashboardData();
+  // --- ROUTE GUARD: Check for logged-in user credentials ---
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id || '';
+
+  if (!currentUserId) {
+    // Redirect unauthenticated users immediately to login page
+    window.location.href = "login.html"; // Adjust filename/path if different (e.g. '/login')
+    return;
+  }
+
+  await loadDashboardData(currentUserId);
   setupSearch();
 });
 
 let allCandidates = [];
 let searchDebounceTimeout = null;
 
-async function loadDashboardData(searchTerm = '') {
+async function loadDashboardData(userId, searchTerm = '') {
   try {
-    // Read user details stored during login
-    const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-    const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id || '';
+    const currentUserId = userId || getStoredUserId();
+
+    if (!currentUserId) {
+      window.location.href = "login.html";
+      return;
+    }
 
     // Build URL with optional search parameter
     let url = `/api/dashboard?userId=${currentUserId}`;
@@ -25,12 +38,23 @@ async function loadDashboardData(searchTerm = '') {
       }
     });
 
+    if (res.status === 401 || res.status === 403) {
+      // Clear invalid session and redirect to login
+      localStorage.removeItem("user");
+      sessionStorage.removeItem("user");
+      window.location.href = "login.html";
+      return;
+    }
+
     if (!res.ok) throw new Error('Failed to load dashboard data.');
     const data = await res.json();
 
     // Update user display pill
     if (data.currentUser && data.currentUser.name) {
-      document.getElementById('userPill').textContent = `Signed in as: ${data.currentUser.name} (${data.currentUser.role || 'Recruiter'})`;
+      const userPill = document.getElementById('userPill');
+      if (userPill) {
+        userPill.textContent = `Signed in as: ${data.currentUser.name} (${data.currentUser.role || 'Recruiter'})`;
+      }
     }
 
     renderRoles(data.roles || []);
@@ -39,12 +63,23 @@ async function loadDashboardData(searchTerm = '') {
 
   } catch (err) {
     console.error(err);
-    document.getElementById('rolesContainer').innerHTML = `<p style="color: #ef4444;">Error loading roles.</p>`;
+    const container = document.getElementById('rolesContainer');
+    if (container) {
+      container.innerHTML = `<p style="color: #ef4444;">Error loading roles.</p>`;
+    }
   }
+}
+
+// Helper: Safely parse and retrieve user ID from storage
+function getStoredUserId() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+  return storedUser.userId || storedUser.UserID || storedUser.id || '';
 }
 
 function renderRoles(roles) {
   const container = document.getElementById('rolesContainer');
+  if (!container) return;
+
   if (roles.length === 0) {
     container.innerHTML = `<p style="color: #64748b; font-size: 0.85rem;">No active roles currently assigned to you.</p>`;
     return;
@@ -62,8 +97,8 @@ function renderRoles(roles) {
         <div class="role-header">
           <div class="role-title-group">
             <button class="toggle-btn" onclick="toggleDetails('role-desc-${r.RoleID}', this)">+</button>
-            <span>${r.PositionTitle}</span>
-            <span style="font-weight: normal; color: #64748b;">— Client: ${r.ClientName}</span>
+            <span>${r.PositionTitle || 'Untitled Position'}</span>
+            <span style="font-weight: normal; color: #64748b;">— Client: ${r.ClientName || 'N/A'}</span>
             <span class="badge badge-code">#RL-0${r.RoleID}</span>
             <span class="badge ${r.Status === 'Active' ? 'badge-active' : 'badge-frozen'}">${r.Status}</span>
           </div>
@@ -78,7 +113,7 @@ function renderRoles(roles) {
 
         <div class="progress-group">
           <div style="display: flex; justify-content: space-between;">
-            <span>Role total (${r.TotalCandidates} candidates)</span>
+            <span>Role total (${r.TotalCandidates || 0} candidates)</span>
             <span>${r.ScreenedCount || 0} Screened · ${r.InterviewedCount || 0} Interview · ${r.HiredCount || 0} Hired</span>
           </div>
           <div class="progress-bar-container">
@@ -95,6 +130,7 @@ function renderRoles(roles) {
 
 function toggleDetails(elemId, btn) {
   const el = document.getElementById(elemId);
+  if (!el) return;
   if (el.style.display === 'none') {
     el.style.display = 'block';
     btn.textContent = '–';
@@ -106,6 +142,8 @@ function toggleDetails(elemId, btn) {
 
 function renderCandidates(candidates) {
   const container = document.getElementById('candidatesContainer');
+  if (!container) return;
+
   if (candidates.length === 0) {
     container.innerHTML = `<p style="color: #64748b; font-size: 0.85rem;">No candidates sourced yet.</p>`;
     return;
@@ -122,7 +160,6 @@ function renderCandidates(candidates) {
   };
 
   container.innerHTML = candidates.map(c => {
-    // Extract & normalize stage
     const rawStage = c.Stage || c.LifecycleStage;
     const stageName = getStageLabel(rawStage);
     const badgeClass = getStageBadgeClass(stageName);
@@ -161,10 +198,9 @@ function setupSearch() {
   searchInput.addEventListener('input', (e) => {
     const query = e.target.value;
 
-    // Debounce database query by 300ms so database isn't hit on every single keypress
     clearTimeout(searchDebounceTimeout);
     searchDebounceTimeout = setTimeout(() => {
-      loadDashboardData(query);
+      loadDashboardData(getStoredUserId(), query);
     }, 300);
   });
 }
