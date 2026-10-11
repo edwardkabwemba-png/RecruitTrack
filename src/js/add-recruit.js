@@ -22,30 +22,6 @@ const STAGES = [
 let currentStageIndex = 0;
 let existingDocStatuses = {};
 
-// Country to Default Currency Mapping
-const COUNTRY_CURRENCY_MAP = {
-  'South Africa': 'ZAR',
-  'India': 'INR',
-  'United States': 'USD',
-  'United Kingdom': 'GBP',
-  'Zimbabwe': 'USD',
-  'Nigeria': 'ZAR',
-  'Germany': 'EUR',
-  'France': 'EUR',
-  'Netherlands': 'EUR',
-  'Australia': 'USD',
-  'Canada': 'USD'
-};
-
-// Exchange Rates relative to ZAR (1 Foreign Unit = X ZAR)
-const EXCHANGE_RATES = {
-  'ZAR': { symbol: 'R', rateToZAR: 1.0 },
-  'INR': { symbol: '₹', rateToZAR: 0.21 },   // e.g. 145,000 INR ≈ R 30,450
-  'USD': { symbol: '$', rateToZAR: 18.50 },
-  'GBP': { symbol: '£', rateToZAR: 23.20 },
-  'EUR': { symbol: '€', rateToZAR: 19.80 }
-};
-
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
@@ -90,8 +66,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   } else {
     // 2. Default recruiter to active logged-in user when creating a new recruit
     defaultActiveRecruiter();
-    // Default rate currency based on default selected country
-    applyCountryCurrencyDefault();
   }
 
   const form = document.getElementById('addRecruitForm') || document.getElementById('recruitForm');
@@ -116,9 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Auto-fill Role Classification when Current Role selection changes
   setupCurrentRoleAutoFill();
-
-  // Setup Currency & Rate listeners
-  setupCurrencyListeners();
 
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
@@ -193,83 +164,6 @@ function updateStageUI() {
     }
   }
 }
-
-/* =========================================================
-   CURRENCY & RATE CONVERSION LOGIC
-   ========================================================= */
-
-function applyCountryCurrencyDefault() {
-  const countrySelect = getElem('countrySelect') || getElem('countryOfResidence');
-  const country = countrySelect?.value || 'South Africa';
-  const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
-
-  const currentCurrSelect = getElem('currentRateCurrency');
-  const expectedCurrSelect = getElem('expectedRateCurrency');
-
-  if (currentCurrSelect) currentCurrSelect.value = defaultCurrency;
-  if (expectedCurrSelect) expectedCurrSelect.value = defaultCurrency;
-
-  calculateApproxZAR('current');
-  calculateApproxZAR('expected');
-}
-
-function setupCurrencyListeners() {
-  const countrySelect = getElem('countrySelect') || getElem('countryOfResidence');
-  
-  countrySelect?.addEventListener('change', () => {
-    applyCountryCurrencyDefault();
-  });
-
-  ['current', 'expected'].forEach(type => {
-    ['Amount', 'Currency', 'Frequency'].forEach(field => {
-      const elem = getElem(`${type}Rate${field}`);
-      elem?.addEventListener('input', () => calculateApproxZAR(type));
-      elem?.addEventListener('change', () => calculateApproxZAR(type));
-    });
-  });
-}
-
-function calculateApproxZAR(type) {
-  const amountInput = getElem(`${type}RateAmount`) || getElem(`${type}Rate`);
-  const currencySelect = getElem(`${type}RateCurrency`);
-  const frequencySelect = getElem(`${type}RateFrequency`);
-  const approxDiv = getElem(`${type}RateApprox`);
-  const countrySelect = getElem('countrySelect') || getElem('countryOfResidence');
-
-  if (!amountInput || !approxDiv) return null;
-
-  const rawAmount = parseFloat(amountInput.value) || 0;
-  const currency = currencySelect?.value || 'ZAR';
-  const frequency = frequencySelect?.value || 'Monthly';
-  const countryName = countrySelect?.value || '';
-
-  if (rawAmount <= 0) {
-    approxDiv.textContent = '';
-    return 0;
-  }
-
-  // Monthly multiplier adjustment
-  let monthlyAmount = rawAmount;
-  if (frequency === 'Hourly') monthlyAmount = rawAmount * 160;
-  else if (frequency === 'Daily') monthlyAmount = rawAmount * 21.67;
-  else if (frequency === 'Annual') monthlyAmount = rawAmount / 12;
-
-  // Convert to ZAR
-  const rateToZAR = EXCHANGE_RATES[currency]?.rateToZAR || 1.0;
-  const convertedZAR = monthlyAmount * rateToZAR;
-
-  // Format matching the design image: = R 30,450 (approximate — Country of Residency: India)
-  const formattedZAR = convertedZAR.toLocaleString('en-ZA', { maximumFractionDigits: 0 });
-  const countryNote = (type === 'current' && countryName) ? ` — Country of Residency: ${countryName}` : '';
-
-  approxDiv.textContent = `= R ${formattedZAR} (approximate${countryNote})`;
-
-  return convertedZAR;
-}
-
-/* =========================================================
-   DOCUMENT CHECKLIST & FORM HELPERS
-   ========================================================= */
 
 function bindFileInput(elementId, badgeId, category) {
   const el = getElem(elementId);
@@ -355,7 +249,6 @@ async function loadExistingCandidateData(recruitId) {
     setVal('surname', data.Surname);
     setVal('email', data.Email);
     setVal('phone', data.Phone);
-    setVal('currentLocation', data.CurrentLocation);
     
     const currentRoleElem = getElem('currentRoleSelect') || getElem('currentRole');
     if (currentRoleElem) {
@@ -377,18 +270,8 @@ async function loadExistingCandidateData(recruitId) {
     setVal('idNumber', data.IdNumber);
     setVal('noticePeriod', data.NoticePeriod);
 
-    // Populate Current Rate fields
-    setVal('currentRateFrequency', data.CurrentRateFrequency || 'Monthly');
-    setVal('currentRateCurrency', data.CurrentRateCurrency || 'ZAR');
-    setVal('currentRateAmount', data.CurrentRateRaw || data.CurrentRate || '');
-
-    // Populate Expected Rate fields
-    setVal('expectedRateFrequency', data.ExpectedRateFrequency || 'Monthly');
-    setVal('expectedRateCurrency', data.ExpectedRateCurrency || 'ZAR');
-    setVal('expectedRateAmount', data.ExpectedRateRaw || data.ExpectedRate || '');
-
-    calculateApproxZAR('current');
-    calculateApproxZAR('expected');
+    setVal('currentRate', data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '');
+    setVal('expectedRate', data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '');
 
     const dateSourcedInput = getElem('dateSourced');
     if (dateSourcedInput && data.DateSourced) {
@@ -661,10 +544,6 @@ async function handleCandidateSubmit(e) {
     const expVal = getElem('totalExperience')?.value || getElem('totalYearsExperience')?.value || null;
     const currentRoleVal = getElem('currentRoleSelect')?.value || getElem('currentRole')?.value?.trim() || null;
 
-    // Calculate converted Monthly ZAR values for standardized rate columns
-    const currentMonthlyZAR = calculateApproxZAR('current');
-    const expectedMonthlyZAR = calculateApproxZAR('expected');
-
     const payload = {
       recruitId: editingRecruitId,
       recruiterId: recruiterSelect?.value || null,
@@ -676,27 +555,14 @@ async function handleCandidateSubmit(e) {
       currentRole: currentRoleVal,
       roleClassification: getElem('roleClassification')?.value?.trim() || null,
       countryOfResidence: countryVal,
-      currentLocation: getElem('currentLocation')?.value?.trim() || null,
       seniorityLevel: seniorityVal,
       totalYearsExperience: expVal,
       skills: JSON.stringify(Array.from(document.querySelectorAll('#skillsContainer .tag-badge')).map(b => b.dataset.formatted)),
       certifications: JSON.stringify(Array.from(document.querySelectorAll('#certsContainer .tag-badge')).map(b => b.dataset.text)),
       otherSkills: getElem('otherSkills')?.value?.trim() || null,
       noticePeriod: getElem('noticePeriod')?.value || '30 Days',
-
-      // Main standardized ZAR columns
-      currentRate: currentMonthlyZAR,
-      expectedRate: expectedMonthlyZAR,
-
-      // Raw rate captures
-      currentRateRaw: getElem('currentRateAmount')?.value || null,
-      currentRateCurrency: getElem('currentRateCurrency')?.value || 'ZAR',
-      currentRateFrequency: getElem('currentRateFrequency')?.value || 'Monthly',
-
-      expectedRateRaw: getElem('expectedRateAmount')?.value || null,
-      expectedRateCurrency: getElem('expectedRateCurrency')?.value || 'ZAR',
-      expectedRateFrequency: getElem('expectedRateFrequency')?.value || 'Monthly',
-
+      currentRate: getElem('currentRate')?.value || null,
+      expectedRate: getElem('expectedRate')?.value || null,
       email: email,
       phone: getElem('phone')?.value?.trim() || null,
       idType: getElem('idType')?.value || null,

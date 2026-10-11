@@ -11,30 +11,6 @@ let docStates = {
   DocDegreesStatus: 'Pending'
 };
 
-// Country to Default Currency Mapping
-const COUNTRY_CURRENCY_MAP = {
-  'South Africa': 'ZAR',
-  'India': 'INR',
-  'United States': 'USD',
-  'United Kingdom': 'GBP',
-  'Zimbabwe': 'USD',
-  'Nigeria': 'ZAR',
-  'Germany': 'EUR',
-  'France': 'EUR',
-  'Netherlands': 'EUR',
-  'Australia': 'USD',
-  'Canada': 'USD'
-};
-
-// Exchange Rates relative to ZAR (1 Foreign Unit = X ZAR)
-const EXCHANGE_RATES = {
-  'ZAR': { symbol: 'R', rateToZAR: 1.0 },
-  'INR': { symbol: '₹', rateToZAR: 0.21 },   // e.g. 145,000 INR ≈ R 30,450
-  'USD': { symbol: '$', rateToZAR: 18.50 },
-  'GBP': { symbol: '£', rateToZAR: 23.20 },
-  'EUR': { symbol: '€', rateToZAR: 19.80 }
-};
-
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
@@ -62,88 +38,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadDropdowns();
   await loadRecruitDetails(recruitId);
   setupFormSubmit();
-  setupCurrencyListeners();
   setupTagHandlers();
   setupLifecycleClick();
   setupDocumentHandlers();
 });
-
-/* =========================================================
-   CURRENCY & RATE CONVERSION LOGIC
-   ========================================================= */
-
-function applyCountryCurrencyDefault() {
-  const countrySelect = document.getElementById('countrySelect') || document.getElementById('countryOfResidence');
-  const country = countrySelect?.value || 'South Africa';
-  const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
-
-  const currentCurrSelect = document.getElementById('currentRateCurrency');
-  const expectedCurrSelect = document.getElementById('expectedRateCurrency');
-
-  if (currentCurrSelect) currentCurrSelect.value = defaultCurrency;
-  if (expectedCurrSelect) expectedCurrSelect.value = defaultCurrency;
-
-  calculateApproxZAR('current');
-  calculateApproxZAR('expected');
-}
-
-function setupCurrencyListeners() {
-  const countrySelect = document.getElementById('countrySelect') || document.getElementById('countryOfResidence');
-  
-  countrySelect?.addEventListener('change', () => {
-    applyCountryCurrencyDefault();
-  });
-
-  ['current', 'expected'].forEach(type => {
-    ['Amount', 'Currency', 'Frequency'].forEach(field => {
-      const elem = document.getElementById(`${type}Rate${field}`) || document.getElementById(`${type}Rate`);
-      elem?.addEventListener('input', () => calculateApproxZAR(type));
-      elem?.addEventListener('change', () => calculateApproxZAR(type));
-    });
-  });
-}
-
-function calculateApproxZAR(type) {
-  const amountInput = document.getElementById(`${type}RateAmount`) || document.getElementById(`${type}Rate`);
-  const currencySelect = document.getElementById(`${type}RateCurrency`);
-  const frequencySelect = document.getElementById(`${type}RateFrequency`);
-  const approxDiv = document.getElementById(`${type}RateApprox`);
-  const countrySelect = document.getElementById('countrySelect') || document.getElementById('countryOfResidence');
-
-  if (!amountInput || !approxDiv) return null;
-
-  const rawAmount = parseFloat(amountInput.value) || 0;
-  const currency = currencySelect?.value || 'ZAR';
-  const frequency = frequencySelect?.value || 'Monthly';
-  const countryName = countrySelect?.value || '';
-
-  if (rawAmount <= 0) {
-    approxDiv.textContent = '';
-    return 0;
-  }
-
-  // Monthly multiplier adjustment
-  let monthlyAmount = rawAmount;
-  if (frequency === 'Hourly') monthlyAmount = rawAmount * 160;
-  else if (frequency === 'Daily') monthlyAmount = rawAmount * 21.67;
-  else if (frequency === 'Annual') monthlyAmount = rawAmount / 12;
-
-  // Convert to ZAR
-  const rateToZAR = EXCHANGE_RATES[currency]?.rateToZAR || 1.0;
-  const convertedZAR = monthlyAmount * rateToZAR;
-
-  // Format matching the design image: = R 30,450 (approximate — Country of Residency: India)
-  const formattedZAR = convertedZAR.toLocaleString('en-ZA', { maximumFractionDigits: 0 });
-  const countryNote = (type === 'current' && countryName) ? ` — Country of Residency: ${countryName}` : '';
-
-  approxDiv.textContent = `= R ${formattedZAR} (approximate${countryNote})`;
-
-  return convertedZAR;
-}
-
-/* =========================================================
-   DROPDOWN & DATA LOADING HELPERS
-   ========================================================= */
 
 async function loadDropdowns() {
   try {
@@ -217,45 +115,8 @@ async function loadRecruitDetails(id) {
     document.getElementById('surname').value = data.Surname || '';
     document.getElementById('sourceSelect').value = data.SourceID || '';
     document.getElementById('noticePeriod').value = data.NoticePeriod || '30 Days';
-
-    if (document.getElementById('currentLocation')) {
-      document.getElementById('currentLocation').value = data.CurrentLocation || '';
-    }
-
-    // Populate Current Rate fields (Fallback to old CurrentRate input if present)
-    if (document.getElementById('currentRateFrequency')) {
-      document.getElementById('currentRateFrequency').value = data.CurrentRateFrequency || 'Monthly';
-    }
-    if (document.getElementById('currentRateCurrency')) {
-      document.getElementById('currentRateCurrency').value = data.CurrentRateCurrency || 'ZAR';
-    }
-    if (document.getElementById('currentRateAmount')) {
-      document.getElementById('currentRateAmount').value = data.CurrentRateRaw !== null && data.CurrentRateRaw !== undefined 
-        ? parseFloat(data.CurrentRateRaw) 
-        : (data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '');
-    } else if (document.getElementById('currentRate')) {
-      document.getElementById('currentRate').value = data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '';
-    }
-
-    // Populate Expected Rate fields (Fallback to old ExpectedRate input if present)
-    if (document.getElementById('expectedRateFrequency')) {
-      document.getElementById('expectedRateFrequency').value = data.ExpectedRateFrequency || 'Monthly';
-    }
-    if (document.getElementById('expectedRateCurrency')) {
-      document.getElementById('expectedRateCurrency').value = data.ExpectedRateCurrency || 'ZAR';
-    }
-    if (document.getElementById('expectedRateAmount')) {
-      document.getElementById('expectedRateAmount').value = data.ExpectedRateRaw !== null && data.ExpectedRateRaw !== undefined 
-        ? parseFloat(data.ExpectedRateRaw) 
-        : (data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '');
-    } else if (document.getElementById('expectedRate')) {
-      document.getElementById('expectedRate').value = data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '';
-    }
-
-    // Trigger calculation labels
-    calculateApproxZAR('current');
-    calculateApproxZAR('expected');
-
+    document.getElementById('currentRate').value = data.CurrentRate || '';
+    document.getElementById('expectedRate').value = data.ExpectedRate || '';
     document.getElementById('email').value = data.Email || '';
     if (document.getElementById('countrySelect')) {
       document.getElementById('countrySelect').value = data.CountryOfResidency || 'South Africa';
@@ -478,11 +339,6 @@ function setupFormSubmit() {
     const currentUserId = getStoredUserId();
 
     const id = document.getElementById('recruitId').value;
-
-    // Calculate converted Monthly ZAR amounts
-    const currentMonthlyZAR = calculateApproxZAR('current');
-    const expectedMonthlyZAR = calculateApproxZAR('expected');
-
     const bodyPayload = {
       recruitId: id,
       applicationId: document.getElementById('applicationId') ? document.getElementById('applicationId').value : '',
@@ -492,23 +348,10 @@ function setupFormSubmit() {
       surname: document.getElementById('surname').value,
       sourceId: document.getElementById('sourceSelect').value,
       noticePeriod: document.getElementById('noticePeriod').value,
-
-      // Main standardized ZAR columns
-      currentRate: currentMonthlyZAR || document.getElementById('currentRate')?.value || null,
-      expectedRate: expectedMonthlyZAR || document.getElementById('expectedRate')?.value || null,
-
-      // Raw rate captures
-      currentRateRaw: document.getElementById('currentRateAmount')?.value || document.getElementById('currentRate')?.value || null,
-      currentRateCurrency: document.getElementById('currentRateCurrency')?.value || 'ZAR',
-      currentRateFrequency: document.getElementById('currentRateFrequency')?.value || 'Monthly',
-
-      expectedRateRaw: document.getElementById('expectedRateAmount')?.value || document.getElementById('expectedRate')?.value || null,
-      expectedRateCurrency: document.getElementById('expectedRateCurrency')?.value || 'ZAR',
-      expectedRateFrequency: document.getElementById('expectedRateFrequency')?.value || 'Monthly',
-
+      currentRate: document.getElementById('currentRate').value,
+      expectedRate: document.getElementById('expectedRate').value,
       email: document.getElementById('email').value,
       countryOfResidence: document.getElementById('countrySelect') ? document.getElementById('countrySelect').value : 'South Africa',
-      currentLocation: document.getElementById('currentLocation') ? document.getElementById('currentLocation').value : null,
       phone: document.getElementById('phone').value,
       idType: document.getElementById('idType').value,
       idNumber: document.getElementById('idNumber').value,

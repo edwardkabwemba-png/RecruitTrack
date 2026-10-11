@@ -141,45 +141,29 @@ module.exports = async function (context, req) {
             .input('Email', sql.NVarChar(150), body.email || null)
             .input('Phone', sql.NVarChar(50), body.phone || null)
             .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence || null)
-            .input('CurrentLocation', sql.NVarChar(150), body.currentLocation || null)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel || null)
             .input('TotalYearsExperience', sql.Decimal(4, 1), safeParseFloat(body.totalYearsExperience))
             .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
             .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType || null)
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
-
-            // Converted ZAR values for standard columns
             .input('CurrentRate', sql.Decimal(18, 2), safeParseFloat(body.currentRate))
             .input('ExpectedRate', sql.Decimal(18, 2), safeParseFloat(body.expectedRate, 0.00))
-
-            // Raw input values for multi-currency tracking
-            .input('CurrentRateFrequency', sql.NVarChar(20), body.currentRateFrequency || 'Monthly')
-            .input('CurrentRateCurrency', sql.NVarChar(10), body.currentRateCurrency || 'ZAR')
-            .input('CurrentRateRaw', sql.Decimal(18, 2), safeParseFloat(body.currentRateRaw))
-            .input('ExpectedRateFrequency', sql.NVarChar(20), body.expectedRateFrequency || 'Monthly')
-            .input('ExpectedRateCurrency', sql.NVarChar(10), body.expectedRateCurrency || 'ZAR')
-            .input('ExpectedRateRaw', sql.Decimal(18, 2), safeParseFloat(body.expectedRateRaw))
-
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
             .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
             .query(`
               INSERT INTO dbo.Recruits (
-                FirstName, Surname, Email, Phone, CountryOfResidency, CurrentLocation, SeniorityLevel,
+                FirstName, Surname, Email, Phone, CountryOfResidency, SeniorityLevel,
                 TotalYearsExperience, CurrentRole, RoleClassification, IdType, IdNumber, 
-                CurrentRate, ExpectedRate, CurrentRateFrequency, CurrentRateCurrency, CurrentRateRaw,
-                ExpectedRateFrequency, ExpectedRateCurrency, ExpectedRateRaw,
-                NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
+                CurrentRate, ExpectedRate, NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
               )
               OUTPUT INSERTED.RecruitID
               VALUES (
-                @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @CurrentLocation, @SeniorityLevel,
+                @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @SeniorityLevel,
                 @TotalYearsExperience, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
-                @CurrentRate, @ExpectedRate, @CurrentRateFrequency, @CurrentRateCurrency, @CurrentRateRaw,
-                @ExpectedRateFrequency, @ExpectedRateCurrency, @ExpectedRateRaw,
-                @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
+                @CurrentRate, @ExpectedRate, @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
               );
             `);
 
@@ -222,26 +206,14 @@ module.exports = async function (context, req) {
             .input('Email', sql.NVarChar(150), body.email || null)
             .input('Phone', sql.NVarChar(50), body.phone || null)
             .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence || null)
-            .input('CurrentLocation', sql.NVarChar(150), body.currentLocation || null)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel || null)
             .input('TotalYearsExperience', sql.Decimal(4, 1), safeParseFloat(body.totalYearsExperience))
             .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
             .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType || null)
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
-
-            // Converted ZAR values for standard columns
             .input('CurrentRate', sql.Decimal(18, 2), safeParseFloat(body.currentRate))
             .input('ExpectedRate', sql.Decimal(18, 2), safeParseFloat(body.expectedRate, 0.00))
-
-            // Raw input values for multi-currency tracking
-            .input('CurrentRateFrequency', sql.NVarChar(20), body.currentRateFrequency || 'Monthly')
-            .input('CurrentRateCurrency', sql.NVarChar(10), body.currentRateCurrency || 'ZAR')
-            .input('CurrentRateRaw', sql.Decimal(18, 2), safeParseFloat(body.currentRateRaw))
-            .input('ExpectedRateFrequency', sql.NVarChar(20), body.expectedRateFrequency || 'Monthly')
-            .input('ExpectedRateCurrency', sql.NVarChar(10), body.expectedRateCurrency || 'ZAR')
-            .input('ExpectedRateRaw', sql.Decimal(18, 2), safeParseFloat(body.expectedRateRaw))
-
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
@@ -249,13 +221,11 @@ module.exports = async function (context, req) {
             .query(`
               UPDATE dbo.Recruits
               SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
-                  CountryOfResidency = @CountryOfResidency, CurrentLocation = @CurrentLocation, SeniorityLevel = @SeniorityLevel,
+                  CountryOfResidency = @CountryOfResidency, SeniorityLevel = @SeniorityLevel,
                   TotalYearsExperience = @TotalYearsExperience, CurrentRole = @CurrentRole, 
                   RoleClassification = @RoleClassification, IdType = @IdType, IdNumber = @IdNumber,
-                  CurrentRate = @CurrentRate, ExpectedRate = @ExpectedRate,
-                  CurrentRateFrequency = @CurrentRateFrequency, CurrentRateCurrency = @CurrentRateCurrency, CurrentRateRaw = @CurrentRateRaw,
-                  ExpectedRateFrequency = @ExpectedRateFrequency, ExpectedRateCurrency = @ExpectedRateCurrency, ExpectedRateRaw = @ExpectedRateRaw,
-                  NoticePeriod = @NoticePeriod, Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
+                  CurrentRate = @CurrentRate, ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
+                  Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
               WHERE RecruitID = @RecruitID;
             `);
 
