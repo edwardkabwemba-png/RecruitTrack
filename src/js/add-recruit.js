@@ -24,14 +24,12 @@ let isCandidateFailed = false;
 let failedAtStageIndex = null;
 let existingDocStatuses = {};
 
-// Country to Currency Defaults
 const COUNTRY_CURRENCY_MAP = {
   'South Africa': 'ZAR',
   'India': 'INR',
   'Zimbabwe': 'USD'
 };
 
-// Dynamic stage display names for button labels
 const STAGE_VERB_MAP = {
   'Sourced': 'Sourced',
   'In Discussion': 'Discussion',
@@ -42,7 +40,6 @@ const STAGE_VERB_MAP = {
   'Hired': 'Hired'
 };
 
-// Fallback Exchange Rates
 let exchangeRates = {
   'INR_ZAR': 0.21,
   'USD_ZAR': 18.50,
@@ -140,8 +137,7 @@ function getElem(id) {
 }
 
 function getAdvanceBtn() {
-  return document.getElementById('btnAdvanceStage') ||
-         document.querySelector('.btn-advance-stage');
+  return document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
 }
 
 function getNotSuccessfulBtn() {
@@ -151,7 +147,6 @@ function getNotSuccessfulBtn() {
 function advanceStage(e) {
   if (e) e.preventDefault();
   if (isCandidateFailed) {
-    // If reactivating a failed candidate
     isCandidateFailed = false;
     failedAtStageIndex = null;
     updateStageUI();
@@ -230,7 +225,6 @@ function updateStageUI() {
   }
 }
 
-// Location & Exchange Handlers
 async function handleCountryChange() {
   const countrySelect = getElem('countrySelect');
   if (!countrySelect) return;
@@ -435,7 +429,6 @@ async function loadExistingCandidateData(recruitId) {
       displayTitle.textContent = `${data.FirstName || ''} ${data.Surname || ''}`.trim();
     }
 
-    // Set Failure & Lifecycle Stage
     isCandidateFailed = !!data.IsFailed;
     failedAtStageIndex = data.FailedAtStage || null;
 
@@ -705,7 +698,6 @@ async function handleCandidateSubmit(e) {
       idType: getElem('idType')?.value || null,
       idNumber: getElem('idNumber')?.value?.trim() || null,
       
-      // Stage & Failure payload properties matching dbo.Applications schema
       stage: STAGES[currentStageIndex],
       isFailed: isCandidateFailed ? 1 : 0,
       failedAtStage: isCandidateFailed ? (currentStageIndex + 1) : null,

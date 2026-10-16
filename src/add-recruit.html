@@ -6,269 +6,270 @@
   <title>TalentCoPilot - Add Recruit</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
-  <h2>Candidate: <span id="displayCandidateName">New Candidate</span></h2>
-  <form id="addRecruitForm">
-    <!-- Section A: Personal & Contact -->
-    <div class="section-card">
-      <h3>A. Personal & Contact</h3>
-      <div class="form-grid">
-        <div>
-          <label>Recruiter *</label>
-          <select id="recruiterSelect" name="recruiter" required>
-            <option value="">Loading recruiters...</option>
-          </select>
-        </div>
-        <div>
-          <label>Date Sourced *</label>
-          <input type="date" id="dateSourced" required onclick="this.showPicker()">
-        </div>
-        <div>
-          <label>First Name *</label>
-          <input type="text" id="firstName" required placeholder="e.g. Thabo">
-        </div>
-        <div>
-          <label>Surname *</label>
-          <input type="text" id="surname" required placeholder="e.g. Nkosi">
-        </div>
-        <div>
-          <label>Source *</label>
-          <select id="sourceSelect" name="source" required>
-            <option value="">Loading sources...</option>
-          </select>
-        </div>
-        <div>
-          <label>Notice Period *</label>
-          <select id="noticePeriod" required>
-            <option value="Immediately">Immediately</option>
-            <option value="7 Days">7 Days</option>
-            <option value="14 Days">14 Days</option>
-            <option value="30 Days" selected>30 Days</option>
-            <option value="60 Days">60 Days</option>
-            <option value="90 Days">90 Days</option>
-          </select>
-        </div>
-        <div>
-          <label>Email Address *</label>
-          <input type="email" id="email" required placeholder="thabo@example.com">
-        </div>
-        <div>
-          <label>Contact Number *</label>
-          <input type="text" id="phone" required placeholder="+27 82 123 4567">
-        </div>
-        <div>
-          <label>Country of Residence *</label>
-          <select id="countrySelect" name="countryOfResidence" required onchange="handleCountryChange()">
-            <option value="">Select Country...</option>
-            <option value="South Africa" selected>South Africa</option>
-            <option value="Zimbabwe">Zimbabwe</option>
-            <option value="India">India</option>
-          </select>
-        </div>
-        <div>
-          <label>Current Location</label>
-          <select id="locationSelect" name="currentLocation">
-            <option value="">Select Location / City...</option>
-          </select>
-        </div>
-
-        <!-- Current Rate Block -->
-        <div class="full-width rate-card-block">
-          <div class="rate-grid-row">
-            <div>
-              <label>Frequency</label>
-              <input type="text" value="Monthly" readonly class="input-readonly">
-            </div>
-            <div>
-              <label>Currency</label>
-              <select id="currentCurrencySelect" onchange="calculateRateConversions()">
-                <option value="ZAR">ZAR (R)</option>
-                <option value="INR">INR (₹)</option>
-                <option value="USD">USD ($)</option>
-              </select>
-            </div>
-            <div>
-              <label>Current Rate</label>
-              <input type="number" id="currentRateInput" step="0.01" placeholder="e.g. 45000" oninput="calculateRateConversions()">
-            </div>
+<body class="page-form">
+  <div class="form-container">
+    <h2>Candidate: <span id="displayCandidateName">New Candidate</span></h2>
+    <form id="addRecruitForm">
+      <!-- Section A: Personal & Contact -->
+      <div class="section-card">
+        <h3>A. Personal & Contact</h3>
+        <div class="form-grid">
+          <div>
+            <label>Recruiter *</label>
+            <select id="recruiterSelect" name="recruiter" required>
+              <option value="">Loading recruiters...</option>
+            </select>
           </div>
-          <div id="currentRateZarPreview" class="rate-preview-subtext"></div>
-        </div>
-
-        <!-- Expected Rate Block -->
-        <div class="full-width rate-card-block">
-          <div class="rate-grid-row">
-            <div>
-              <label>Frequency</label>
-              <input type="text" value="Monthly" readonly class="input-readonly">
-            </div>
-            <div>
-              <label>Currency *</label>
-              <select id="expectedCurrencySelect" onchange="calculateRateConversions()">
-                <option value="ZAR">ZAR (R)</option>
-                <option value="INR">INR (₹)</option>
-                <option value="USD">USD ($)</option>
-              </select>
-            </div>
-            <div>
-              <label>Expected Rate *</label>
-              <input type="number" id="expectedRateInput" step="0.01" required placeholder="e.g. 55000" oninput="calculateRateConversions()">
-            </div>
+          <div>
+            <label>Date Sourced *</label>
+            <input type="date" id="dateSourced" required onclick="this.showPicker()">
           </div>
-          <div id="expectedRateZarPreview" class="rate-preview-subtext highlight"></div>
-        </div>
+          <div>
+            <label>First Name *</label>
+            <input type="text" id="firstName" required placeholder="e.g. Thabo">
+          </div>
+          <div>
+            <label>Surname *</label>
+            <input type="text" id="surname" required placeholder="e.g. Nkosi">
+          </div>
+          <div>
+            <label>Source *</label>
+            <select id="sourceSelect" name="source" required>
+              <option value="">Loading sources...</option>
+            </select>
+          </div>
+          <div>
+            <label>Notice Period *</label>
+            <select id="noticePeriod" required>
+              <option value="Immediately">Immediately</option>
+              <option value="7 Days">7 Days</option>
+              <option value="14 Days">14 Days</option>
+              <option value="30 Days" selected>30 Days</option>
+              <option value="60 Days">60 Days</option>
+              <option value="90 Days">90 Days</option>
+            </select>
+          </div>
+          <div>
+            <label>Email Address *</label>
+            <input type="email" id="email" required placeholder="thabo@example.com">
+          </div>
+          <div>
+            <label>Contact Number *</label>
+            <input type="text" id="phone" required placeholder="+27 82 123 4567">
+          </div>
+          <div>
+            <label>Country of Residence *</label>
+            <select id="countrySelect" name="countryOfResidence" required onchange="handleCountryChange()">
+              <option value="">Select Country...</option>
+              <option value="South Africa" selected>South Africa</option>
+              <option value="Zimbabwe">Zimbabwe</option>
+              <option value="India">India</option>
+            </select>
+          </div>
+          <div>
+            <label>Current Location</label>
+            <select id="locationSelect" name="currentLocation">
+              <option value="">Select Location / City...</option>
+            </select>
+          </div>
 
-        <div>
-          <label>Identification Type</label>
-          <select id="idType">
-            <option value="ID">ID</option>
-            <option value="Passport">Passport</option>
-          </select>
-        </div>
-        <div>
-          <label>Identification Number</label>
-          <input type="text" id="idNumber" placeholder="Captured once received">
+          <!-- Current Rate Block -->
+          <div class="full-width rate-card-block">
+            <div class="rate-grid-row">
+              <div>
+                <label>Frequency</label>
+                <input type="text" value="Monthly" readonly class="input-readonly">
+              </div>
+              <div>
+                <label>Currency</label>
+                <select id="currentCurrencySelect" onchange="calculateRateConversions()">
+                  <option value="ZAR">ZAR (R)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+              <div>
+                <label>Current Rate</label>
+                <input type="number" id="currentRateInput" step="0.01" placeholder="e.g. 45000" oninput="calculateRateConversions()">
+              </div>
+            </div>
+            <div id="currentRateZarPreview" class="rate-preview-subtext"></div>
+          </div>
+
+          <!-- Expected Rate Block -->
+          <div class="full-width rate-card-block">
+            <div class="rate-grid-row">
+              <div>
+                <label>Frequency</label>
+                <input type="text" value="Monthly" readonly class="input-readonly">
+              </div>
+              <div>
+                <label>Currency *</label>
+                <select id="expectedCurrencySelect" onchange="calculateRateConversions()">
+                  <option value="ZAR">ZAR (R)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+              <div>
+                <label>Expected Rate *</label>
+                <input type="number" id="expectedRateInput" step="0.01" required placeholder="e.g. 55000" oninput="calculateRateConversions()">
+              </div>
+            </div>
+            <div id="expectedRateZarPreview" class="rate-preview-subtext highlight"></div>
+          </div>
+
+          <div>
+            <label>Identification Type</label>
+            <select id="idType">
+              <option value="ID">ID</option>
+              <option value="Passport">Passport</option>
+            </select>
+          </div>
+          <div>
+            <label>Identification Number</label>
+            <input type="text" id="idNumber" placeholder="Captured once received">
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Section B: Role & Application -->
-    <div class="section-card">
-      <h3>B. Role & Application</h3>
-      <div class="form-grid">
+      <!-- Section B: Role & Application -->
+      <div class="section-card">
+        <h3>B. Role & Application</h3>
+        <div class="form-grid">
+          <div class="full-width">
+            <label>Role Applied For *</label>
+            <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
+          </div>
+          <div>
+            <label>Current Role</label>
+            <select id="currentRole">
+              <option value="">Select Current Role...</option>
+              <option value="Data Analyst">Data Analyst</option>
+              <option value="Data Engineer">Data Engineer</option>
+              <option value="Software Engineer">Software Engineer</option>
+              <option value="Business Analyst">Business Analyst</option>
+              <option value="Project Manager">Project Manager</option>
+              <option value="DevOps Engineer">DevOps Engineer</option>
+            </select>
+          </div>
+          <div>
+            <label>Role Classification</label>
+            <input type="text" id="roleClassification" readonly placeholder="Auto-filled based on Current Role" class="input-readonly">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section C: Skills & Experience -->
+      <div class="section-card">
+        <h3>C. Skills & Experience</h3>
+        <div class="form-grid mb-3">
+          <div>
+            <label for="senioritySelect">Current Seniority Level</label>
+            <select id="senioritySelect">
+              <option value="">Select Seniority Level...</option>
+              <option value="Junior">Junior</option>
+              <option value="Mid-Level">Mid-Level</option>
+              <option value="Senior">Senior</option>
+              <option value="Lead / Executive">Lead / Executive</option>
+            </select>
+          </div>
+          <div>
+            <label for="totalExperience">Total Years of Experience</label>
+            <input type="number" step="0.5" id="totalExperience" placeholder="e.g. 5.5">
+          </div>
+        </div>
+
         <div class="full-width">
-          <label>Role Applied For *</label>
-          <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
+          <label>Skills Held (Select Skill & Years)</label>
+          <div class="form-group">
+            <select id="skillSelect" name="skills">
+              <option value="">Loading skills...</option>
+            </select>
+          </div>
+          <div id="skillsContainer" class="tag-container"></div>
         </div>
-        <div>
-          <label>Current Role</label>
-          <select id="currentRole">
-            <option value="">Select Current Role...</option>
-            <option value="Data Analyst">Data Analyst</option>
-            <option value="Data Engineer">Data Engineer</option>
-            <option value="Software Engineer">Software Engineer</option>
-            <option value="Business Analyst">Business Analyst</option>
-            <option value="Project Manager">Project Manager</option>
-            <option value="DevOps Engineer">DevOps Engineer</option>
-          </select>
-        </div>
-        <div>
-          <label>Role Classification</label>
-          <input type="text" id="roleClassification" readonly placeholder="Auto-filled based on Current Role" class="input-readonly">
-        </div>
-      </div>
-    </div>
 
-    <!-- Section C: Skills & Experience -->
-    <div class="section-card">
-      <h3>C. Skills & Experience</h3>
-      <div class="form-grid mb-3">
-        <div>
-          <label for="senioritySelect">Current Seniority Level</label>
-          <select id="senioritySelect">
-            <option value="">Select Seniority Level...</option>
-            <option value="Junior">Junior</option>
-            <option value="Mid-Level">Mid-Level</option>
-            <option value="Senior">Senior</option>
-            <option value="Lead / Executive">Lead / Executive</option>
-          </select>
+        <div class="full-width">
+          <label>Certifications Held</label>
+          <div class="form-group">
+            <select id="certSelect" name="certifications">
+              <option value="">Loading certifications...</option>
+            </select>
+          </div>
+          <div id="certsContainer" class="tag-container"></div>
         </div>
-        <div>
-          <label for="totalExperience">Total Years of Experience</label>
-          <input type="number" step="0.5" id="totalExperience" placeholder="e.g. 5.5">
+
+        <div class="full-width">
+          <label>Other Skills / Certifications (Free Text)</label>
+          <input type="text" id="otherSkills" placeholder="e.g. Internal tool experience not in the standard list...">
         </div>
       </div>
 
-      <div class="full-width">
-        <label>Skills Held (Select Skill & Years)</label>
-        <div class="form-group">
-          <select id="skillSelect" name="skills">
-            <option value="">Loading skills...</option>
-          </select>
+      <!-- Section D: Recruitment Lifecycle -->
+      <div class="section-card">
+        <h3>D. Recruitment Lifecycle</h3>
+        <div class="lifecycle-container" id="lifecycleContainer">
+          <div class="lifecycle-item" data-stage="Sourced"><div class="stage-node"></div><span class="stage-label">Sourced</span></div>
+          <div class="lifecycle-item" data-stage="In Discussion"><div class="stage-node"></div><span class="stage-label">In Discussion</span></div>
+          <div class="lifecycle-item" data-stage="Screened"><div class="stage-node"></div><span class="stage-label">Screened</span></div>
+          <div class="lifecycle-item" data-stage="CV Prepared"><div class="stage-node"></div><span class="stage-label">CV Prepared</span></div>
+          <div class="lifecycle-item" data-stage="Interviewed"><div class="stage-node"></div><span class="stage-label">Interviewed</span></div>
+          <div class="lifecycle-item" data-stage="Offer Sent"><div class="stage-node"></div><span class="stage-label">Offer Sent</span></div>
+          <div class="lifecycle-item" data-stage="Hired"><div class="stage-node"></div><span class="stage-label">Hired</span></div>
         </div>
-        <div id="skillsContainer" class="tag-container"></div>
-      </div>
 
-      <div class="full-width">
-        <label>Certifications Held</label>
-        <div class="form-group">
-          <select id="certSelect" name="certifications">
-            <option value="">Loading certifications...</option>
-          </select>
+        <!-- Dynamic Pipeline Metrics Subtext -->
+        <div id="pipelineProgressInfo" class="pipeline-progress-text"></div>
+
+        <!-- Action Buttons -->
+        <div class="lifecycle-actions-row">
+          <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
+            Advance to In Discussion
+          </button>
+          <button type="button" id="btnNotSuccessful" class="btn btn-danger-outline" onclick="toggleNotSuccessful()">
+            Mark Not Successful — Sourced
+          </button>
         </div>
-        <div id="certsContainer" class="tag-container"></div>
       </div>
 
-      <div class="full-width">
-        <label>Other Skills / Certifications (Free Text)</label>
-        <input type="text" id="otherSkills" placeholder="e.g. Internal tool experience not in the standard list...">
+      <!-- Section E: Document Checklist -->
+      <div class="section-card">
+        <h3>E. Document Checklist</h3>
+        <table class="doc-table">
+          <tr>
+            <td>CV</td>
+            <td><span id="badgeCv" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileCv"></td>
+          </tr>
+          <tr>
+            <td>ID or Visa</td>
+            <td><span id="badgeId" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileId"></td>
+          </tr>
+          <tr>
+            <td>Pay Slips (Up to 3)</td>
+            <td><span id="badgePayslips" class="status-badge badge-pending">0 of 3 Received</span></td>
+            <td><input type="file" id="filePayslips" multiple></td>
+          </tr>
+          <tr>
+            <td>Certifications (Up to 5)</td>
+            <td><span id="badgeCerts" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileCerts" multiple></td>
+          </tr>
+          <tr>
+            <td>Degree or Diploma (Up to 3)</td>
+            <td><span id="badgeDegree" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileDegree" multiple></td>
+          </tr>
+        </table>
       </div>
-    </div>
 
-    <!-- Section D: Recruitment Lifecycle -->
-   <!-- Section D: Recruitment Lifecycle -->
-    <div class="section-card">
-      <h3>D. Recruitment Lifecycle</h3>
-      <div class="lifecycle-container" id="lifecycleContainer">
-        <div class="lifecycle-item" data-stage="Sourced"><div class="stage-node"></div><span class="stage-label">Sourced</span></div>
-        <div class="lifecycle-item" data-stage="In Discussion"><div class="stage-node"></div><span class="stage-label">In Discussion</span></div>
-        <div class="lifecycle-item" data-stage="Screened"><div class="stage-node"></div><span class="stage-label">Screened</span></div>
-        <div class="lifecycle-item" data-stage="CV Prepared"><div class="stage-node"></div><span class="stage-label">CV Prepared</span></div>
-        <div class="lifecycle-item" data-stage="Interviewed"><div class="stage-node"></div><span class="stage-label">Interviewed</span></div>
-        <div class="lifecycle-item" data-stage="Offer Sent"><div class="stage-node"></div><span class="stage-label">Offer Sent</span></div>
-        <div class="lifecycle-item" data-stage="Hired"><div class="stage-node"></div><span class="stage-label">Hired</span></div>
+      <div class="text-right mt-10">
+        <button type="submit" class="btn btn-primary btn-submit-large">Save Recruit</button>
       </div>
-
-      <!-- Pipeline Progress Percentage & Text -->
-      <div id="pipelineProgressInfo" class="pipeline-progress-text"></div>
-
-      <!-- Lifecycle Action Buttons Row -->
-      <div class="lifecycle-actions-row">
-        <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
-          Advance to In Discussion
-        </button>
-        <button type="button" id="btnNotSuccessful" class="btn btn-danger-outline" onclick="toggleNotSuccessful()">
-          Mark Not Successful — Sourced
-        </button>
-      </div>
-    </div>
-
-    <!-- Section E: Document Checklist -->
-    <div class="section-card">
-      <h3>E. Document Checklist</h3>
-      <table class="doc-table">
-        <tr>
-          <td>CV</td>
-          <td><span id="badgeCv" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileCv"></td>
-        </tr>
-        <tr>
-          <td>ID or Visa</td>
-          <td><span id="badgeId" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileId"></td>
-        </tr>
-        <tr>
-          <td>Pay Slips (Up to 3)</td>
-          <td><span id="badgePayslips" class="status-badge badge-pending">0 of 3 Received</span></td>
-          <td><input type="file" id="filePayslips" multiple></td>
-        </tr>
-        <tr>
-          <td>Certifications (Up to 5)</td>
-          <td><span id="badgeCerts" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileCerts" multiple></td>
-        </tr>
-        <tr>
-          <td>Degree or Diploma (Up to 3)</td>
-          <td><span id="badgeDegree" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileDegree" multiple></td>
-        </tr>
-      </table>
-    </div>
-
-    <div class="text-right mt-10">
-      <button type="submit" class="btn btn-primary btn-submit-large">Save Recruit</button>
-    </div>
-  </form>
+    </form>
+  </div>
   <script src="js/add-recruit.js"></script>
   <script src="js/manage-recruits.js"></script>
 </body>
