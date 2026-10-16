@@ -3,22 +3,87 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TalentCoPilot - Manage Recruits</title>
-  <link rel="stylesheet" href="css/style.css">
+  <title>TalentCoPilot - Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { display: flex; height: 100vh; background-color: #f4f6f8; color: #333; }
+    
+    .sidebar { width: 240px; background-color: #1e293b; color: #94a3b8; display: flex; flex-direction: column; padding: 20px 0; }
+    .brand { padding: 0 20px 20px; font-weight: bold; color: #fff; font-size: 1.2rem; }
+    .brand span { display: block; font-size: 0.75rem; color: #64748b; font-weight: normal; }
+    .nav-section { margin-top: 15px; }
+    .nav-title { font-size: 0.65rem; text-transform: uppercase; color: #475569; padding: 0 20px 8px; font-weight: 700; }
+    .nav-item { display: flex; align-items: center; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+    .nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; border-left: 4px solid #3b82f6; }
+
+    .main-content { flex: 1; overflow-y: auto; padding: 25px 35px; }
+    .top-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .user-pill { background: #fff; padding: 6px 14px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 0.8rem; color: #475569; }
+
+    .dashboard-section { background: #fff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 25px; }
+    .section-title { font-size: 1.05rem; font-weight: bold; color: #1e293b; margin-bottom: 4px; }
+    .section-subtitle { font-size: 0.8rem; color: #64748b; margin-bottom: 18px; }
+
+    /* Role Expandable Cards */
+    .role-card { border: 1px solid #e2e8f0; border-radius: 6px; padding: 15px; margin-bottom: 12px; background: #fafafa; }
+    .role-header { display: flex; justify-content: space-between; align-items: center; }
+    .role-title-group { display: flex; align-items: center; gap: 8px; font-weight: bold; font-size: 0.95rem; }
+    .toggle-btn { cursor: pointer; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 6px; }
+    
+    /* Base Badge Style */
+    .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 0.65rem; font-weight: bold; text-transform: uppercase; }
+    
+    /* Core Status & Code Badges */
+    .badge-code { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    .badge-active { background: #dcfce7; color: #166534; }
+    .badge-frozen { background: #fef3c7; color: #92400e; }
+
+    /* Candidate Stage Badges (Matching manage-recruits) */
+    .badge-sourced     { background: #e0f2fe; color: #0369a1; }
+    .badge-discussion  { background: #eff6ff; color: #1d4ed8; }
+    .badge-screened    { background: #fef3c7; color: #92400e; }
+    .badge-cv          { background: #f3e8ff; color: #6b21a8; }
+    .badge-interviewed { background: #e0e7ff; color: #3730a3; }
+    .badge-offer       { background: #ffedd5; color: #9a3412; }
+    .badge-hired       { background: #dcfce7; color: #166534; }
+
+    .role-details { background: #fff; padding: 10px 14px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; color: #475569; margin: 10px 0; }
+    
+    /* Progress Bars & Segment Colors */
+    .progress-group { margin-top: 10px; font-size: 0.75rem; color: #64748b; }
+    .progress-bar-container { height: 8px; background: #e2e8f0; border-radius: 4px; overflow: hidden; display: flex; margin: 4px 0 10px 0; }
+    .progress-segment { height: 100%; transition: width 0.3s ease; }
+
+    .bg-sourced    { background: #cbd5e1; }
+    .bg-discussion { background: #3b82f6; }
+    .bg-screened   { background: #60a5fa; }
+    .bg-cv         { background: #a855f7; }
+    .bg-interview  { background: #f59e0b; }
+    .bg-offer      { background: #f97316; }
+    .bg-hired      { background: #10b981; }
+
+    /* Candidates Table List */
+    .candidate-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 6px; margin-bottom: 8px; background: #fff; font-size: 0.85rem; }
+    .candidate-info { width: 25%; }
+    .candidate-role { width: 25%; color: #64748b; font-size: 0.8rem; }
+    .candidate-stage { width: 15%; }
+    .candidate-progress { width: 20%; display: flex; align-items: center; gap: 8px; }
+    .candidate-docs { width: 10%; text-align: right; color: #64748b; font-size: 0.75rem; }
+    
+    .btn-sm { padding: 4px 10px; font-size: 0.75rem; border-radius: 4px; border: none; background: #1d4ed8; color: #fff; cursor: pointer; text-decoration: none; }
+    .search-input { width: 260px; padding: 6px 12px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8rem; }
+  </style>
 </head>
 <body>
 
-  <!-- Navigation Sidebar matching dashboard.html -->
   <aside class="sidebar">
     <div class="brand">TalentCoPilot <span>Recruitment Portal</span></div>
-    
     <div class="nav-section">
       <div class="nav-title">MAIN</div>
-      <a href="dashboard.html" class="nav-item">Dashboard</a>
-      <a href="manage-recruits.html" class="nav-item active">Manage Recruit</a>
+      <a href="dashboard.html" class="nav-item active">Dashboard</a>
+      <a href="manage-recruits.html" class="nav-item">Manage Recruit</a>
       <a href="roles.html" class="nav-item">Manage Roles</a>
     </div>
-
     <div class="nav-section">
       <div class="nav-title">ADMIN</div>
       <a href="users.html" class="nav-item">Manage Users</a>
@@ -30,6 +95,15 @@
       <a href="#" class="nav-item">Settings</a>
     </div>
   </aside>
+
+  <main class="main-content">
+    <div class="top-bar">
+      <div>
+        <h2>Dashboard — Recruiter View</h2>
+        <p style="font-size: 0.8rem; color: #64748b;">Overview of active sourcing roles and candidate progression</p>
+      </div>
+      <div class="user-pill" id="userPill">Signed in as: Loading...</div>
+    </div>
 
   <!-- Main Content Area -->
   <main class="main-content">
