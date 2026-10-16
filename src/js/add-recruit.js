@@ -300,10 +300,13 @@ function calculateRateConversions() {
 }
 
 function convertToZar(amount, currency) {
-  if (currency === 'ZAR') return amount;
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+  if (currency === 'ZAR') return numericAmount;
+  
   const pair = `${currency}_ZAR`;
   const rate = exchangeRates[pair] || 1.0;
-  return amount * rate;
+  return parseFloat((numericAmount * rate).toFixed(2));
 }
 
 function bindFileInput(elementId, badgeId, category) {
@@ -669,6 +672,10 @@ async function handleCandidateSubmit(e) {
     const rawCurrentRate = getElem('currentRateInput')?.value || null;
     const rawExpectedRate = getElem('expectedRateInput')?.value || null;
 
+    // Convert raw input rates into ZAR amounts prior to sending payload
+    const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
+    const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
+
     const payload = {
       recruitId: editingRecruitId,
       recruiterId: recruiterSelect?.value || null,
@@ -688,10 +695,14 @@ async function handleCandidateSubmit(e) {
       otherSkills: getElem('otherSkills')?.value?.trim() || null,
       noticePeriod: getElem('noticePeriod')?.value || '30 Days',
       
-      currentRate: rawCurrentRate,
+      // Store converted ZAR numerical values in database rate columns
+      currentRate: convertedCurrentRateZar,
       currentCurrency: currentCurrency,
-      expectedRate: rawExpectedRate,
+      currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
+      
+      expectedRate: convertedExpectedRateZar,
       expectedCurrency: expectedCurrency,
+      expectedRateOriginal: rawExpectedRate ? parseFloat(rawExpectedRate) : null,
 
       email: email,
       phone: getElem('phone')?.value?.trim() || null,
