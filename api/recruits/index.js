@@ -29,6 +29,24 @@ const safeParseDate = (val) => {
   return isNaN(d.getTime()) ? new Date() : d;
 };
 
+// Exchange rate lookup function converting selected currency to ZAR multiplier
+async function getZarExchangeRate(pool, currency) {
+  if (!currency || currency === 'ZAR') return 1.0;
+  const pair = `${currency}_ZAR`;
+  try {
+    const res = await pool.request()
+      .input('Pair', sql.NVarChar(10), pair)
+      .query("SELECT TOP 1 Rate FROM dbo.ExchangeRates WHERE CurrencyPair = @Pair");
+
+    if (res.recordset && res.recordset.length > 0) {
+      return parseFloat(res.recordset[0].Rate);
+    }
+  } catch (err) {
+    console.error(`Error looking up exchange rate for ${pair}:`, err.message);
+  }
+  return 1.0; // Fallback 1:1 if pair is missing
+}
+
 module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
@@ -43,14 +61,25 @@ module.exports = async function (context, req) {
     // GET REQUESTS
     // =========================================================================
     if (req.method === 'GET') {
-      const { action, id } = req.query;
+      const { action, id, country } = req.query;
+
+      if (action === 'locations') {
+        const queryCountry = country || 'South Africa';
+        const result = await pool.request()
+          .input('CountryName', sql.NVarChar(100), queryCountry)
+          .query("SELECT LocationID, CityName FROM dbo.Locations WHERE CountryName = @CountryName AND IsActive = 1 ORDER BY CityName ASC");
+
+        context.res.status = 200;
+        context.res.body = result.recordset || [];
+        return;
+      }
 
       if (action === 'getOne' && id) {
         const query = `
           SELECT TOP 1 
             r.*, 
-            a.ApplicationID, a.RoleID, a.RecruiterUserID, a.SourceID, a.DateSourced, 
-            ISNULL(a.LifecycleStage, 'Sourced') AS Stage, a.DocCvStatus, a.DocIdStatus, 
+            a.ApplicationID, a.RoleID, a.RecruiterUserID, a.SourceID, a.DateSourced,
+            ISNULL(a.LifecycleStage, 'Sourced') AS Stage, a.DocCvStatus, a.DocIdStatus,
             a.DocPaySlipsStatus, a.DocCertsStatus, a.DocDegreesStatus
           FROM dbo.Recruits r
           LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
@@ -65,7 +94,7 @@ module.exports = async function (context, req) {
       if (action === 'recent' || !action) {
         const query = `
           SELECT TOP 50 
-            r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate,
+            r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate, r.CurrentLocation,
             a.ApplicationID, a.RoleID, p.PositionTitle, c.ClientName, u.FullName AS RecruiterName,
             s.SourceName, ISNULL(a.LifecycleStage, 'Sourced') AS Stage, a.DateSourced
           FROM dbo.Recruits r
@@ -116,15 +145,24 @@ module.exports = async function (context, req) {
       const rawId = req.query.id || (context.bindingData && context.bindingData.id) || body.recruitId;
       const recruitId = safeParseInt(rawId);
       const isCreate = req.method === 'POST' || !recruitId;
-
       const targetStage = body.stage || body.lifecycleStage || (isCreate ? 'Sourced' : null);
       const parsedRoleId = safeParseInt(body.roleId || req.query.roleId);
-      
-      // Defaults assignedRecruiterId to activeUserId if body.recruiterId is not provided
+
       const assignedRecruiterId = safeParseInt(body.recruiterId) || activeUserId;
-      
-      // Defaults dateSourced to the current date if body.dateSourced is empty or missing
       const parsedDateSourced = safeParseDate(body.dateSourced);
+
+      // Perform currency conversions to ZAR prior to saving to existing rate columns
+      const currentCurrency = body.currentCurrency || 'ZAR';
+      const expectedCurrency = body.expectedCurrency || 'ZAR';
+
+      const currentMultiplier = await getZarExchangeRate(pool, currentCurrency);
+      const expectedMultiplier = await getZarExchangeRate(pool, expectedCurrency);
+
+      const rawCurrentRate = safeParseFloat(body.currentRate);
+      const rawExpectedRate = safeParseFloat(body.expectedRate);
+
+      const finalCurrentRateZar = rawCurrentRate !== null ? (rawCurrentRate * currentMultiplier) : null;
+      const finalExpectedRateZar = rawExpectedRate !== null ? (rawExpectedRate * expectedMultiplier) : 0.00;
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
@@ -141,27 +179,28 @@ module.exports = async function (context, req) {
             .input('Email', sql.NVarChar(150), body.email || null)
             .input('Phone', sql.NVarChar(50), body.phone || null)
             .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence || null)
+            .input('CurrentLocation', sql.NVarChar(150), body.currentLocation || null)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel || null)
             .input('TotalYearsExperience', sql.Decimal(4, 1), safeParseFloat(body.totalYearsExperience))
             .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
             .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType || null)
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
-            .input('CurrentRate', sql.Decimal(18, 2), safeParseFloat(body.currentRate))
-            .input('ExpectedRate', sql.Decimal(18, 2), safeParseFloat(body.expectedRate, 0.00))
+            .input('CurrentRate', sql.Decimal(18, 2), finalCurrentRateZar)
+            .input('ExpectedRate', sql.Decimal(18, 2), finalExpectedRateZar)
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
             .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
             .query(`
               INSERT INTO dbo.Recruits (
-                FirstName, Surname, Email, Phone, CountryOfResidency, SeniorityLevel,
+                FirstName, Surname, Email, Phone, CountryOfResidency, CurrentLocation, SeniorityLevel,
                 TotalYearsExperience, CurrentRole, RoleClassification, IdType, IdNumber, 
                 CurrentRate, ExpectedRate, NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
               )
               OUTPUT INSERTED.RecruitID
               VALUES (
-                @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @SeniorityLevel,
+                @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @CurrentLocation, @SeniorityLevel,
                 @TotalYearsExperience, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
                 @CurrentRate, @ExpectedRate, @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
               );
@@ -195,7 +234,6 @@ module.exports = async function (context, req) {
                 @DocCertsStatus, @DocDegreesStatus
               );
             `);
-
         } else {
           // 1b. UPDATE RECRUIT MASTER
           const recruitReq = new sql.Request(transaction);
@@ -206,14 +244,15 @@ module.exports = async function (context, req) {
             .input('Email', sql.NVarChar(150), body.email || null)
             .input('Phone', sql.NVarChar(50), body.phone || null)
             .input('CountryOfResidency', sql.NVarChar(100), body.countryOfResidence || null)
+            .input('CurrentLocation', sql.NVarChar(150), body.currentLocation || null)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel || null)
             .input('TotalYearsExperience', sql.Decimal(4, 1), safeParseFloat(body.totalYearsExperience))
             .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
             .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType || null)
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
-            .input('CurrentRate', sql.Decimal(18, 2), safeParseFloat(body.currentRate))
-            .input('ExpectedRate', sql.Decimal(18, 2), safeParseFloat(body.expectedRate, 0.00))
+            .input('CurrentRate', sql.Decimal(18, 2), finalCurrentRateZar)
+            .input('ExpectedRate', sql.Decimal(18, 2), finalExpectedRateZar)
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
@@ -221,10 +260,11 @@ module.exports = async function (context, req) {
             .query(`
               UPDATE dbo.Recruits
               SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
-                  CountryOfResidency = @CountryOfResidency, SeniorityLevel = @SeniorityLevel,
-                  TotalYearsExperience = @TotalYearsExperience, CurrentRole = @CurrentRole, 
-                  RoleClassification = @RoleClassification, IdType = @IdType, IdNumber = @IdNumber,
-                  CurrentRate = @CurrentRate, ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
+                  CountryOfResidency = @CountryOfResidency, CurrentLocation = @CurrentLocation,
+                  SeniorityLevel = @SeniorityLevel, TotalYearsExperience = @TotalYearsExperience, 
+                  CurrentRole = @CurrentRole, RoleClassification = @RoleClassification, 
+                  IdType = @IdType, IdNumber = @IdNumber, CurrentRate = @CurrentRate, 
+                  ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
                   Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
               WHERE RecruitID = @RecruitID;
             `);
@@ -277,14 +317,12 @@ module.exports = async function (context, req) {
         }
 
         await transaction.commit();
-
         context.res.status = 200;
         context.res.body = { 
           message: isCreate ? "Candidate created successfully." : "Candidate updated successfully.",
           recruitId: activeRecruitId 
         };
         return;
-
       } catch (txError) {
         if (transaction._aborted !== true) {
           try { await transaction.rollback(); } catch (_) {}
@@ -295,7 +333,6 @@ module.exports = async function (context, req) {
         return;
       }
     }
-
   } catch (error) {
     context.log.error("Recruits API Error:", error);
     context.res.status = 500;
