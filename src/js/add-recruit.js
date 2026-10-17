@@ -20,26 +20,46 @@ const STAGES = [
 ];
 
 let currentStageIndex = 0;
+let isCandidateFailed = false;
+let failedAtStageIndex = null;
 let existingDocStatuses = {};
 
-// Helper: Safely retrieve logged-in User ID from storage
+const COUNTRY_CURRENCY_MAP = {
+  'South Africa': 'ZAR',
+  'India': 'INR',
+  'Zimbabwe': 'USD'
+};
+
+const STAGE_VERB_MAP = {
+  'Sourced': 'Sourced',
+  'In Discussion': 'Discussion',
+  'Screened': 'Screening',
+  'CV Prepared': 'CV Preparation',
+  'Interviewed': 'Interview',
+  'Offer Sent': 'Offer',
+  'Hired': 'Hired'
+};
+
+let exchangeRates = {
+  'INR_ZAR': 0.21,
+  'USD_ZAR': 18.50,
+  'ZAR_ZAR': 1.00
+};
+
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
   return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
 }
 
-// Helper function to set default active recruiter
 function defaultActiveRecruiter() {
   const recruiterSelect = getElem('recruiterSelect');
   const currentUserId = getStoredUserId();
-
   if (recruiterSelect && currentUserId && !editingRecruitId) {
     recruiterSelect.value = currentUserId;
   }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // --- ROUTE GUARD: Verify user credentials before running any logic ---
   const currentUserId = getStoredUserId();
   if (!currentUserId) {
     window.location.href = "index.html";
@@ -49,7 +69,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const urlParams = new URLSearchParams(window.location.search);
   editingRecruitId = urlParams.get('id');
 
-  // 1. Default 'Date Sourced' to today's date if empty
   const dateSourcedInput = getElem('dateSourced');
   if (dateSourcedInput && !dateSourcedInput.value) {
     dateSourcedInput.value = new Date().toISOString().split('T')[0];
@@ -59,13 +78,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (editingRecruitId) {
     document.title = "Edit Recruit";
-    const headerTitle = document.querySelector('h1');
+    const headerTitle = document.querySelector('h2');
     if (headerTitle) headerTitle.textContent = "Edit Recruit";
-
     await loadExistingCandidateData(editingRecruitId);
   } else {
-    // 2. Default recruiter to active logged-in user when creating a new recruit
     defaultActiveRecruiter();
+    handleCountryChange();
   }
 
   const form = document.getElementById('addRecruitForm') || document.getElementById('recruitForm');
@@ -88,9 +106,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
-  // Auto-fill Role Classification when Current Role selection changes
   setupCurrentRoleAutoFill();
-
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
 
@@ -121,13 +137,21 @@ function getElem(id) {
 }
 
 function getAdvanceBtn() {
-  return document.getElementById('btnAdvanceStage') || 
-         document.querySelector('.btn-advance-stage') || 
-         document.querySelector('button[onclick="advanceStage()"]');
+  return document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
+}
+
+function getNotSuccessfulBtn() {
+  return document.getElementById('btnNotSuccessful');
 }
 
 function advanceStage(e) {
   if (e) e.preventDefault();
+  if (isCandidateFailed) {
+    isCandidateFailed = false;
+    failedAtStageIndex = null;
+    updateStageUI();
+    return;
+  }
 
   if (currentStageIndex < STAGES.length - 1) {
     currentStageIndex++;
@@ -137,14 +161,27 @@ function advanceStage(e) {
   }
 }
 
+function toggleNotSuccessful() {
+  isCandidateFailed = !isCandidateFailed;
+  failedAtStageIndex = isCandidateFailed ? (currentStageIndex + 1) : null;
+  updateStageUI();
+}
+
 function updateStageUI() {
   const stageNodes = document.querySelectorAll('.stage-node');
   const advanceBtn = getAdvanceBtn();
+  const notSuccessfulBtn = getNotSuccessfulBtn();
+  const progressInfo = getElem('pipelineProgressInfo');
+
+  const activeStageName = STAGES[currentStageIndex];
+  const stageVerb = STAGE_VERB_MAP[activeStageName] || activeStageName;
+  const percentage = Math.round(((currentStageIndex + 1) / STAGES.length) * 100);
 
   stageNodes.forEach((node, index) => {
-    node.classList.remove('completed', 'active', 'pending');
-
-    if (index < currentStageIndex) {
+    node.classList.remove('completed', 'active', 'pending', 'failed');
+    if (isCandidateFailed && index === currentStageIndex) {
+      node.classList.add('failed');
+    } else if (index < currentStageIndex) {
       node.classList.add('completed');
     } else if (index === currentStageIndex) {
       node.classList.add('active');
@@ -153,8 +190,31 @@ function updateStageUI() {
     }
   });
 
+  if (progressInfo) {
+    if (isCandidateFailed) {
+      progressInfo.textContent = `Candidate Marked Not Successful at ${activeStageName} (Stage ${currentStageIndex + 1} of 7)`;
+      progressInfo.style.color = '#c53030';
+    } else {
+      progressInfo.textContent = `${percentage}% through pipeline (${activeStageName} = stage ${currentStageIndex + 1} of 7)`;
+      progressInfo.style.color = '#2b6cb0';
+    }
+  }
+
+  if (notSuccessfulBtn) {
+    if (isCandidateFailed) {
+      notSuccessfulBtn.textContent = `Reactivate Candidate`;
+      notSuccessfulBtn.classList.add('is-failed');
+    } else {
+      notSuccessfulBtn.textContent = `Mark Not Successful — ${stageVerb}`;
+      notSuccessfulBtn.classList.remove('is-failed');
+    }
+  }
+
   if (advanceBtn) {
-    if (currentStageIndex < STAGES.length - 1) {
+    if (isCandidateFailed) {
+      advanceBtn.textContent = 'Candidate Failed';
+      advanceBtn.disabled = true;
+    } else if (currentStageIndex < STAGES.length - 1) {
       const nextStageName = STAGES[currentStageIndex + 1];
       advanceBtn.textContent = `Advance to ${nextStageName}`;
       advanceBtn.disabled = false;
@@ -165,6 +225,90 @@ function updateStageUI() {
   }
 }
 
+async function handleCountryChange() {
+  const countrySelect = getElem('countrySelect');
+  if (!countrySelect) return;
+
+  const country = countrySelect.value || 'South Africa';
+  const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
+
+  const currentCurrSel = getElem('currentCurrencySelect');
+  const expectedCurrSel = getElem('expectedCurrencySelect');
+
+  if (currentCurrSel) currentCurrSel.value = defaultCurrency;
+  if (expectedCurrSel) expectedCurrSel.value = defaultCurrency;
+
+  await loadLocationsForCountry(country);
+  calculateRateConversions();
+}
+
+async function loadLocationsForCountry(countryName) {
+  const locationSelect = getElem('locationSelect');
+  if (!locationSelect) return;
+
+  locationSelect.innerHTML = '<option value="">Loading locations...</option>';
+
+  try {
+    const res = await fetch(`/api/recruits?action=locations&country=${encodeURIComponent(countryName)}`, {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+    if (!res.ok) throw new Error('Failed to fetch cities');
+    const locations = await res.json();
+
+    locationSelect.innerHTML = '<option value="">Select Location / City...</option>';
+    if (Array.isArray(locations)) {
+      locations.forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc.CityName;
+        opt.textContent = loc.CityName;
+        locationSelect.appendChild(opt);
+      });
+    }
+  } catch (err) {
+    console.error('Error loading locations:', err);
+    locationSelect.innerHTML = '<option value="">Select Location / City...</option>';
+  }
+}
+
+function calculateRateConversions() {
+  const currentCurr = getElem('currentCurrencySelect')?.value || 'ZAR';
+  const currentVal = parseFloat(getElem('currentRateInput')?.value) || 0;
+
+  const expectedCurr = getElem('expectedCurrencySelect')?.value || 'ZAR';
+  const expectedVal = parseFloat(getElem('expectedRateInput')?.value) || 0;
+
+  const currentZar = convertToZar(currentVal, currentCurr);
+  const expectedZar = convertToZar(expectedVal, expectedCurr);
+
+  const currentPreview = getElem('currentRateZarPreview');
+  if (currentPreview) {
+    if (currentVal > 0 && currentCurr !== 'ZAR') {
+      currentPreview.textContent = `≈ R ${currentZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
+    } else {
+      currentPreview.textContent = '';
+    }
+  }
+
+  const expectedPreview = getElem('expectedRateZarPreview');
+  if (expectedPreview) {
+    if (expectedVal > 0 && expectedCurr !== 'ZAR') {
+      expectedPreview.textContent = `≈ R ${expectedZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
+    } else {
+      expectedPreview.textContent = '';
+    }
+  }
+}
+
+function convertToZar(amount, currency) {
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+  if (currency === 'ZAR') return numericAmount;
+
+  const pair = `${currency}_ZAR`;
+  const rate = exchangeRates[pair] || 1.0;
+  return parseFloat((numericAmount * rate).toFixed(2));
+}
+
 function bindFileInput(elementId, badgeId, category) {
   const el = getElem(elementId);
   const badge = getElem(badgeId);
@@ -173,13 +317,9 @@ function bindFileInput(elementId, badgeId, category) {
   el.addEventListener('change', (e) => {
     const files = Array.from(e.target.files);
     pendingFiles[category] = files;
-
     if (badge) {
       if (files.length > 0) {
         badge.className = 'status-badge badge-received';
-        badge.style.backgroundColor = '#d1e7dd';
-        badge.style.color = '#0f5132';
-        
         if (category === 'PaySlips') {
           badge.textContent = `${files.length} Received`;
         } else {
@@ -187,8 +327,6 @@ function bindFileInput(elementId, badgeId, category) {
         }
       } else {
         badge.className = 'status-badge badge-pending';
-        badge.style.backgroundColor = '#fff3cd';
-        badge.style.color = '#664d03';
         badge.textContent = 'Pending';
       }
     }
@@ -198,13 +336,12 @@ function bindFileInput(elementId, badgeId, category) {
 function setupCurrentRoleAutoFill() {
   const currentRoleSelect = getElem('currentRoleSelect') || getElem('currentRole');
   const roleClassificationSelect = getElem('roleClassification');
-
   if (!currentRoleSelect || !roleClassificationSelect) return;
 
   currentRoleSelect.addEventListener('change', () => {
     const selectedOption = currentRoleSelect.options[currentRoleSelect.selectedIndex];
     const classification = selectedOption?.dataset?.classification || '';
-    
+
     if (classification) {
       roleClassificationSelect.value = classification;
     } else if (!currentRoleSelect.value) {
@@ -218,16 +355,13 @@ async function loadExistingCandidateData(recruitId) {
     const res = await fetch(`/api/recruits?action=getOne&id=${recruitId}`, {
       headers: { 'x-user-id': getStoredUserId() }
     });
-
     if (res.status === 401 || res.status === 403) {
       localStorage.removeItem("user");
       sessionStorage.removeItem("user");
       window.location.href = "index.html";
       return;
     }
-
     if (!res.ok) return;
-
     const data = await res.json();
     if (!data || !data.RecruitID) return;
 
@@ -249,19 +383,26 @@ async function loadExistingCandidateData(recruitId) {
     setVal('surname', data.Surname);
     setVal('email', data.Email);
     setVal('phone', data.Phone);
-    
+
+    const countryVal = data.CountryOfResidency || 'South Africa';
+    setVal('countrySelect', countryVal);
+    setVal('countryOfResidence', countryVal);
+
+    await loadLocationsForCountry(countryVal);
+    if (data.CurrentLocation) {
+      setVal('locationSelect', data.CurrentLocation);
+    }
+
     const currentRoleElem = getElem('currentRoleSelect') || getElem('currentRole');
     if (currentRoleElem) {
       currentRoleElem.value = data.CurrentRole || '';
       currentRoleElem.dispatchEvent(new Event('change'));
     }
-    
+
     if (data.RoleClassification) {
       setVal('roleClassification', data.RoleClassification);
     }
-    
-    setVal('countrySelect', data.CountryOfResidency);
-    setVal('countryOfResidence', data.CountryOfResidency);
+
     setVal('senioritySelect', data.SeniorityLevel);
     setVal('seniorityLevel', data.SeniorityLevel);
     setVal('totalExperience', data.TotalYearsExperience);
@@ -270,8 +411,8 @@ async function loadExistingCandidateData(recruitId) {
     setVal('idNumber', data.IdNumber);
     setVal('noticePeriod', data.NoticePeriod);
 
-    setVal('currentRate', data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '');
-    setVal('expectedRate', data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '');
+    setVal('currentRateInput', data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '');
+    setVal('expectedRateInput', data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '');
 
     const dateSourcedInput = getElem('dateSourced');
     if (dateSourcedInput && data.DateSourced) {
@@ -291,13 +432,20 @@ async function loadExistingCandidateData(recruitId) {
       displayTitle.textContent = `${data.FirstName || ''} ${data.Surname || ''}`.trim();
     }
 
-    const stageName = data.Stage || data.LifecycleStage || 'Sourced';
+    isCandidateFailed = !!data.IsFailed;
+    failedAtStageIndex = data.FailedAtStage || null;
+
+    let stageName = data.Stage || data.LifecycleStage || 'Sourced';
+    // If stage contains "Unsuccessful" or "Failed", parse out base stage
+    if (stageName.includes('Unsuccessful') || stageName.includes('Failed')) {
+      stageName = stageName.split('—').pop()?.trim() || stageName.split('-').pop()?.trim() || 'Sourced';
+    }
+
     const stageIndex = STAGES.indexOf(stageName);
     if (stageIndex !== -1) {
       currentStageIndex = stageIndex;
       updateStageUI();
     }
-
   } catch (err) {
     console.error("Error loading candidate data:", err);
   }
@@ -307,8 +455,6 @@ function updateBadgeUI(badgeId, text) {
   const badge = getElem(badgeId);
   if (badge) {
     badge.className = 'status-badge badge-received';
-    badge.style.backgroundColor = '#d1e7dd';
-    badge.style.color = '#0f5132';
     badge.textContent = text;
   }
 }
@@ -323,10 +469,8 @@ function setVal(id, value) {
 function restoreTagBadges(containerId, dataString, isFormatted) {
   const container = getElem(containerId);
   if (!container || !dataString) return;
-
   container.innerHTML = '';
   let items = [];
-
   try {
     items = JSON.parse(dataString);
   } catch (e) {
@@ -343,7 +487,7 @@ function restoreTagBadges(containerId, dataString, isFormatted) {
       } else {
         tag.dataset.text = text;
       }
-      tag.innerHTML = `${text} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
+      tag.innerHTML = `${text} <span class="remove-btn">&times;</span>`;
       tag.querySelector('.remove-btn').addEventListener('click', () => tag.remove());
       container.appendChild(tag);
     });
@@ -355,16 +499,13 @@ async function loadDropdownData() {
     const res = await fetch('/api/recruits?action=dropdowns', {
       headers: { 'x-user-id': getStoredUserId() }
     });
-
     if (res.status === 401 || res.status === 403) {
       localStorage.removeItem("user");
       sessionStorage.removeItem("user");
       window.location.href = "index.html";
       return;
     }
-
     if (!res.ok) throw new Error(`Server error: ${res.status}`);
-
     const data = await res.json();
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName', 'Select Recruiter...');
@@ -385,14 +526,13 @@ async function loadDropdownData() {
 function populateSelect(elementId, items, valueKey, textKey, defaultText) {
   const select = getElem(elementId);
   if (!select) return;
-
   select.innerHTML = `<option value="">${defaultText}</option>`;
   if (Array.isArray(items)) {
     items.forEach(item => {
       const opt = document.createElement('option');
       const val = item[valueKey] !== undefined ? item[valueKey] : item['SkillID'] || item['CertID'];
       const text = item[textKey] !== undefined ? item[textKey] : val;
-      
+
       opt.value = val;
       opt.textContent = text;
       select.appendChild(opt);
@@ -403,24 +543,18 @@ function populateSelect(elementId, items, valueKey, textKey, defaultText) {
 function populatePositionSelect(elementId, items, defaultText) {
   const select = getElem(elementId) || getElem('currentRole');
   if (!select) return;
-
   select.innerHTML = `<option value="">${defaultText}</option>`;
-
   if (Array.isArray(items)) {
     items.forEach(item => {
       const title = item.PositionTitle || '';
       const classification = item.classification || item.Classification || '';
-
       if (!title) return;
-
       const opt = document.createElement('option');
       opt.value = title;
       opt.textContent = title;
-
       if (classification) {
         opt.dataset.classification = classification;
       }
-
       select.appendChild(opt);
     });
   }
@@ -441,15 +575,13 @@ function setupSkillTagDropdown(selectId, containerId) {
       selectEl.value = '';
       return;
     }
-
     const years = parseFloat(yrsInput) || 0;
     const fullText = `${selectedText} (${years} yrs)`;
 
     const tag = document.createElement('span');
     tag.className = 'tag-badge';
     tag.dataset.formatted = fullText;
-    tag.innerHTML = `${fullText} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
-
+    tag.innerHTML = `${fullText} <span class="remove-btn">&times;</span>`;
     tag.querySelector('.remove-btn').addEventListener('click', () => tag.remove());
     containerEl.appendChild(tag);
     selectEl.value = '';
@@ -469,8 +601,7 @@ function setupTagDropdown(selectId, containerId) {
     const tag = document.createElement('span');
     tag.className = 'tag-badge';
     tag.dataset.text = selectedText;
-    tag.innerHTML = `${selectedText} <span class="remove-btn" style="cursor:pointer;margin-left:5px;">&times;</span>`;
-
+    tag.innerHTML = `${selectedText} <span class="remove-btn">&times;</span>`;
     tag.querySelector('.remove-btn').addEventListener('click', () => tag.remove());
     containerEl.appendChild(tag);
     selectEl.value = '';
@@ -479,10 +610,8 @@ function setupTagDropdown(selectId, containerId) {
 
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
-
   const sanitizedFolderPath = folderPath.replace(/\s+/g, '_');
   const buffer = await file.arrayBuffer();
-
   const res = await fetch('/api/upload-document', {
     method: 'POST',
     headers: {
@@ -498,7 +627,6 @@ async function uploadSingleFile(file, folderPath) {
     const errorData = await res.json().catch(() => ({}));
     throw new Error(`Upload failed (${res.status}): ${errorData.error || res.statusText}`);
   }
-
   const data = await res.json();
   return data.fileUrl;
 }
@@ -520,6 +648,7 @@ async function handleCandidateSubmit(e) {
   const recruiterSelect = getElem('recruiterSelect');
   const sourceSelect = getElem('sourceSelect');
   const roleSelect = getElem('roleSelect');
+
   const firstName = getElem('firstName')?.value?.trim();
   const surname = getElem('surname')?.value?.trim();
   const email = getElem('email')?.value?.trim();
@@ -540,9 +669,20 @@ async function handleCandidateSubmit(e) {
     await processAllDocumentUploads(candidateFolderName);
 
     const countryVal = getElem('countrySelect')?.value || getElem('countryOfResidence')?.value || 'South Africa';
-    const seniorityVal = getElem('senioritySelect')?.value || getElem('seniorityLevel')?.value || null;
-    const expVal = getElem('totalExperience')?.value || getElem('totalYearsExperience')?.value || null;
-    const currentRoleVal = getElem('currentRoleSelect')?.value || getElem('currentRole')?.value?.trim() || null;
+    const locationVal = getElem('locationSelect')?.value || null;
+
+    const currentCurrency = getElem('currentCurrencySelect')?.value || 'ZAR';
+    const expectedCurrency = getElem('expectedCurrencySelect')?.value || 'ZAR';
+
+    const rawCurrentRate = getElem('currentRateInput')?.value || null;
+    const rawExpectedRate = getElem('expectedRateInput')?.value || null;
+
+    const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
+    const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
+
+    // Resolve current stage vs unsuccessful stage
+    const currentStageName = STAGES[currentStageIndex];
+    const resolvedStage = isCandidateFailed ? `Not Successful — ${currentStageName}` : currentStageName;
 
     const payload = {
       recruitId: editingRecruitId,
@@ -552,22 +692,35 @@ async function handleCandidateSubmit(e) {
       dateSourced: getElem('dateSourced')?.value || new Date().toISOString().split('T')[0],
       firstName: firstName,
       surname: surname,
-      currentRole: currentRoleVal,
+      currentRole: getElem('currentRoleSelect')?.value || getElem('currentRole')?.value?.trim() || null,
       roleClassification: getElem('roleClassification')?.value?.trim() || null,
       countryOfResidence: countryVal,
-      seniorityLevel: seniorityVal,
-      totalYearsExperience: expVal,
+      currentLocation: locationVal,
+      seniorityLevel: getElem('senioritySelect')?.value || getElem('seniorityLevel')?.value || null,
+      totalYearsExperience: getElem('totalExperience')?.value || getElem('totalYearsExperience')?.value || null,
       skills: JSON.stringify(Array.from(document.querySelectorAll('#skillsContainer .tag-badge')).map(b => b.dataset.formatted)),
       certifications: JSON.stringify(Array.from(document.querySelectorAll('#certsContainer .tag-badge')).map(b => b.dataset.text)),
       otherSkills: getElem('otherSkills')?.value?.trim() || null,
       noticePeriod: getElem('noticePeriod')?.value || '30 Days',
-      currentRate: getElem('currentRate')?.value || null,
-      expectedRate: getElem('expectedRate')?.value || null,
+      
+      currentRate: convertedCurrentRateZar,
+      currentCurrency: currentCurrency,
+      currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
+      
+      expectedRate: convertedExpectedRateZar,
+      expectedCurrency: expectedCurrency,
+      expectedRateOriginal: rawExpectedRate ? parseFloat(rawExpectedRate) : null,
+
       email: email,
       phone: getElem('phone')?.value?.trim() || null,
       idType: getElem('idType')?.value || null,
       idNumber: getElem('idNumber')?.value?.trim() || null,
-      stage: STAGES[currentStageIndex],
+      
+      // Pass the resolved stage text and failure flags to DB
+      stage: resolvedStage,
+      isFailed: isCandidateFailed ? 1 : 0,
+      failedAtStage: isCandidateFailed ? (currentStageIndex + 1) : null,
+
       docCvStatus: pendingFiles.CV.length > 0 ? 'Uploaded' : (existingDocStatuses.docCvStatus || 'Pending'),
       docIdStatus: pendingFiles.ID_Visa.length > 0 ? 'Uploaded' : (existingDocStatuses.docIdStatus || 'Pending'),
       docPaySlipsStatus: pendingFiles.PaySlips.length > 0 ? pendingFiles.PaySlips.length : (existingDocStatuses.docPaySlipsStatus || 0),
@@ -580,7 +733,7 @@ async function handleCandidateSubmit(e) {
 
     const res = await fetch(targetUrl, {
       method: method,
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
         'x-user-id': getStoredUserId()
       },
@@ -599,7 +752,6 @@ async function handleCandidateSubmit(e) {
 
     alert(`Candidate successfully ${editingRecruitId ? 'updated' : 'created'}!`);
     window.location.href = 'manage-recruits.html';
-
   } catch (err) {
     console.error('Submission error:', err);
     alert(`Error saving candidate: ${err.message}`);

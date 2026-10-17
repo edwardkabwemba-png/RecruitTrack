@@ -4,577 +4,304 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TalentCoPilot - Add Recruit</title>
-  <style>
-    /* Modern Reset & Typography */
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-    body { background-color: #f4f6f8; color: #333; padding: 30px; font-size: 14px; line-height: 1.5; }
-    
-    h2 { font-size: 1.5rem; margin-bottom: 20px; color: #111; font-weight: 600; }
-    h3 { font-size: 1.1rem; margin-bottom: 16px; color: #1a1a1a; font-weight: 600; border-bottom: 1px solid #edf2f7; padding-bottom: 8px; }
-
-    /* Section Cards */
-    .section-card { background: #ffffff; border-radius: 8px; padding: 24px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-
-    /* Form Layout */
-    .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 20px; }
-    .full-width { grid-column: span 2; }
-
-    label { display: block; font-weight: 600; font-size: 0.85rem; color: #4a5568; margin-bottom: 6px; }
-    
-    /* Input & Select Styling */
-    input[type="text"],
-    input[type="email"],
-    input[type="number"],
-    input[type="date"],
-    select {
-      width: 100%;
-      height: 38px;
-      padding: 6px 12px;
-      font-size: 0.9rem;
-      color: #2d3748;
-      background-color: #fff;
-      border: 1px solid #cbd5e0;
-      border-radius: 6px;
-      transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
-      outline: none;
-    }
-
-    input:focus, select:focus {
-      border-color: #3182ce;
-      box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
-    }
-
-    /* Input Action Row (for Skills / Certs) */
-    .input-action-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px 16px;
-      font-size: 0.9rem;
-      font-weight: 600;
-      border-radius: 6px;
-      cursor: pointer;
-      border: 1px solid transparent;
-      transition: background-color 0.2s, border-color 0.2s;
-      white-space: nowrap;
-    }
-    .btn-primary { background-color: #2b6cb0; color: #fff; }
-    .btn-primary:hover { background-color: #2c5282; }
-    .btn-secondary { background-color: #edf2f7; color: #2d3748; border-color: #cbd5e0; }
-    .btn-secondary:hover { background-color: #e2e8f0; }
-
-    /* Badges & Tags */
-    .tag-container { display: flex; flex-wrap: wrap; gap: 8px; min-height: 28px; }
-    .tag-badge { display: inline-flex; align-items: center; background-color: #ebf8ff; color: #2b6cb0; border: 1px solid #bee3f8; padding: 4px 10px; border-radius: 16px; font-size: 0.85rem; font-weight: 500; }
-    .tag-badge .remove-btn { margin-left: 8px; cursor: pointer; font-weight: bold; color: #e53e3e; }
-
-    /* Pipeline Tracker */
-    .pipeline-tracker { display: flex; justify-content: space-between; align-items: center; margin: 25px 0; position: relative; }
-    .pipeline-step { text-align: center; flex: 1; position: relative; z-index: 1; font-size: 0.85rem; color: #718096; font-weight: 500; }
-    .pipeline-step .circle { width: 20px; height: 20px; border-radius: 50%; background: #e2e8f0; border: 2px solid #cbd5e0; display: inline-block; margin-bottom: 6px; }
-    .pipeline-step.active .circle { background: #3182ce; border-color: #2b6cb0; }
-    .pipeline-step.active { color: #2b6cb0; font-weight: 600; }
-
-    /* Document Table */
-    .doc-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    .doc-table td { padding: 12px; border-bottom: 1px solid #edf2f7; vertical-align: middle; }
-    .doc-table td:first-child { width: 30%; font-weight: 500; }
-    .doc-table td:nth-child(2) { width: 25%; }
-    
-    .status-badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
-    .badge-pending { background-color: #fefcbf; color: #975a16; }
-    .badge-received { background-color: #c6f6d5; color: #22543d; }
-
-    .lifecycle-container {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      position: relative;
-      margin: 30px 0 20px 0;
-      padding: 0 10px;
-    }
-
-    /* Connecting track behind the circles */
-    .lifecycle-container::before {
-      content: '';
-      position: absolute;
-      top: 8px;
-      left: 20px;
-      right: 20px;
-      height: 2px;
-      background-color: #e9ecef;
-      z-index: 1;
-    }
-
-    .lifecycle-item {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      position: relative;
-      z-index: 2;
-      flex: 1;
-      text-align: center;
-    }
-
-    .stage-node {
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background-color: #ffffff;
-      border: 3px solid #ced4da;
-      transition: all 0.2s ease-in-out;
-    }
-
-    /* Completed and active stage circle styling */
-    .stage-node.completed,
-    .stage-node.active {
-      background-color: #0d6efd;
-      border-color: #0d6efd;
-    }
-
-    .stage-node.active {
-      box-shadow: 0 0 0 4px rgba(13, 110, 253, 0.25);
-    }
-
-    .stage-label {
-      margin-top: 8px;
-      font-size: 0.85rem;
-      color: #6c757d;
-      font-weight: 500;
-    }
-
-    .lifecycle-item:has(.stage-node.active) .stage-label,
-    .lifecycle-item:has(.stage-node.completed) .stage-label {
-      color: #212529;
-      font-weight: 600;
-    }
-  </style>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <!-- Standard Navigation Sidebar -->
+  <aside class="sidebar">
+    <div>
+      <div class="brand">
+        <div class="brand-title">TalentCoPilot</div>
+        <div class="brand-subtitle">Recruitment Portal</div>
+      </div>
+      <div class="nav-section-title">MAIN</div>
+      <ul class="nav-list">
+        <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
+        <li><a href="manage-recruits.html" class="nav-link active">Manage Recruits</a></li>
+        <li><a href="roles.html" class="nav-link">Manage Roles</a></li>
+      </ul>
+      <div class="nav-section-title">ADMIN</div>
+      <ul class="nav-list">
+        <li><a href="users.html" class="nav-link">Manage Users</a></li>
+        <li><a href="positions.html" class="nav-link">Manage Positions</a></li>
+        <li><a href="sources.html" class="nav-link">Manage Sources</a></li>
+        <li><a href="clients.html" class="nav-link">Manage Clients</a></li>
+        <li><a href="skills.html" class="nav-link">Manage Skills</a></li>
+        <li><a href="certifications.html" class="nav-link">Manage Certifications</a></li>
+      </ul>
+    </div>
+  </aside>
 
-  <h2>Candidate: <span id="displayCandidateName">New Candidate</span></h2>
+  <!-- Main Content Area -->
+  <main class="main-content">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">Candidate: <span id="displayCandidateName">New Candidate</span></h1>
+        <p class="page-subtitle">Add a new recruit application to the pipeline</p>
+      </div>
+      <a href="manage-recruits.html" class="btn btn-secondary">Back to Recruits List</a>
+    </header>
 
-  <form id="addRecruitForm">
-    <!-- Section A: Personal & Contact -->
-    <div class="section-card">
-      <h3>A. Personal & Contact</h3>
-      <div class="form-grid">
-        <div>
-          <label>Recruiter *</label>
-          <select id="recruiterSelect" name="recruiter" required>
-            <option value="">Loading recruiters...</option>
-          </select>
-        </div>
-        <div>
-          <label>Date Sourced *</label>
-          <input type="date" id="dateSourced" required onclick="this.showPicker()">
-        </div>
-        <div>
-          <label>First Name *</label>
-          <input type="text" id="firstName" required placeholder="e.g. Thabo">
-        </div>
-        <div>
-          <label>Surname *</label>
-          <input type="text" id="surname" required placeholder="e.g. Nkosi">
-        </div>
-        <div>
-          <label>Source *</label>
-          <select id="sourceSelect" name="source" required>
-            <option value="">Loading sources...</option>
-          </select>
-        </div>
-      
-        <div>
-          <label>Notice Period *</label>
-          <select id="noticePeriod" required>
-            <option value="Immediately">Immediately</option>
-            <option value="7 Days">7 Days</option>
-            <option value="14 Days">14 Days</option>
-            <option value="30 Days" selected>30 Days</option>
-            <option value="60 Days">60 Days</option>
-            <option value="90 Days">90 Days</option>
-          </select>
-        </div>
-        <div>
-          <label>Current Rate (R - Rand)</label>
-          <input type="number" id="currentRate" step="0.01" placeholder="e.g. 45000">
-        </div>
-        <div>
-          <label>Expected Rate (R - Rand) *</label>
-          <input type="number" id="expectedRate" step="0.01" required placeholder="e.g. 55000">
-        </div>
-        <div>
-          <label>Email Address *</label>
-          <input type="email" id="email" required placeholder="thabo@example.com">
-        </div>
+    <form id="addRecruitForm">
+      <!-- Section A: Personal & Contact -->
+      <div class="section-card">
+        <h3>A. Personal & Contact</h3>
+        <div class="form-grid">
+          <div>
+            <label>Recruiter *</label>
+            <select id="recruiterSelect" name="recruiter" required>
+              <option value="">Loading recruiters...</option>
+            </select>
+          </div>
+          <div>
+            <label>Date Sourced *</label>
+            <input type="date" id="dateSourced" required onclick="this.showPicker()">
+          </div>
+          <div>
+            <label>First Name *</label>
+            <input type="text" id="firstName" required placeholder="e.g. Thabo">
+          </div>
+          <div>
+            <label>Surname *</label>
+            <input type="text" id="surname" required placeholder="e.g. Nkosi">
+          </div>
+          <div>
+            <label>Source *</label>
+            <select id="sourceSelect" name="source" required>
+              <option value="">Loading sources...</option>
+            </select>
+          </div>
+          <div>
+            <label>Notice Period *</label>
+            <select id="noticePeriod" required>
+              <option value="Immediately">Immediately</option>
+              <option value="7 Days">7 Days</option>
+              <option value="14 Days">14 Days</option>
+              <option value="30 Days" selected>30 Days</option>
+              <option value="60 Days">60 Days</option>
+              <option value="90 Days">90 Days</option>
+            </select>
+          </div>
+          <div>
+            <label>Email Address *</label>
+            <input type="email" id="email" required placeholder="thabo@example.com">
+          </div>
+          <div>
+            <label>Contact Number *</label>
+            <input type="text" id="phone" required placeholder="+27 82 123 4567">
+          </div>
+          <div>
+            <label>Country of Residence *</label>
+            <select id="countrySelect" name="countryOfResidence" required onchange="handleCountryChange()">
+              <option value="">Select Country...</option>
+              <option value="South Africa" selected>South Africa</option>
+              <option value="Zimbabwe">Zimbabwe</option>
+              <option value="India">India</option>
+            </select>
+          </div>
+          <div>
+            <label>Current Location</label>
+            <select id="locationSelect" name="currentLocation">
+              <option value="">Select Location / City...</option>
+            </select>
+          </div>
 
-        <div>
-          <label>Country of Residence *</label>
-          <select id="countrySelect" name="countryOfResidence" required>
-            <option value="">Select Country...</option>
-            <!-- Top Priority Countries -->
-            <option value="South Africa" selected>South Africa</option>
-            <option value="Zimbabwe">Zimbabwe</option>
-            <option value="India">India</option>
-            <option disabled>──────────</option>
-            <!-- Alphabetical List -->
-            <option value="Afghanistan">Afghanistan</option>
-            <option value="Albania">Albania</option>
-            <option value="Algeria">Algeria</option>
-            <option value="Andorra">Andorra</option>
-            <option value="Angola">Angola</option>
-            <option value="Argentina">Argentina</option>
-            <option value="Armenia">Armenia</option>
-            <option value="Australia">Australia</option>
-            <option value="Austria">Austria</option>
-            <option value="Azerbaijan">Azerbaijan</option>
-            <option value="Bahamas">Bahamas</option>
-            <option value="Bahrain">Bahrain</option>
-            <option value="Bangladesh">Bangladesh</option>
-            <option value="Barbados">Barbados</option>
-            <option value="Belarus">Belarus</option>
-            <option value="Belgium">Belgium</option>
-            <option value="Belize">Belize</option>
-            <option value="Benin">Benin</option>
-            <option value="Bhutan">Bhutan</option>
-            <option value="Bolivia">Bolivia</option>
-            <option value="Bosnia and Herzegovina">Bosnia and Herzegovina</option>
-            <option value="Botswana">Botswana</option>
-            <option value="Brazil">Brazil</option>
-            <option value="Brunei">Brunei</option>
-            <option value="Bulgaria">Bulgaria</option>
-            <option value="Burkina Faso">Burkina Faso</option>
-            <option value="Burundi">Burundi</option>
-            <option value="Cambodia">Cambodia</option>
-            <option value="Cameroon">Cameroon</option>
-            <option value="Canada">Canada</option>
-            <option value="Cape Verde">Cape Verde</option>
-            <option value="Central African Republic">Central African Republic</option>
-            <option value="Chad">Chad</option>
-            <option value="Chile">Chile</option>
-            <option value="China">China</option>
-            <option value="Colombia">Colombia</option>
-            <option value="Comoros">Comoros</option>
-            <option value="Congo">Congo</option>
-            <option value="Costa Rica">Costa Rica</option>
-            <option value="Croatia">Croatia</option>
-            <option value="Cuba">Cuba</option>
-            <option value="Cyprus">Cyprus</option>
-            <option value="Czech Republic">Czech Republic</option>
-            <option value="Denmark">Denmark</option>
-            <option value="Djibouti">Djibouti</option>
-            <option value="Dominican Republic">Dominican Republic</option>
-            <option value="Ecuador">Ecuador</option>
-            <option value="Egypt">Egypt</option>
-            <option value="El Salvador">El Salvador</option>
-            <option value="Equatorial Guinea">Equatorial Guinea</option>
-            <option value="Eritrea">Eritrea</option>
-            <option value="Estonia">Estonia</option>
-            <option value="Eswatini">Eswatini</option>
-            <option value="Ethiopia">Ethiopia</option>
-            <option value="Fiji">Fiji</option>
-            <option value="Finland">Finland</option>
-            <option value="France">France</option>
-            <option value="Gabon">Gabon</option>
-            <option value="Gambia">Gambia</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Germany">Germany</option>
-            <option value="Ghana">Ghana</option>
-            <option value="Greece">Greece</option>
-            <option value="Guatemala">Guatemala</option>
-            <option value="Guinea">Guinea</option>
-            <option value="Guyana">Guyana</option>
-            <option value="Haiti">Haiti</option>
-            <option value="Honduras">Honduras</option>
-            <option value="Hungary">Hungary</option>
-            <option value="Iceland">Iceland</option>
-            <option value="Indonesia">Indonesia</option>
-            <option value="Iran">Iran</option>
-            <option value="Iraq">Iraq</option>
-            <option value="Ireland">Ireland</option>
-            <option value="Israel">Israel</option>
-            <option value="Italy">Italy</option>
-            <option value="Ivory Coast">Ivory Coast</option>
-            <option value="Jamaica">Jamaica</option>
-            <option value="Japan">Japan</option>
-            <option value="Jordan">Jordan</option>
-            <option value="Kazakhstan">Kazakhstan</option>
-            <option value="Kenya">Kenya</option>
-            <option value="Kuwait">Kuwait</option>
-            <option value="Kyrgyzstan">Kyrgyzstan</option>
-            <option value="Laos">Laos</option>
-            <option value="Latvia">Latvia</option>
-            <option value="Lebanon">Lebanon</option>
-            <option value="Lesotho">Lesotho</option>
-            <option value="Liberia">Liberia</option>
-            <option value="Libya">Libya</option>
-            <option value="Liechtenstein">Liechtenstein</option>
-            <option value="Lithuania">Lithuania</option>
-            <option value="Luxembourg">Luxembourg</option>
-            <option value="Madagascar">Madagascar</option>
-            <option value="Malawi">Malawi</option>
-            <option value="Malaysia">Malaysia</option>
-            <option value="Maldives">Maldives</option>
-            <option value="Mali">Mali</option>
-            <option value="Malta">Malta</option>
-            <option value="Mauritania">Mauritania</option>
-            <option value="Mauritius">Mauritius</option>
-            <option value="Mexico">Mexico</option>
-            <option value="Moldova">Moldova</option>
-            <option value="Monaco">Monaco</option>
-            <option value="Mongolia">Mongolia</option>
-            <option value="Montenegro">Montenegro</option>
-            <option value="Morocco">Morocco</option>
-            <option value="Mozambique">Mozambique</option>
-            <option value="Myanmar">Myanmar</option>
-            <option value="Namibia">Namibia</option>
-            <option value="Nepal">Nepal</option>
-            <option value="Netherlands">Netherlands</option>
-            <option value="New Zealand">New Zealand</option>
-            <option value="Nicaragua">Nicaragua</option>
-            <option value="Niger">Niger</option>
-            <option value="Nigeria">Nigeria</option>
-            <option value="North Korea">North Korea</option>
-            <option value="North Macedonia">North Macedonia</option>
-            <option value="Norway">Norway</option>
-            <option value="Oman">Oman</option>
-            <option value="Pakistan">Pakistan</option>
-            <option value="Panama">Panama</option>
-            <option value="Papua New Guinea">Papua New Guinea</option>
-            <option value="Paraguay">Paraguay</option>
-            <option value="Peru">Peru</option>
-            <option value="Philippines">Philippines</option>
-            <option value="Poland">Poland</option>
-            <option value="Portugal">Portugal</option>
-            <option value="Qatar">Qatar</option>
-            <option value="Romania">Romania</option>
-            <option value="Russia">Russia</option>
-            <option value="Rwanda">Rwanda</option>
-            <option value="Saudi Arabia">Saudi Arabia</option>
-            <option value="Senegal">Senegal</option>
-            <option value="Serbia">Serbia</option>
-            <option value="Sierra Leone">Sierra Leone</option>
-            <option value="Singapore">Singapore</option>
-            <option value="Slovakia">Slovakia</option>
-            <option value="Slovenia">Slovenia</option>
-            <option value="Somalia">Somalia</option>
-            <option value="South Korea">South Korea</option>
-            <option value="Spain">Spain</option>
-            <option value="Sri Lanka">Sri Lanka</option>
-            <option value="Sudan">Sudan</option>
-            <option value="Sweden">Sweden</option>
-            <option value="Switzerland">Switzerland</option>
-            <option value="Syria">Syria</option>
-            <option value="Taiwan">Taiwan</option>
-            <option value="Tajikistan">Tajikistan</option>
-            <option value="Tanzania">Tanzania</option>
-            <option value="Thailand">Thailand</option>
-            <option value="Togo">Togo</option>
-            <option value="Trinidad and Tobago">Trinidad and Tobago</option>
-            <option value="Tunisia">Tunisia</option>
-            <option value="Turkey">Turkey</option>
-            <option value="Turkmenistan">Turkmenistan</option>
-            <option value="Uganda">Uganda</option>
-            <option value="Ukraine">Ukraine</option>
-            <option value="United Arab Emirates">United Arab Emirates</option>
-            <option value="United Kingdom">United Kingdom</option>
-            <option value="United States">United States</option>
-            <option value="Uruguay">Uruguay</option>
-            <option value="Uzbekistan">Uzbekistan</option>
-            <option value="Venezuela">Venezuela</option>
-            <option value="Vietnam">Vietnam</option>
-            <option value="Yemen">Yemen</option>
-            <option value="Zambia">Zambia</option>
-          </select>
-        </div>
+          <!-- Current Rate Block -->
+          <div class="full-width rate-card-block">
+            <div class="rate-grid-row">
+              <div>
+                <label>Frequency</label>
+                <input type="text" value="Monthly" readonly class="input-readonly">
+              </div>
+              <div>
+                <label>Currency</label>
+                <select id="currentCurrencySelect" onchange="calculateRateConversions()">
+                  <option value="ZAR">ZAR (R)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+              <div>
+                <label>Current Rate</label>
+                <input type="number" id="currentRateInput" step="0.01" placeholder="e.g. 45000" oninput="calculateRateConversions()">
+              </div>
+            </div>
+            <div id="currentRateZarPreview" class="rate-preview-subtext"></div>
+          </div>
 
-        <div>
-          <label>Contact Number *</label>
-          <input type="text" id="phone" required placeholder="+27 82 123 4567">
-        </div>
-        <div>
-          <label>Identification Type</label>
-          <select id="idType">
-            <option value="ID">ID</option>
-            <option value="Passport">Passport</option>
-          </select>
-        </div>
-        <div>
-          <label>Identification Number</label>
-          <input type="text" id="idNumber" placeholder="Captured once received">
+          <!-- Expected Rate Block -->
+          <div class="full-width rate-card-block">
+            <div class="rate-grid-row">
+              <div>
+                <label>Frequency</label>
+                <input type="text" value="Monthly" readonly class="input-readonly">
+              </div>
+              <div>
+                <label>Currency *</label>
+                <select id="expectedCurrencySelect" onchange="calculateRateConversions()">
+                  <option value="ZAR">ZAR (R)</option>
+                  <option value="INR">INR (₹)</option>
+                  <option value="USD">USD ($)</option>
+                </select>
+              </div>
+              <div>
+                <label>Expected Rate *</label>
+                <input type="number" id="expectedRateInput" step="0.01" required placeholder="e.g. 55000" oninput="calculateRateConversions()">
+              </div>
+            </div>
+            <div id="expectedRateZarPreview" class="rate-preview-subtext highlight"></div>
+          </div>
+
+          <div>
+            <label>Identification Type</label>
+            <select id="idType">
+              <option value="ID">ID</option>
+              <option value="Passport">Passport</option>
+            </select>
+          </div>
+          <div>
+            <label>Identification Number</label>
+            <input type="text" id="idNumber" placeholder="Captured once received">
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Section B: Role & Application -->
-    <div class="section-card">
-      <h3>B. Role & Application</h3>
-      <div class="form-grid">
+      <!-- Section B: Role & Application -->
+      <div class="section-card">
+        <h3>B. Role & Application</h3>
+        <div class="form-grid">
+          <div class="full-width">
+            <label>Role Applied For *</label>
+            <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
+          </div>
+          <div>
+            <label>Current Role</label>
+            <select id="currentRole">
+              <option value="">Select Current Role...</option>
+              <option value="Data Analyst">Data Analyst</option>
+              <option value="Data Engineer">Data Engineer</option>
+              <option value="Software Engineer">Software Engineer</option>
+              <option value="Business Analyst">Business Analyst</option>
+              <option value="Project Manager">Project Manager</option>
+              <option value="DevOps Engineer">DevOps Engineer</option>
+            </select>
+          </div>
+          <div>
+            <label>Role Classification</label>
+            <input type="text" id="roleClassification" readonly placeholder="Auto-filled based on Current Role" class="input-readonly">
+          </div>
+        </div>
+      </div>
+
+      <!-- Section C: Skills & Experience -->
+      <div class="section-card">
+        <h3>C. Skills & Experience</h3>
+        <div class="form-grid mb-3">
+          <div>
+            <label for="senioritySelect">Current Seniority Level</label>
+            <select id="senioritySelect">
+              <option value="">Select Seniority Level...</option>
+              <option value="Junior">Junior</option>
+              <option value="Mid-Level">Mid-Level</option>
+              <option value="Senior">Senior</option>
+              <option value="Lead / Executive">Lead / Executive</option>
+            </select>
+          </div>
+          <div>
+            <label for="totalExperience">Total Years of Experience</label>
+            <input type="number" step="0.5" id="totalExperience" placeholder="e.g. 5.5">
+          </div>
+        </div>
+
         <div class="full-width">
-          <label>Role Applied For *</label>
-          <select id="roleSelect" name="role" required><option value="">Select a Role...</option></select>
+          <label>Skills Held (Select Skill & Years)</label>
+          <div class="form-group">
+            <select id="skillSelect" name="skills">
+              <option value="">Loading skills...</option>
+            </select>
+          </div>
+          <div id="skillsContainer" class="tag-container"></div>
         </div>
 
-        <!-- UPDATED: Changed from text input to drop-down -->
-        <div>
-          <label>Current Role</label>
-          <select id="currentRole">
-            <option value="">Select Current Role...</option>
-            <option value="Data Analyst">Data Analyst</option>
-            <option value="Data Engineer">Data Engineer</option>
-            <option value="Software Engineer">Software Engineer</option>
-            <option value="Business Analyst">Business Analyst</option>
-            <option value="Project Manager">Project Manager</option>
-            <option value="DevOps Engineer">DevOps Engineer</option>
-          </select>
+        <div class="full-width">
+          <label>Certifications Held</label>
+          <div class="form-group">
+            <select id="certSelect" name="certifications">
+              <option value="">Loading certifications...</option>
+            </select>
+          </div>
+          <div id="certsContainer" class="tag-container"></div>
         </div>
 
-        <!-- UPDATED: Readonly input for auto-fill -->
-        <div>
-          <label>Role Classification</label>
-          <input type="text" id="roleClassification" readonly placeholder="Auto-filled based on Current Role" style="background-color: #f7fafc; cursor: not-allowed;">
-        </div>
-      </div>
-    </div>
-
-    <!-- Section C: Skills & Experience -->
-    <div class="section-card">
-      <h3>C. Skills & Experience</h3>
-      
-      <div class="row mb-3">
-        <div class="col-md-6">
-          <label for="senioritySelect" class="form-label">Current Seniority Level</label>
-          <select id="senioritySelect" class="form-select">
-            <option value="">Select Seniority Level...</option>
-            <option value="Junior">Junior</option>
-            <option value="Mid-Level">Mid-Level</option>
-            <option value="Senior">Senior</option>
-            <option value="Lead / Executive">Lead / Executive</option>
-          </select>
-        </div>
-
-        <div class="col-md-6">
-          <label for="totalExperience" class="form-label">Total Years of Experience</label>
-          <input type="number" step="0.5" id="totalExperience" class="form-control" placeholder="e.g. 5.5">
-        </div>
-      </div>
-            
-      <div class="full-width">
-        <label>Skills Held (Select Skill & Years)</label>
-        <div class="form-group">
-          <label for="skillSelect">Skills</label>
-          <select id="skillSelect" name="skills">
-            <option value="">Loading skills...</option>
-          </select>
-        </div>
-        <div id="skillsContainer" class="tag-container"></div>
-      </div>
-
-      <div class="full-width">
-        <label>Certifications Held</label>
-        <div class="form-group">
-          <label for="certSelect">Certifications</label>
-          <select id="certSelect" name="certifications">
-            <option value="">Loading certifications...</option>
-          </select>
-        </div>
-        <div id="certsContainer" class="tag-container"></div>
-      </div>
-
-      <div class="full-width">
-        <label>Other Skills / Certifications (Free Text)</label>
-        <input type="text" id="otherSkills" placeholder="e.g. Internal tool experience not in the standard list...">
-      </div>
-    </div>
-
-    <!-- Section D: Recruitment Lifecycle -->
-    <div class="section-card">
-      <h3>D. Recruitment Lifecycle</h3>
-      
-      <div class="lifecycle-container">
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">Sourced</span>
-        </div>
-
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">In Discussion</span>
-        </div>
-
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">Screened</span>
-        </div>
-
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">CV Prepared</span>
-        </div>
-
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">Interviewed</span>
-        </div>
-
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">Offer Sent</span>
-        </div>
-
-        <div class="lifecycle-item">
-          <div class="stage-node"></div>
-          <span class="stage-label">Hired</span>
+        <div class="full-width">
+          <label>Other Skills / Certifications (Free Text)</label>
+          <input type="text" id="otherSkills" placeholder="e.g. Internal tool experience not in the standard list...">
         </div>
       </div>
 
-      <div style="margin-top: 20px;">
-        <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
-          Advance to Screened
-        </button>
+      <!-- Section D: Recruitment Lifecycle -->
+      <div class="section-card">
+        <h3>D. Recruitment Lifecycle</h3>
+        <div class="lifecycle-container" id="lifecycleContainer">
+          <div class="lifecycle-item" data-stage="Sourced"><div class="stage-node"></div><span class="stage-label">Sourced</span></div>
+          <div class="lifecycle-item" data-stage="In Discussion"><div class="stage-node"></div><span class="stage-label">In Discussion</span></div>
+          <div class="lifecycle-item" data-stage="Screened"><div class="stage-node"></div><span class="stage-label">Screened</span></div>
+          <div class="lifecycle-item" data-stage="CV Prepared"><div class="stage-node"></div><span class="stage-label">CV Prepared</span></div>
+          <div class="lifecycle-item" data-stage="Interviewed"><div class="stage-node"></div><span class="stage-label">Interviewed</span></div>
+          <div class="lifecycle-item" data-stage="Offer Sent"><div class="stage-node"></div><span class="stage-label">Offer Sent</span></div>
+          <div class="lifecycle-item" data-stage="Hired"><div class="stage-node"></div><span class="stage-label">Hired</span></div>
+        </div>
+
+        <div id="pipelineProgressInfo" class="pipeline-progress-text"></div>
+
+        <div class="lifecycle-actions-row">
+          <button type="button" id="btnAdvanceStage" class="btn btn-primary btn-advance-stage">
+            Advance to In Discussion
+          </button>
+          <button type="button" id="btnNotSuccessful" class="btn btn-danger-outline" onclick="toggleNotSuccessful()">
+            Mark Not Successful — Sourced
+          </button>
+        </div>
       </div>
-    </div>
 
-    <!-- Section E: Document Checklist -->
-    <div class="section-card">
-      <h3>E. Document Checklist</h3>
-      <table class="doc-table">
-        <tr>
-          <td>CV</td>
-          <td><span id="badgeCv" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileCv"></td>
-        </tr>
-        <tr>
-          <td>ID or Visa</td>
-          <td><span id="badgeId" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileId"></td>
-        </tr>
-        <tr>
-          <td>Pay Slips (Up to 3)</td>
-          <td><span id="badgePayslips" class="status-badge badge-pending">0 of 3 Received</span></td>
-          <td><input type="file" id="filePayslips" multiple></td>
-        </tr>
-        <tr>
-          <td>Certifications (Up to 5)</td>
-          <td><span id="badgeCerts" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileCerts" multiple></td>
-        </tr>
-        <tr>
-          <td>Degree or Diploma (Up to 3)</td>
-          <td><span id="badgeDegree" class="status-badge badge-pending">Pending</span></td>
-          <td><input type="file" id="fileDegree" multiple></td>
-        </tr>
-      </table>
-    </div>
+      <!-- Section E: Document Checklist -->
+      <div class="section-card">
+        <h3>E. Document Checklist</h3>
+        <table class="doc-table">
+          <tr>
+            <td>CV</td>
+            <td><span id="badgeCv" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileCv"></td>
+          </tr>
+          <tr>
+            <td>ID or Visa</td>
+            <td><span id="badgeId" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileId"></td>
+          </tr>
+          <tr>
+            <td>Pay Slips (Up to 3)</td>
+            <td><span id="badgePayslips" class="status-badge badge-pending">0 of 3 Received</span></td>
+            <td><input type="file" id="filePayslips" multiple></td>
+          </tr>
+          <tr>
+            <td>Certifications (Up to 5)</td>
+            <td><span id="badgeCerts" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileCerts" multiple></td>
+          </tr>
+          <tr>
+            <td>Degree or Diploma (Up to 3)</td>
+            <td><span id="badgeDegree" class="status-badge badge-pending">Pending</span></td>
+            <td><input type="file" id="fileDegree" multiple></td>
+          </tr>
+        </table>
+      </div>
 
-    <div style="text-align: right; margin-top: 10px;">
-      <button type="submit" class="btn btn-primary" style="padding: 10px 28px; font-size: 1rem;">Save Recruit</button>
-    </div>
-  </form>
+      <div class="text-right mt-10" style="margin-bottom: 40px;">
+        <button type="submit" class="btn btn-primary btn-submit-large">Save Recruit</button>
+      </div>
+    </form>
+  </main>
+
   <script src="js/add-recruit.js"></script>
-  <script src="js/manage-recruits.js"></script>
 </body>
 </html>
