@@ -303,7 +303,7 @@ function convertToZar(amount, currency) {
   const numericAmount = parseFloat(amount);
   if (isNaN(numericAmount) || numericAmount <= 0) return 0;
   if (currency === 'ZAR') return numericAmount;
-  
+
   const pair = `${currency}_ZAR`;
   const rate = exchangeRates[pair] || 1.0;
   return parseFloat((numericAmount * rate).toFixed(2));
@@ -435,7 +435,12 @@ async function loadExistingCandidateData(recruitId) {
     isCandidateFailed = !!data.IsFailed;
     failedAtStageIndex = data.FailedAtStage || null;
 
-    const stageName = data.Stage || data.LifecycleStage || 'Sourced';
+    let stageName = data.Stage || data.LifecycleStage || 'Sourced';
+    // If stage contains "Unsuccessful" or "Failed", parse out base stage
+    if (stageName.includes('Unsuccessful') || stageName.includes('Failed')) {
+      stageName = stageName.split('—').pop()?.trim() || stageName.split('-').pop()?.trim() || 'Sourced';
+    }
+
     const stageIndex = STAGES.indexOf(stageName);
     if (stageIndex !== -1) {
       currentStageIndex = stageIndex;
@@ -672,9 +677,12 @@ async function handleCandidateSubmit(e) {
     const rawCurrentRate = getElem('currentRateInput')?.value || null;
     const rawExpectedRate = getElem('expectedRateInput')?.value || null;
 
-    // Convert raw input rates into ZAR amounts prior to sending payload
     const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
     const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
+
+    // Resolve current stage vs unsuccessful stage
+    const currentStageName = STAGES[currentStageIndex];
+    const resolvedStage = isCandidateFailed ? `Not Successful — ${currentStageName}` : currentStageName;
 
     const payload = {
       recruitId: editingRecruitId,
@@ -695,7 +703,6 @@ async function handleCandidateSubmit(e) {
       otherSkills: getElem('otherSkills')?.value?.trim() || null,
       noticePeriod: getElem('noticePeriod')?.value || '30 Days',
       
-      // Store converted ZAR numerical values in database rate columns
       currentRate: convertedCurrentRateZar,
       currentCurrency: currentCurrency,
       currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
@@ -709,7 +716,8 @@ async function handleCandidateSubmit(e) {
       idType: getElem('idType')?.value || null,
       idNumber: getElem('idNumber')?.value?.trim() || null,
       
-      stage: STAGES[currentStageIndex],
+      // Pass the resolved stage text and failure flags to DB
+      stage: resolvedStage,
       isFailed: isCandidateFailed ? 1 : 0,
       failedAtStage: isCandidateFailed ? (currentStageIndex + 1) : null,
 
