@@ -397,6 +397,8 @@ table.data-table tbody tr:hover {
 .badge-interviewed { background: #e0e7ff; color: #3730a3; }
 .badge-offer       { background: #ffedd5; color: #9a3412; }
 .badge-hired       { background: #dcfce7; color: #166534; }
+.badge-failed {background-color: #fee2e2 !important;color: #991b1b !important;border: 1px solid #fca5a5 !important;font-weight: 600;
+}
 
 /* Entity Statuses & Classifications */
 .badge-active        { background: #dcfce7; color: #166534; }
@@ -862,25 +864,4 @@ body.page-login {
   background-color: #2a4365;
 }
 
-/* Fail/Not Successful styling on Add/Edit Recruit Page */
-.stage-node.failed {
-  background-color: #ef4444 !important;
-  border-color: #dc2626 !important;
-  color: #ffffff !important;
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
-}
 
-.btn-not-successful.is-failed {
-  background-color: #3b82f6 !important;
-  color: #ffffff !important;
-}
-
-/* Stage Badge styling on Dashboard / Manage Recruits Page */
-.stage-badge.badge-failed,
-.stage-badge.badge-not-successful,
-.badge-failed {
-  background-color: #fee2e2 !important;
-  color: #991b1b !important;
-  border: 1px solid #fca5a5 !important;
-  font-weight: 600;
-}
