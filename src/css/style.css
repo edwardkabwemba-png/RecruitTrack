@@ -400,13 +400,31 @@ table.data-table tbody tr:hover {
 .badge-failed {background-color: #fee2e2 !important;color: #991b1b !important;border: 1px solid #fca5a5 !important;font-weight: 600;
 }
 
-.badge-not-successful {
+/* Red Badge styling for Not Successful / Failed Candidates */
+.badge-failed,
+.badge-not-successful,
+span.badge.badge-failed {
   background-color: #fee2e2 !important;
   color: #991b1b !important;
   border: 1px solid #fca5a5 !important;
   font-weight: 700 !important;
-  letter-spacing: 0.3px;
 }
+
+/* Red Progress Bar Segment */
+.bg-failed,
+.progress-segment.bg-failed {
+  background-color: #ef4444 !important;
+}
+
+/* Stage Count Colors in Section 1 */
+.c-sourced     { color: #0369a1; }
+.c-discussion  { color: #1d4ed8; }
+.c-screened    { color: #92400e; }
+.c-cv          { color: #6b21a8; }
+.c-interviewed { color: #3730a3; }
+.c-offer       { color: #9a3412; }
+.c-hired       { color: #166534; }
+.c-failed      { color: #dc2626; font-weight: 700; }
 
 /* Progress bar red highlight for failed candidates */
 .progress-bar-inner.is-failed {

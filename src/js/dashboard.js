@@ -4,7 +4,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   const currentUserId = storedUser.userId || storedUser.UserID || storedUser.id || '';
 
   if (!currentUserId) {
-    // Redirect unauthenticated users immediately to login page
     window.location.href = "index.html";
     return;
   }
@@ -16,7 +15,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 let allCandidates = [];
 let searchDebounceTimeout = null;
 
-// Helper: Safely parse and retrieve user ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
   return storedUser.userId || storedUser.UserID || storedUser.id || '';
@@ -31,17 +29,13 @@ async function loadDashboardData(userId, searchTerm = '') {
       return;
     }
 
-    // Build URL with optional search parameter
     let url = `/api/dashboard?userId=${currentUserId}`;
     if (searchTerm.trim()) {
       url += `&search=${encodeURIComponent(searchTerm.trim())}`;
     }
 
-    // Pass the userId in both query param and headers
     const res = await fetch(url, {
-      headers: {
-        "x-user-id": currentUserId
-      }
+      headers: { "x-user-id": currentUserId }
     });
 
     if (res.status === 401 || res.status === 403) {
@@ -54,7 +48,6 @@ async function loadDashboardData(userId, searchTerm = '') {
     if (!res.ok) throw new Error('Failed to load dashboard data.');
     const data = await res.json();
 
-    // Update user display pill
     if (data.currentUser && data.currentUser.name) {
       const userPill = document.getElementById('userPill');
       if (userPill) {
@@ -76,7 +69,7 @@ async function loadDashboardData(userId, searchTerm = '') {
 }
 
 // =========================================================================
-// SECTION 1 — Roles We're Currently Sourcing For
+// SECTION 1 — Roles We're Currently Sourcing For (All Stages Included)
 // =========================================================================
 function renderRoles(roles) {
   const container = document.getElementById('rolesContainer');
@@ -88,7 +81,6 @@ function renderRoles(roles) {
   }
 
   container.innerHTML = roles.map(r => {
-    // Individual stage counts
     const sourced = r.SourcedCount || 0;
     const discussion = r.InDiscussionCount || r.DiscussionCount || 0;
     const screened = r.ScreenedCount || 0;
@@ -100,7 +92,6 @@ function renderRoles(roles) {
 
     const total = r.TotalCandidates || (sourced + discussion + screened + cv + interviewed + offer + hired + failed) || 1;
 
-    // Segment widths for role progress bar
     const sourcedPct = (sourced / total) * 100;
     const discussionPct = (discussion / total) * 100;
     const screenedPct = (screened / total) * 100;
@@ -133,20 +124,20 @@ function renderRoles(roles) {
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; color: #475569; margin-bottom: 6px;">
             <span><strong>Role total:</strong> ${r.TotalCandidates || (total === 1 && (sourced + discussion + screened + cv + interviewed + offer + hired + failed) === 0 ? 0 : total)} candidate(s)</span>
             
-            <!-- All 7 Stages in Stage Colors -->
-            <div class="role-stage-counts" style="display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.8rem; font-weight: 600;">
-              <span style="color: #0369a1;">${sourced} Sourced</span> •
-              <span style="color: #1d4ed8;">${discussion} Discussion</span> •
-              <span style="color: #92400e;">${screened} Screened</span> •
-              <span style="color: #6b21a8;">${cv} CV Prepared</span> •
-              <span style="color: #3730a3;">${interviewed} Interview</span> •
-              <span style="color: #9a3412;">${offer} Offer</span> •
-              <span style="color: #166534;">${hired} Hired</span>
-              ${failed > 0 ? `• <span style="color: #dc2626;">${failed} Not Successful</span>` : ''}
+            <!-- All Stage Counts in Colors -->
+            <div class="role-stage-counts" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.8rem; font-weight: 600;">
+              <span class="c-sourced">${sourced} Sourced</span> •
+              <span class="c-discussion">${discussion} Discussion</span> •
+              <span class="c-screened">${screened} Screened</span> •
+              <span class="c-cv">${cv} CV Prepared</span> •
+              <span class="c-interviewed">${interviewed} Interview</span> •
+              <span class="c-offer">${offer} Offer</span> •
+              <span class="c-hired">${hired} Hired</span>
+              ${failed > 0 ? `• <span class="c-failed">${failed} Not Successful</span>` : ''}
             </div>
           </div>
 
-          <!-- Multi-Segment Stage Progress Bar -->
+          <!-- Multi-Segmented Bar -->
           <div class="progress-bar-container" style="display: flex; width: 100%; height: 8px; background-color: #e2e8f0; border-radius: 4px; overflow: hidden;">
             <div class="progress-segment bg-sourced" style="width: ${sourcedPct}%; height: 100%;"></div>
             <div class="progress-segment bg-discussion" style="width: ${discussionPct}%; height: 100%;"></div>
@@ -176,7 +167,7 @@ function toggleDetails(elemId, btn) {
 }
 
 // =========================================================================
-// SECTION 2 — My Candidates: Pending & In Progress
+// SECTION 2 — My Candidates: Pending & In Progress (Red Badges Fixed)
 // =========================================================================
 function renderCandidates(candidates) {
   const container = document.getElementById('candidatesContainer');
@@ -198,20 +189,21 @@ function renderCandidates(candidates) {
   };
 
   container.innerHTML = candidates.map(c => {
-    const rawStage = c.Stage || c.LifecycleStage || 'Sourced';
-    const stageName = getStageLabel(rawStage);
+    const rawStageStr = String(c.Stage || c.LifecycleStage || 'Sourced').trim();
 
-    // Check if candidate is marked as failed/not successful
-    const isFailed = !!(c.IsFailed || String(rawStage).toUpperCase().includes('NOT SUCCESSFUL') || String(rawStage).toUpperCase().includes('FAILED'));
+    // Check if candidate is marked as failed / not successful
+    const isFailed = !!(c.IsFailed || c.isFailed || rawStageStr.toUpperCase().includes('NOT SUCCESSFUL') || rawStageStr.toUpperCase().includes('FAILED'));
 
-    const badgeClass = getStageBadgeClass(stageName, isFailed);
-    const bgClass = isFailed ? 'bg-failed' : getStageBgClass(stageName);
+    const normalizedStageLabel = getStageLabel(rawStageStr);
 
-    const pct = stagePercentages[stageName] || 14;
+    const badgeClass = isFailed ? 'badge-failed' : getStageBadgeClass(normalizedStageLabel);
+    const bgClass = isFailed ? 'bg-failed' : getStageBgClass(normalizedStageLabel);
+
+    const pct = stagePercentages[normalizedStageLabel] || 14;
 
     const displayBadgeText = isFailed 
-      ? (String(rawStage).toUpperCase().includes('NOT SUCCESSFUL') ? rawStage.toUpperCase() : `NOT SUCCESSFUL — ${stageName.toUpperCase()}`)
-      : stageName.toUpperCase();
+      ? (rawStageStr.toUpperCase().includes('NOT SUCCESSFUL') ? rawStageStr : `NOT SUCCESSFUL — ${normalizedStageLabel.toUpperCase()}`)
+      : normalizedStageLabel.toUpperCase();
 
     return `
       <div class="candidate-row" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; flex-wrap: wrap;">
@@ -226,7 +218,7 @@ function renderCandidates(candidates) {
         <div class="candidate-role" style="min-width: 120px; color: #64748b; font-size: 0.8rem;">
           Sourced ${c.DateSourced ? new Date(c.DateSourced).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}
         </div>
-        <div class="candidate-stage" style="min-width: 130px;">
+        <div class="candidate-stage" style="min-width: 160px;">
           <span class="badge ${badgeClass}">${displayBadgeText}</span>
         </div>
         <div class="candidate-progress" style="display: flex; align-items: center; gap: 8px; min-width: 140px; flex: 1;">
@@ -257,9 +249,13 @@ function setupSearch() {
   });
 }
 
-// Helper: Convert numeric stage IDs or strings to normalized label
 function getStageLabel(stage) {
   if (!stage) return 'Sourced';
+
+  let stageStr = String(stage).trim();
+  if (stageStr.toUpperCase().includes('NOT SUCCESSFUL')) {
+    stageStr = stageStr.split('—').pop().split('-').pop().trim();
+  }
 
   const map = {
     1: 'Sourced',
@@ -271,18 +267,11 @@ function getStageLabel(stage) {
     7: 'Hired'
   };
 
-  return map[stage] || stage;
+  return map[stageStr] || stageStr;
 }
 
-// Helper: Map lifecycle stage label to CSS badge class with Failed handling
-function getStageBadgeClass(stageName, isFailed) {
-  const stageStr = String(stageName || '').trim();
-
-  if (isFailed || stageStr.toUpperCase().includes('NOT SUCCESSFUL') || stageStr.toUpperCase().includes('FAILED')) {
-    return 'badge-failed';
-  }
-
-  switch (stageStr) {
+function getStageBadgeClass(stageName) {
+  switch (stageName) {
     case 'Sourced':       return 'badge-sourced';
     case 'In Discussion': return 'badge-discussion';
     case 'Screened':      return 'badge-screened';
@@ -294,15 +283,8 @@ function getStageBadgeClass(stageName, isFailed) {
   }
 }
 
-// Helper: Map lifecycle stage label to progress bar background class with Failed handling
-function getStageBgClass(stageName, isFailed) {
-  const stageStr = String(stageName || '').trim();
-
-  if (isFailed || stageStr.toUpperCase().includes('NOT SUCCESSFUL') || stageStr.toUpperCase().includes('FAILED')) {
-    return 'bg-failed';
-  }
-
-  switch (stageStr) {
+function getStageBgClass(stageName) {
+  switch (stageName) {
     case 'Sourced':       return 'bg-sourced';
     case 'In Discussion': return 'bg-discussion';
     case 'Screened':      return 'bg-screened';
