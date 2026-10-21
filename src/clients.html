@@ -68,7 +68,7 @@
     </div>
   </main>
 
-  <div class="modal-overlay" id="modal">
+  <div class="modal-overlay" id="modal" onclick="handleBackdropClick(event)">
     <div class="modal">
       <h3 style="margin-bottom:15px;">Add New Client</h3>
       <form id="addForm">
@@ -88,35 +88,60 @@
 
   <script>
     let list = [];
-    document.addEventListener('DOMContentLoaded', fetchClients);
 
     function getStoredUserId() {
       const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
       return storedUser.userId || storedUser.UserID || storedUser.id || '';
     }
 
-async function fetchClients() {
-  try {
-    const res = await fetch('/api/clients', {
-      headers: { 'x-user-id': getStoredUserId() }
+    document.addEventListener('DOMContentLoaded', () => {
+      const currentUserId = getStoredUserId();
+      if (!currentUserId) {
+        window.location.href = "index.html";
+        return;
+      }
+      fetchClients();
     });
 
-    if (!res.ok) {
-      const errPayload = await res.json().catch(() => ({}));
-      console.error('API Error Response:', errPayload);
-      document.getElementById('clientTableBody').innerHTML = 
-        `<tr><td colspan="3" style="text-align:center; color:#ef4444; padding:20px;">
-          Failed to load clients: ${errPayload.error || res.statusText}
-        </td></tr>`;
-      return;
-    }
+    async function fetchClients() {
+      const tbody = document.getElementById('clientTableBody');
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:20px;">Loading clients...</td></tr>`;
 
-    list = await res.json();
-    renderTable(list);
-  } catch (err) {
-    console.error('Network/Client Error:', err);
-  }
-}
+      try {
+        const res = await fetch('/api/clients', {
+          headers: { 'x-user-id': getStoredUserId() }
+        });
+
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem("user");
+          sessionStorage.removeItem("user");
+          window.location.href = "index.html";
+          return;
+        }
+
+        if (!res.ok) {
+          const rawText = await res.text();
+          let errPayload = {};
+          try { errPayload = JSON.parse(rawText); } catch (e) {}
+
+          const errorMsg = errPayload.error || errPayload.message || (rawText.length < 100 ? rawText : res.statusText);
+          console.error('API Error Response:', errorMsg);
+
+          tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#ef4444; padding:20px;">
+            Failed to load clients (${res.status}): ${errorMsg || 'Server error'}
+          </td></tr>`;
+          return;
+        }
+
+        list = await res.json();
+        renderTable(list);
+      } catch (err) {
+        console.error('Network/Client Error:', err);
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#ef4444; padding:20px;">
+          Network error while connecting to server.
+        </td></tr>`;
+      }
+    }
 
     function renderTable(data) {
       const tbody = document.getElementById('clientTableBody');
@@ -143,13 +168,21 @@ async function fetchClients() {
 
     function openModal() { 
       document.getElementById('modal').style.display = 'flex'; 
-      document.getElementById('nameInput').focus();
+      setTimeout(() => document.getElementById('nameInput').focus(), 50);
     }
     
     function closeModal() { 
       document.getElementById('modal').style.display = 'none'; 
       document.getElementById('addForm').reset();
     }
+
+    function handleBackdropClick(e) {
+      if (e.target.id === 'modal') closeModal();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
 
     document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -175,8 +208,17 @@ async function fetchClients() {
           })
         });
 
+        if (res.status === 401 || res.status === 403) {
+          localStorage.removeItem("user");
+          sessionStorage.removeItem("user");
+          window.location.href = "index.html";
+          return;
+        }
+
         if (!res.ok) {
-          const errData = await res.json().catch(() => ({}));
+          const rawText = await res.text();
+          let errData = {};
+          try { errData = JSON.parse(rawText); } catch (e) {}
           throw new Error(errData.error || errData.message || 'Failed to add client.');
         }
 
