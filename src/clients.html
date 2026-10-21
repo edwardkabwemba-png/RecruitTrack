@@ -20,9 +20,10 @@
     th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 0.85rem; }
     th { background-color: #f8fafc; color: #475569; font-weight: 600; }
     .btn-primary { background-color: #1d4ed8; color: #fff; padding: 8px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; border: none; cursor: pointer; text-decoration: none; }
+    .btn-primary:disabled { background-color: #93c5fd; cursor: not-allowed; }
     .input-field { padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 0.85rem; width: 100%; margin-bottom: 12px; }
-    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; }
-    .modal { background: white; padding: 24px; border-radius: 8px; width: 400px; }
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 100; }
+    .modal { background: white; padding: 24px; border-radius: 8px; width: 400px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
   </style>
 </head>
 <body>
@@ -39,7 +40,7 @@
       <a href="users.html" class="nav-item">Manage Users</a>
       <a href="positions.html" class="nav-item">Manage Positions</a>
       <a href="sources.html" class="nav-item">Manage Sources</a>
-      <a href="clients.html" class="nav-item">Manage Clients</a>
+      <a href="clients.html" class="nav-item active">Manage Clients</a>
       <a href="skills.html" class="nav-item">Manage Skills</a>
       <a href="certifications.html" class="nav-item">Manage Certifications</a>
       <a href="#" class="nav-item">Settings</a>
@@ -53,7 +54,7 @@
     </div>
 
     <div class="table-card">
-      <input type="text" id="search" class="input-field" placeholder="Search clients..." onkeyup="filterTable()">
+      <input type="text" id="search" class="input-field" placeholder="Search clients or industries..." onkeyup="filterTable()">
       <table>
         <thead>
           <tr>
@@ -71,13 +72,15 @@
     <div class="modal">
       <h3 style="margin-bottom:15px;">Add New Client</h3>
       <form id="addForm">
-        <label style="font-size:0.8rem; font-weight:bold;">Client Name *</label>
+        <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Client Name *</label>
         <input type="text" id="nameInput" class="input-field" required placeholder="e.g. Nexora Financial">
-        <label style="font-size:0.8rem; font-weight:bold;">Industry</label>
+        
+        <label style="font-size:0.8rem; font-weight:bold; display:block; margin-bottom:4px;">Industry</label>
         <input type="text" id="industryInput" class="input-field" placeholder="e.g. Banking & Finance">
+        
         <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
           <button type="button" class="btn-primary" style="background:#cbd5e1; color:#334155;" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn-primary">Save</button>
+          <button type="submit" id="saveBtn" class="btn-primary">Save</button>
         </div>
       </form>
     </div>
@@ -87,45 +90,93 @@
     let list = [];
     document.addEventListener('DOMContentLoaded', fetchClients);
 
+    function getStoredUserId() {
+      const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
+      return storedUser.userId || storedUser.UserID || storedUser.id || '';
+    }
+
     async function fetchClients() {
-      const res = await fetch('/api/clients');
-      list = res.ok ? await res.json() : [];
-      renderTable(list);
+      try {
+        const res = await fetch('/api/clients', {
+          headers: { 'x-user-id': getStoredUserId() }
+        });
+        list = res.ok ? await res.json() : [];
+        renderTable(list);
+      } catch (err) {
+        console.error('Error fetching clients:', err);
+      }
     }
 
     function renderTable(data) {
       const tbody = document.getElementById('clientTableBody');
-      if (!data.length) { tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;">No clients found.</td></tr>`; return; }
+      if (!data || !data.length) { 
+        tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#64748b; padding:20px;">No clients found.</td></tr>`; 
+        return; 
+      }
       tbody.innerHTML = data.map(item => `
         <tr>
-          <td><strong>#CL-${String(item.ClientID || item.id).padStart(4, '0')}</strong></td>
-          <td>${item.ClientName || item.name}</td>
-          <td>${item.Industry || 'N/A'}</td>
+          <td><strong>#CL-${String(item.ClientID || item.id || 0).padStart(4, '0')}</strong></td>
+          <td>${item.ClientName || item.clientName || item.name || 'Unnamed Client'}</td>
+          <td>${item.Industry || item.industry || '<span style="color:#94a3b8;">N/A</span>'}</td>
         </tr>
       `).join('');
     }
 
     function filterTable() {
-      const q = document.getElementById('search').value.toLowerCase();
-      renderTable(list.filter(c => (c.ClientName || '').toLowerCase().includes(q) || (c.Industry || '').toLowerCase().includes(q)));
+      const q = document.getElementById('search').value.toLowerCase().trim();
+      renderTable(list.filter(c => 
+        (c.ClientName || c.clientName || '').toLowerCase().includes(q) || 
+        (c.Industry || c.industry || '').toLowerCase().includes(q)
+      ));
     }
 
-    function openModal() { document.getElementById('modal').style.display = 'flex'; }
-    function closeModal() { document.getElementById('modal').style.display = 'none'; }
+    function openModal() { 
+      document.getElementById('modal').style.display = 'flex'; 
+      document.getElementById('nameInput').focus();
+    }
+    
+    function closeModal() { 
+      document.getElementById('modal').style.display = 'none'; 
+      document.getElementById('addForm').reset();
+    }
 
     document.getElementById('addForm').addEventListener('submit', async (e) => {
       e.preventDefault();
-      await fetch('/api/clients', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientName: document.getElementById('nameInput').value,
-          industry: document.getElementById('industryInput').value
-        })
-      });
-      closeModal();
-      document.getElementById('addForm').reset();
-      fetchClients();
+      const saveBtn = document.getElementById('saveBtn');
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      const clientName = document.getElementById('nameInput').value.trim();
+      const industry = document.getElementById('industryInput').value.trim();
+
+      try {
+        const res = await fetch('/api/clients', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'x-user-id': getStoredUserId()
+          },
+          body: JSON.stringify({
+            clientName: clientName,
+            ClientName: clientName,
+            industry: industry,
+            Industry: industry
+          })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || errData.message || 'Failed to add client.');
+        }
+
+        closeModal();
+        await fetchClients();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save';
+      }
     });
   </script>
 </body>

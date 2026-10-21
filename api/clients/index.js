@@ -1,38 +1,46 @@
-const sql = require('mssql');
+// GET /api/clients
+app.get('/api/clients', async (req, res) => {
+  try {
+    const result = await pool.request().query(`
+      SELECT ClientID, ClientName, Industry 
+      FROM dbo.Clients 
+      ORDER BY ClientName ASC
+    `);
+    res.json(result.recordset);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
-module.exports = async function (context, req) {
-  context.res = { headers: { 'Content-Type': 'application/json' } };
+// POST /api/clients
+app.post('/api/clients', async (req, res) => {
+  const { clientName, ClientName, industry, Industry } = req.body;
+  const nameVal = (ClientName || clientName || '').trim();
+  const industryVal = (Industry || industry || '').trim() || null;
+
+  if (!nameVal) {
+    return res.status(400).json({ error: 'ClientName is required.' });
+  }
 
   try {
-    const pool = await sql.connect(process.env.SqlConnectionString);
+    const request = pool.request();
+    request.input('ClientName', sql.NVarChar, nameVal);
+    request.input('Industry', sql.NVarChar, industryVal);
 
-    if (req.method === 'GET') {
-      const result = await pool.request().query(`
-        SELECT ClientID, ClientName, IsActive FROM dbo.Clients ORDER BY ClientName ASC
-      `);
-      context.res.status = 200;
-      context.res.body = JSON.stringify(result.recordset || []);
-      return;
-    }
+    const insertResult = await request.query(`
+      INSERT INTO dbo.Clients (ClientName, Industry)
+      VALUES (@ClientName, @Industry);
+      
+      SELECT SCOPE_IDENTITY() AS ClientID;
+    `);
 
-    if (req.method === 'POST') {
-      const { clientName } = req.body || {};
-      if (!clientName) {
-        context.res.status = 400;
-        context.res.body = JSON.stringify({ message: "Client Name is required." });
-        return;
-      }
-
-      await pool.request()
-        .input('ClientName', sql.NVarChar(150), clientName)
-        .query(`INSERT INTO dbo.Clients (ClientName, IsActive) VALUES (@ClientName, 1)`);
-
-      context.res.status = 201;
-      context.res.body = JSON.stringify({ message: "Client added successfully." });
-      return;
-    }
-  } catch (error) {
-    context.res.status = 500;
-    context.res.body = JSON.stringify({ message: error.message });
+    res.status(201).json({ 
+      success: true, 
+      ClientID: insertResult.recordset[0].ClientID,
+      ClientName: nameVal,
+      Industry: industryVal 
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
-};
+});
