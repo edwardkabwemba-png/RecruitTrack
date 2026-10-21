@@ -41,7 +41,8 @@ const STAGE_VERB_MAP = {
 };
 
 let exchangeRates = {
-  'ZAR_ZAR': 1.00
+  'ZAR_ZAR': 1.00,
+  'ZAR': 1.00
 };
 
 function getStoredUserId() {
@@ -104,6 +105,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
+  // Rate & currency change listeners for live preview updates
+  getElem('currentRateInput')?.addEventListener('input', calculateRateConversions);
+  getElem('currentRate')?.addEventListener('input', calculateRateConversions);
+  getElem('expectedRateInput')?.addEventListener('input', calculateRateConversions);
+  getElem('expectedRate')?.addEventListener('input', calculateRateConversions);
+  getElem('currentCurrencySelect')?.addEventListener('change', calculateRateConversions);
+  getElem('expectedCurrencySelect')?.addEventListener('change', calculateRateConversions);
+
   setupCurrentRoleAutoFill();
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
@@ -127,6 +136,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     advanceBtn.addEventListener('click', advanceStage);
   }
 
+  calculateRateConversions();
   updateStageUI();
 });
 
@@ -270,10 +280,10 @@ async function loadLocationsForCountry(countryName) {
 
 function calculateRateConversions() {
   const currentCurr = getElem('currentCurrencySelect')?.value || 'ZAR';
-  const currentVal = parseFloat(getElem('currentRateInput')?.value) || 0;
+  const currentVal = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || 0;
 
   const expectedCurr = getElem('expectedCurrencySelect')?.value || 'ZAR';
-  const expectedVal = parseFloat(getElem('expectedRateInput')?.value) || 0;
+  const expectedVal = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || 0;
 
   const currentZar = convertToZar(currentVal, currentCurr);
   const expectedZar = convertToZar(expectedVal, expectedCurr);
@@ -303,7 +313,7 @@ function convertToZar(amount, currency) {
   if (currency === 'ZAR') return numericAmount;
 
   const pair = `${currency}_ZAR`;
-  const rate = exchangeRates[pair] || 1.0;
+  const rate = exchangeRates[pair] || exchangeRates[currency] || 1.0;
   return parseFloat((numericAmount * rate).toFixed(2));
 }
 
@@ -409,8 +419,18 @@ async function loadExistingCandidateData(recruitId) {
     setVal('idNumber', data.IdNumber);
     setVal('noticePeriod', data.NoticePeriod);
 
-    setVal('currentRateInput', data.CurrentRate !== null && data.CurrentRate !== undefined ? parseFloat(data.CurrentRate) : '');
-    setVal('expectedRateInput', data.ExpectedRate !== null && data.ExpectedRate !== undefined ? parseFloat(data.ExpectedRate) : '');
+    setVal('currentCurrencySelect', data.CurrentCurrency || 'ZAR');
+    setVal('expectedCurrencySelect', data.ExpectedCurrency || 'ZAR');
+
+    const curRateVal = data.CurrentRateOriginal || data.CurrentRate;
+    const expRateVal = data.ExpectedRateOriginal || data.ExpectedRate;
+
+    setVal('currentRateInput', curRateVal !== null && curRateVal !== undefined ? parseFloat(curRateVal) : '');
+    setVal('currentRate', curRateVal !== null && curRateVal !== undefined ? parseFloat(curRateVal) : '');
+    setVal('expectedRateInput', expRateVal !== null && expRateVal !== undefined ? parseFloat(expRateVal) : '');
+    setVal('expectedRate', expRateVal !== null && expRateVal !== undefined ? parseFloat(expRateVal) : '');
+
+    calculateRateConversions();
 
     const dateSourcedInput = getElem('dateSourced');
     if (dateSourcedInput && data.DateSourced) {
@@ -434,7 +454,6 @@ async function loadExistingCandidateData(recruitId) {
     failedAtStageIndex = data.FailedAtStage || null;
 
     let stageName = data.Stage || data.LifecycleStage || 'Sourced';
-    // If stage contains "Unsuccessful" or "Failed", parse out base stage
     if (stageName.includes('Unsuccessful') || stageName.includes('Failed')) {
       stageName = stageName.split('—').pop()?.trim() || stageName.split('-').pop()?.trim() || 'Sourced';
     }
@@ -505,6 +524,10 @@ async function loadDropdownData() {
     }
     if (!res.ok) throw new Error(`Server error: ${res.status}`);
     const data = await res.json();
+
+    if (data.exchangeRates) {
+      exchangeRates = data.exchangeRates;
+    }
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName', 'Select Recruiter...');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName', 'Select Source...');
@@ -672,13 +695,12 @@ async function handleCandidateSubmit(e) {
     const currentCurrency = getElem('currentCurrencySelect')?.value || 'ZAR';
     const expectedCurrency = getElem('expectedCurrencySelect')?.value || 'ZAR';
 
-    const rawCurrentRate = getElem('currentRateInput')?.value || null;
-    const rawExpectedRate = getElem('expectedRateInput')?.value || null;
+    const rawCurrentRate = getElem('currentRateInput')?.value || getElem('currentRate')?.value || null;
+    const rawExpectedRate = getElem('expectedRateInput')?.value || getElem('expectedRate')?.value || null;
 
     const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
     const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
 
-    // Resolve current stage vs unsuccessful stage
     const currentStageName = STAGES[currentStageIndex];
     const resolvedStage = isCandidateFailed ? `Not Successful — ${currentStageName}` : currentStageName;
 
@@ -704,17 +726,18 @@ async function handleCandidateSubmit(e) {
       currentRate: convertedCurrentRateZar,
       currentCurrency: currentCurrency,
       currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
+      currentRateZar: convertedCurrentRateZar,
       
       expectedRate: convertedExpectedRateZar,
       expectedCurrency: expectedCurrency,
       expectedRateOriginal: rawExpectedRate ? parseFloat(rawExpectedRate) : null,
+      expectedRateZar: convertedExpectedRateZar,
 
       email: email,
       phone: getElem('phone')?.value?.trim() || null,
       idType: getElem('idType')?.value || null,
       idNumber: getElem('idNumber')?.value?.trim() || null,
       
-      // Pass the resolved stage text and failure flags to DB
       stage: resolvedStage,
       isFailed: isCandidateFailed ? 1 : 0,
       failedAtStage: isCandidateFailed ? (currentStageIndex + 1) : null,
