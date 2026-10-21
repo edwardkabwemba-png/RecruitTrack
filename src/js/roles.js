@@ -23,7 +23,7 @@ function setupRoleFilterListeners() {
   const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
   const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
 
-  // Debounced search on typing
+  // Debounced live search on typing
   searchInput?.addEventListener('input', () => {
     clearTimeout(roleDebounceTimer);
     roleDebounceTimer = setTimeout(() => {
@@ -31,7 +31,7 @@ function setupRoleFilterListeners() {
     }, 300);
   });
 
-  // Query immediately on status selection change
+  // Query immediately on status dropdown selection change
   statusFilter?.addEventListener('change', () => {
     fetchAndRenderRoles();
   });
@@ -52,14 +52,19 @@ async function fetchAndRenderRoles() {
   const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
 
   const searchVal = searchInput?.value.trim() || '';
-  const statusRaw = statusFilter?.value || '';
-  const statusVal = statusRaw.startsWith('Status:') ? '' : statusRaw;
+  let statusVal = statusFilter?.value || '';
+
+  // Clean up status value if "All" or placeholder options are selected
+  if (statusVal.toLowerCase().includes('all') || statusVal.startsWith('Status:')) {
+    statusVal = '';
+  }
+
   const myRolesVal = myRolesCheckbox?.checked ? 'true' : 'false';
 
   try {
     const params = new URLSearchParams();
     if (searchVal) params.append('search', searchVal);
-    if (statusVal && statusVal !== 'All') params.append('status', statusVal);
+    if (statusVal) params.append('status', statusVal);
     if (myRolesVal === 'true') params.append('myRoles', 'true');
 
     const headers = { 
@@ -82,7 +87,12 @@ async function fetchAndRenderRoles() {
       throw new Error(errData.message || `Server error (Status: ${res.status})`);
     }
 
-    const roles = await res.json();
+    let roles = await res.json();
+
+    // Safely parse double-stringified JSON response if returned by backend
+    if (typeof roles === 'string') {
+      try { roles = JSON.parse(roles); } catch (e) {}
+    }
 
     if (!Array.isArray(roles) || roles.length === 0) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No roles found matching your filter criteria.</td></tr>`;
