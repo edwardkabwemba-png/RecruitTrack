@@ -84,7 +84,7 @@ async function fetchAndRenderRoles() {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.message || `Server error (Status: ${res.status})`);
+      throw new Error(errData.error || errData.message || `Server error (Status: ${res.status})`);
     }
 
     let roles = await res.json();
@@ -160,7 +160,6 @@ async function handleRoleAction(action, roleId) {
     return;
   }
 
-  // Confirm with user if attempting to close the ticket/role
   if (action === 'Close') {
     const formattedId = `#RL-${String(roleId).padStart(4, '0')}`;
     const confirmed = confirm(`Are you sure you want to close ticket ${formattedId}? This will archive the role.`);
