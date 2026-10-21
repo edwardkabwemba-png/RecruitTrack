@@ -277,6 +277,8 @@ function updateStageUI() {
 
   stageNodes.forEach((node, index) => {
     node.classList.remove('completed', 'active', 'pending', 'failed');
+    
+    // RED HIGHLIGHT: Turn current stage node red if marked not successful
     if (isCandidateFailed && index === currentStageIndex) {
       node.classList.add('failed');
     } else if (index < currentStageIndex) {
@@ -291,7 +293,7 @@ function updateStageUI() {
   if (progressInfo) {
     if (isCandidateFailed) {
       progressInfo.textContent = `Candidate Marked Not Successful at ${activeStageName} (Stage ${currentStageIndex + 1} of 7)`;
-      progressInfo.style.color = '#c53030';
+      progressInfo.style.color = '#dc2626';
     } else {
       progressInfo.textContent = `${percentage}% through pipeline (${activeStageName} = stage ${currentStageIndex + 1} of 7)`;
       progressInfo.style.color = '#2b6cb0';

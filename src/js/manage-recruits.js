@@ -71,7 +71,8 @@ async function fetchRecentRecruits() {
     tbody.innerHTML = data.map(r => {
       const rawStage = r.Stage || r.LifecycleStage;
       const stageName = getStageLabel(rawStage);
-      const badgeClass = getStageBadgeClass(stageName);
+      // FIXED: Passed r.IsFailed as the second parameter to getStageBadgeClass
+      const badgeClass = getStageBadgeClass(stageName, r.IsFailed);
 
       return `
         <tr>
@@ -120,15 +121,31 @@ function getStageLabel(stage) {
 }
 
 // Map lifecycle stage to matching CSS badge styles
-function getStageBadgeClass(stageName) {
-  switch (stageName) {
-    case 'Sourced': return 'badge-sourced';
-    case 'In Discussion': return 'badge-discussion';
-    case 'Screened': return 'badge-screened';
-    case 'CV Prepared': return 'badge-cv';
-    case 'Interviewed': return 'badge-interviewed';
-    case 'Offer Sent': return 'badge-offer';
-    case 'Hired': return 'badge-hired';
-    default: return 'badge-sourced';
+function getStageBadgeClass(stageName, isFailed) {
+  const stageStr = String(stageName || '').trim();
+
+  // 1. Check if candidate is explicitly marked as failed or stage string contains "Not Successful" / "Failed"
+  if (isFailed || stageStr.includes('Not Successful') || stageStr.includes('Failed')) {
+    return 'badge-failed';
+  }
+
+  // 2. Standard active stage badge evaluation
+  switch (stageStr) {
+    case 'Sourced': 
+      return 'badge-sourced';
+    case 'In Discussion': 
+      return 'badge-discussion';
+    case 'Screened': 
+      return 'badge-screened';
+    case 'CV Prepared': 
+      return 'badge-cv';
+    case 'Interviewed': 
+      return 'badge-interviewed';
+    case 'Offer Sent': 
+      return 'badge-offer';
+    case 'Hired': 
+      return 'badge-hired';
+    default: 
+      return 'badge-sourced';
   }
 }
