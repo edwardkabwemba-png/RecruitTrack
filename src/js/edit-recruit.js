@@ -11,10 +11,25 @@ let docStates = {
   DocDegreesStatus: 'Pending'
 };
 
+const COUNTRY_CURRENCY_MAP = {
+  'South Africa': 'ZAR',
+  'India': 'INR',
+  'Zimbabwe': 'USD'
+};
+
+let exchangeRates = {
+  'ZAR_ZAR': 1.00,
+  'ZAR': 1.00
+};
+
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
   return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
+}
+
+function getElem(id) {
+  return document.getElementById(id);
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -34,9 +49,19 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Ensure dropdowns are fully loaded before setting candidate values
+  // Ensure dropdowns and SQL exchange rates are fully loaded before setting candidate values
   await loadDropdowns();
   await loadRecruitDetails(recruitId);
+
+  // Bind rate & currency live conversion triggers
+  getElem('currentRateInput')?.addEventListener('input', calculateRateConversions);
+  getElem('currentRate')?.addEventListener('input', calculateRateConversions);
+  getElem('expectedRateInput')?.addEventListener('input', calculateRateConversions);
+  getElem('expectedRate')?.addEventListener('input', calculateRateConversions);
+  getElem('currentCurrencySelect')?.addEventListener('change', calculateRateConversions);
+  getElem('expectedCurrencySelect')?.addEventListener('change', calculateRateConversions);
+  getElem('countrySelect')?.addEventListener('change', handleCountryChange);
+
   setupFormSubmit();
   setupTagHandlers();
   setupLifecycleClick();
@@ -45,7 +70,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function loadDropdowns() {
   try {
-    const res = await fetch('/api/add-recruit?action=dropdowns', {
+    const res = await fetch('/api/recruits?action=dropdowns', {
       headers: { 'x-user-id': getStoredUserId() }
     });
 
@@ -57,6 +82,11 @@ async function loadDropdowns() {
     }
 
     const data = await res.json();
+
+    // Populate exchange rates dynamically from SQL database query
+    if (data.exchangeRates) {
+      exchangeRates = data.exchangeRates;
+    }
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName');
     populateSelect('sourceSelect', data.sources, 'SourceID', 'SourceName');
@@ -89,9 +119,64 @@ function cleanTagItems(rawInput) {
   return String(rawInput).split(',').map(s => s.replace(/[\[\]"']/g, '').trim()).filter(Boolean);
 }
 
+function calculateRateConversions() {
+  const currentCurr = getElem('currentCurrencySelect')?.value || 'ZAR';
+  const currentVal = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || 0;
+
+  const expectedCurr = getElem('expectedCurrencySelect')?.value || 'ZAR';
+  const expectedVal = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || 0;
+
+  const currentZar = convertToZar(currentVal, currentCurr);
+  const expectedZar = convertToZar(expectedVal, expectedCurr);
+
+  const currentPreview = getElem('currentRateZarPreview');
+  if (currentPreview) {
+    if (currentVal > 0 && currentCurr !== 'ZAR') {
+      currentPreview.textContent = `≈ R ${currentZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
+    } else {
+      currentPreview.textContent = '';
+    }
+  }
+
+  const expectedPreview = getElem('expectedRateZarPreview');
+  if (expectedPreview) {
+    if (expectedVal > 0 && expectedCurr !== 'ZAR') {
+      expectedPreview.textContent = `≈ R ${expectedZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
+    } else {
+      expectedPreview.textContent = '';
+    }
+  }
+}
+
+function convertToZar(amount, currency) {
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+  if (currency === 'ZAR') return numericAmount;
+
+  const pair = `${currency}_ZAR`;
+  const rate = exchangeRates[pair] || exchangeRates[currency] || 1.0;
+  return parseFloat((numericAmount * rate).toFixed(2));
+}
+
+function handleCountryChange() {
+  const countrySelect = getElem('countrySelect');
+  if (!countrySelect) return;
+
+  const country = countrySelect.value || 'South Africa';
+  const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
+
+  const currentCurrSel = getElem('currentCurrencySelect');
+  const expectedCurrSel = getElem('expectedCurrencySelect');
+
+  if (currentCurrSel && !currentCurrSel.value) currentCurrSel.value = defaultCurrency;
+  if (expectedCurrSel && !expectedCurrSel.value) expectedCurrSel.value = defaultCurrency;
+
+  calculateRateConversions();
+}
+
 async function loadRecruitDetails(id) {
   try {
-    const res = await fetch(`/api/add-recruit?action=getOne&id=${id}`, {
+    const res = await fetch(`/api/recruits?action=getOne&id=${id}`, {
       headers: { 'x-user-id': getStoredUserId() }
     });
 
@@ -115,8 +200,21 @@ async function loadRecruitDetails(id) {
     document.getElementById('surname').value = data.Surname || '';
     document.getElementById('sourceSelect').value = data.SourceID || '';
     document.getElementById('noticePeriod').value = data.NoticePeriod || '30 Days';
-    document.getElementById('currentRate').value = data.CurrentRate || '';
-    document.getElementById('expectedRate').value = data.ExpectedRate || '';
+
+    // Currencies and Rates loading
+    if (getElem('currentCurrencySelect')) getElem('currentCurrencySelect').value = data.CurrentCurrency || 'ZAR';
+    if (getElem('expectedCurrencySelect')) getElem('expectedCurrencySelect').value = data.ExpectedCurrency || 'ZAR';
+
+    const curRateVal = data.CurrentRateOriginal || data.CurrentRate || '';
+    const expRateVal = data.ExpectedRateOriginal || data.ExpectedRate || '';
+
+    if (getElem('currentRateInput')) getElem('currentRateInput').value = curRateVal;
+    if (getElem('currentRate')) getElem('currentRate').value = curRateVal;
+    if (getElem('expectedRateInput')) getElem('expectedRateInput').value = expRateVal;
+    if (getElem('expectedRate')) getElem('expectedRate').value = expRateVal;
+
+    calculateRateConversions();
+
     document.getElementById('email').value = data.Email || '';
     if (document.getElementById('countrySelect')) {
       document.getElementById('countrySelect').value = data.CountryOfResidency || 'South Africa';
@@ -314,7 +412,7 @@ window.removeTag = function(containerId, val) {
 };
 
 function setupFormSubmit() {
-  const form = document.getElementById('editRecruitForm');
+  const form = document.getElementById('editRecruitForm') || document.getElementById('addRecruitForm');
   if (!form) return;
 
   const roleSel = document.getElementById('roleSelect');
@@ -337,8 +435,17 @@ function setupFormSubmit() {
     }
 
     const currentUserId = getStoredUserId();
-
     const id = document.getElementById('recruitId').value;
+
+    const currentCurrency = getElem('currentCurrencySelect')?.value || 'ZAR';
+    const expectedCurrency = getElem('expectedCurrencySelect')?.value || 'ZAR';
+
+    const rawCurrentRate = getElem('currentRateInput')?.value || getElem('currentRate')?.value || null;
+    const rawExpectedRate = getElem('expectedRateInput')?.value || getElem('expectedRate')?.value || null;
+
+    const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
+    const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
+
     const bodyPayload = {
       recruitId: id,
       applicationId: document.getElementById('applicationId') ? document.getElementById('applicationId').value : '',
@@ -348,8 +455,17 @@ function setupFormSubmit() {
       surname: document.getElementById('surname').value,
       sourceId: document.getElementById('sourceSelect').value,
       noticePeriod: document.getElementById('noticePeriod').value,
-      currentRate: document.getElementById('currentRate').value,
-      expectedRate: document.getElementById('expectedRate').value,
+      
+      currentCurrency: currentCurrency,
+      currentRate: convertedCurrentRateZar,
+      currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
+      currentRateZar: convertedCurrentRateZar,
+
+      expectedCurrency: expectedCurrency,
+      expectedRate: convertedExpectedRateZar,
+      expectedRateOriginal: rawExpectedRate ? parseFloat(rawExpectedRate) : null,
+      expectedRateZar: convertedExpectedRateZar,
+
       email: document.getElementById('email').value,
       countryOfResidence: document.getElementById('countrySelect') ? document.getElementById('countrySelect').value : 'South Africa',
       phone: document.getElementById('phone').value,
@@ -373,7 +489,7 @@ function setupFormSubmit() {
     };
 
     try {
-      const res = await fetch(`/api/add-recruit?id=${id}`, {
+      const res = await fetch(`/api/recruits?id=${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
