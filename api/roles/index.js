@@ -49,10 +49,10 @@ module.exports = async function (context, req) {
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
         
-        // Recruiters Aggregation
+        // Recruiters Aggregation (Uses u.AvatarInitials existing column)
         'OUTER APPLY ( ' +
         '  SELECT ' +
-        '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, u.Initials) AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
+        '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
         '    STRING_AGG(CAST(u.UserID AS VARCHAR(10)), \',\') AS RecruiterIDs ' +
         '  FROM dbo.RoleRecruiters rr ' +
         '  JOIN dbo.Users u ON rr.UserID = u.UserID ' +
@@ -96,18 +96,18 @@ module.exports = async function (context, req) {
         if (positionId) whereConditions.push('r.PositionID = @PositionID');
         if (clientId) whereConditions.push('r.ClientID = @ClientID');
 
-        // Status / Stage filter (e.g. Active, Frozen, Closed)
+        // Status Filter
         const targetStatus = status || stage;
         if (targetStatus && targetStatus !== 'All' && !targetStatus.startsWith('Status:')) {
           whereConditions.push('r.Status = @Status');
         }
 
-        // Search filter (Matches PositionTitle, ClientName, numeric RoleID, or #RL-xxxx)
+        // Search Filter
         if (search && search.trim() !== '') {
-          whereConditions.push('(p.PositionTitle LIKE @Search OR c.ClientName LIKE @Search OR CAST(r.RoleID AS NVARCHAR(20)) LIKE @SearchRaw OR CONCAT(\'#RL-\', RIGHT(\'0000\' + CAST(r.RoleID AS VARCHAR(10)), 4)) LIKE @Search)');
+          whereConditions.push('(p.PositionTitle LIKE @Search OR c.ClientName LIKE @Search OR CAST(r.RoleID AS NVARCHAR(20)) LIKE @SearchClean)');
         }
 
-        // My Roles Only filter (Checks if active user is assigned to role in dbo.RoleRecruiters)
+        // My Roles Filter
         if (myRoles === 'true' && activeUserId) {
           whereConditions.push('EXISTS (SELECT 1 FROM dbo.RoleRecruiters myRR WHERE myRR.RoleID = r.RoleID AND myRR.UserID = @ActiveUserID)');
         }
@@ -133,8 +133,9 @@ module.exports = async function (context, req) {
 
         if (search && search.trim() !== '') {
           const cleanSearch = search.trim();
+          const digitsOnly = cleanSearch.replace(/[^0-9]/g, '');
           request.input('Search', sql.NVarChar(100), `%${cleanSearch}%`);
-          request.input('SearchRaw', sql.NVarChar(100), `%${cleanSearch.replace(/^#?RL-?/i, '')}%`);
+          request.input('SearchClean', sql.NVarChar(100), `%${digitsOnly || cleanSearch}%`);
         }
 
         if (myRoles === 'true' && activeUserId) {
@@ -170,7 +171,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Verify the UserID exists in dbo.Users
       const userCheck = await pool.request()
         .input('CheckUserID', sql.Int, activeUserId)
         .query('SELECT TOP 1 UserID FROM dbo.Users WHERE UserID = @CheckUserID');
@@ -183,12 +183,10 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Use a SQL Transaction to ensure Role + Skills/Certs/Recruiters are saved atomically
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
 
       try {
-        // 1. Insert into dbo.Roles
         const insertRoleQuery = 
           'INSERT INTO dbo.Roles ' +
           '  (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate) ' +
@@ -215,7 +213,6 @@ module.exports = async function (context, req) {
 
         const newRoleId = roleResult.recordset[0].RoleID;
 
-        // 2. Insert Required Skills into dbo.RoleSkills with MinYears
         if (Array.isArray(reqSkills) && reqSkills.length > 0) {
           for (const item of reqSkills) {
             const skillId = parseInt(item.id, 10);
@@ -233,7 +230,6 @@ module.exports = async function (context, req) {
           }
         }
 
-        // 3. Insert Nice-to-Have Skills into dbo.RoleSkills
         if (Array.isArray(niceSkills) && niceSkills.length > 0) {
           for (const item of niceSkills) {
             const skillId = parseInt(item.id, 10);
@@ -251,7 +247,6 @@ module.exports = async function (context, req) {
           }
         }
 
-        // 4. Insert Certifications into dbo.RoleCertifications
         if (Array.isArray(certifications) && certifications.length > 0) {
           for (const item of certifications) {
             const certReq = new sql.Request(transaction);
@@ -262,7 +257,6 @@ module.exports = async function (context, req) {
           }
         }
 
-        // 5. Insert Recruiters into dbo.RoleRecruiters
         if (Array.isArray(recruiters) && recruiters.length > 0) {
           for (const item of recruiters) {
             const recUserId = parseInt(item.id, 10);
@@ -276,7 +270,6 @@ module.exports = async function (context, req) {
           }
         }
 
-        // Commit transaction after all inserts complete
         await transaction.commit();
 
         context.res.status = 201;
