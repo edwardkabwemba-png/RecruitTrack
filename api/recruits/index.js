@@ -31,12 +31,12 @@ const safeParseDate = (val) => {
 
 // Exchange rate lookup function converting selected currency to ZAR multiplier
 async function getZarExchangeRate(pool, currency) {
-  if (!currency || currency === 'ZAR') return 1.0;
-  const pair = `${currency}_ZAR`;
+  if (!currency || currency.toUpperCase().trim() === 'ZAR') return 1.0;
+  const pair = `${currency.toUpperCase().trim()}_ZAR`;
   try {
     const res = await pool.request()
       .input('Pair', sql.NVarChar(10), pair)
-      .query("SELECT TOP 1 Rate FROM dbo.ExchangeRates WHERE CurrencyPair = @Pair");
+      .query("SELECT TOP 1 Rate FROM dbo.ExchangeRates WHERE UPPER(CurrencyPair) = UPPER(@Pair)");
 
     if (res.recordset && res.recordset.length > 0) {
       return parseFloat(res.recordset[0].Rate);
@@ -91,7 +91,6 @@ module.exports = async function (context, req) {
         return;
       }
 
-      // Explicit route for fetching exchange rates directly
       if (action === 'exchangeRates') {
         const rates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
         context.res.status = 200;
@@ -106,8 +105,6 @@ module.exports = async function (context, req) {
         const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
         const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
         const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
-        
-        // FIX #1: Query dbo.ExchangeRates table and include in dropdown payload
         const exchangeRates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
 
         context.res.status = 200;
@@ -179,25 +176,24 @@ module.exports = async function (context, req) {
       const assignedRecruiterId = safeParseInt(body.recruiterId) || activeUserId;
       const parsedDateSourced = safeParseDate(body.dateSourced);
 
-      const currentCurrency = body.currentRateCurrency || body.currentCurrency || 'ZAR';
-      const expectedCurrency = body.expectedRateCurrency || body.expectedCurrency || 'ZAR';
+      const currentCurrency = (body.currentRateCurrency || body.currentCurrency || 'ZAR').toUpperCase().trim();
+      const expectedCurrency = (body.expectedRateCurrency || body.expectedCurrency || 'ZAR').toUpperCase().trim();
 
+      // Look up multipliers from SQL table dbo.ExchangeRates
       const currentMultiplier = await getZarExchangeRate(pool, currentCurrency);
       const expectedMultiplier = await getZarExchangeRate(pool, expectedCurrency);
 
+      // Parse the raw input value entered by the user
       const rawCurrentRate = safeParseFloat(body.currentRateRaw || body.currentRateOriginal || body.currentRate);
       const rawExpectedRate = safeParseFloat(body.expectedRateRaw || body.expectedRateOriginal || body.expectedRate);
 
-      // FIX #3: Calculate ZAR values accurately without bypassing the exchange multiplier
-      const preConvertedCurrentRateZar = safeParseFloat(body.currentRateZar);
-      const preConvertedExpectedRateZar = safeParseFloat(body.expectedRateZar);
-
-      const finalCurrentRateZar = preConvertedCurrentRateZar !== null
-        ? preConvertedCurrentRateZar
+      // ALWAYS perform the server-side multiplication to get Rand value for DB storage
+      const finalCurrentRateZar = currentCurrency === 'ZAR' 
+        ? rawCurrentRate 
         : (rawCurrentRate !== null ? parseFloat((rawCurrentRate * currentMultiplier).toFixed(2)) : null);
 
-      const finalExpectedRateZar = preConvertedExpectedRateZar !== null
-        ? preConvertedExpectedRateZar
+      const finalExpectedRateZar = expectedCurrency === 'ZAR' 
+        ? rawExpectedRate 
         : (rawExpectedRate !== null ? parseFloat((rawExpectedRate * expectedMultiplier).toFixed(2)) : null);
 
       const transaction = new sql.Transaction(pool);
