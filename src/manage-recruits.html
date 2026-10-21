@@ -4,194 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>TalentCoPilot - Manage Recruits</title>
-  <style>
-    * { 
-      box-sizing: border-box; 
-      margin: 0; 
-      padding: 0; 
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-    }
-
-    body { 
-      display: flex; 
-      height: 100vh; 
-      background-color: #f4f6f8; 
-      color: #333; 
-    }
-    
-    /* Sidebar Layout */
-    .sidebar { 
-      width: 240px; 
-      background-color: #1e293b; 
-      color: #94a3b8; 
-      display: flex; 
-      flex-direction: column; 
-      padding: 20px 0; 
-      flex-shrink: 0;
-    }
-    .brand { 
-      padding: 0 20px 20px; 
-      font-weight: bold; 
-      color: #fff; 
-      font-size: 1.2rem; 
-    }
-    .brand span { 
-      display: block; 
-      font-size: 0.75rem; 
-      color: #64748b; 
-      font-weight: normal; 
-    }
-    .nav-section { 
-      margin-top: 15px; 
-    }
-    .nav-title { 
-      font-size: 0.65rem; 
-      text-transform: uppercase; 
-      color: #475569; 
-      padding: 0 20px 8px; 
-      font-weight: 700; 
-    }
-    .nav-item { 
-      display: flex; 
-      align-items: center; 
-      padding: 10px 20px; 
-      color: #94a3b8; 
-      text-decoration: none; 
-      font-size: 0.9rem; 
-      transition: background-color 0.2s;
-    }
-    .nav-item:hover, .nav-item.active { 
-      background-color: #334155; 
-      color: #fff; 
-      border-left: 4px solid #3b82f6; 
-    }
-
-    /* Main Content Layout */
-    .main-content { 
-      flex: 1; 
-      overflow-y: auto; 
-      padding: 25px 35px; 
-    }
-    .top-bar { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      margin-bottom: 20px; 
-    }
-    .top-bar h2 {
-      font-size: 1.4rem;
-      color: #1e293b;
-    }
-
-    /* Primary & Action Buttons */
-    .btn-primary {
-      padding: 8px 16px;
-      background: #2563eb;
-      color: #ffffff;
-      border: none;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 0.875rem;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      transition: background-color 0.2s;
-    }
-    .btn-primary:hover {
-      background: #1d4ed8;
-    }
-
-    .btn-secondary {
-      padding: 8px 16px;
-      background: #ffffff;
-      color: #475569;
-      border: 1px solid #cbd5e1;
-      border-radius: 6px;
-      font-size: 0.875rem;
-      cursor: pointer;
-    }
-    .btn-secondary:hover {
-      background: #f8fafc;
-    }
-
-    /* Filter & Search Bar Controls */
-    .card {
-      background: #ffffff;
-      border-radius: 8px;
-      border: 1px solid #e2e8f0;
-      padding: 20px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    }
-    .filter-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-    .search-input { 
-      width: 320px; 
-      padding: 8px 12px; 
-      border: 1px solid #cbd5e1; 
-      border-radius: 6px; 
-      font-size: 0.85rem; 
-      outline: none;
-    }
-    .search-input:focus {
-      border-color: #3b82f6;
-    }
-
-    /* Data Table Styling */
-    .table-container {
-      width: 100%;
-      overflow-x: auto;
-      border: 1px solid #e2e8f0;
-      border-radius: 6px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.85rem;
-    }
-    th {
-      background-color: #f8fafc;
-      padding: 12px 16px;
-      font-size: 0.75rem;
-      font-weight: 700;
-      text-transform: uppercase;
-      color: #475569;
-      border-bottom: 1px solid #e2e8f0;
-      white-space: nowrap;
-    }
-    td {
-      padding: 12px 16px;
-      border-bottom: 1px solid #e2e8f0;
-      color: #334155;
-      vertical-align: middle;
-    }
-    tr:hover {
-      background-color: #f8fafc;
-    }
-
-    /* Stage Badges */
-    .badge { 
-      display: inline-block; 
-      padding: 4px 10px; 
-      border-radius: 12px; 
-      font-size: 0.7rem; 
-      font-weight: 700; 
-      text-transform: uppercase; 
-    }
-    .badge-sourced     { background: #e0f2fe; color: #0369a1; }
-    .badge-discussion  { background: #eff6ff; color: #1d4ed8; }
-    .badge-screened    { background: #fef3c7; color: #92400e; }
-    .badge-cv          { background: #f3e8ff; color: #6b21a8; }
-    .badge-interviewed { background: #e0e7ff; color: #3730a3; }
-    .badge-offer       { background: #ffedd5; color: #9a3412; }
-    .badge-hired       { background: #dcfce7; color: #166534; }
-  </style>
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -202,7 +15,7 @@
     <div class="nav-section">
       <div class="nav-title">MAIN</div>
       <a href="dashboard.html" class="nav-item">Dashboard</a>
-      <a href="manage-recruits.html" class="nav-item active">Manage Recruit</a>
+      <a href="manage-recruits.html" class="nav-item active">Manage Recruits</a>
       <a href="roles.html" class="nav-item">Manage Roles</a>
     </div>
 
@@ -223,18 +36,18 @@
     <div class="top-bar">
       <div>
         <h2>Manage Recruits</h2>
-        <p style="font-size: 0.8rem; color: #64748b; margin-top: 2px;">View and manage candidate applications and recruitment lifecycles</p>
+        <p class="subtitle">View and manage candidate applications and recruitment lifecycles</p>
       </div>
       <button onclick="window.location.href='add-recruit.html'" class="btn-primary">+ Add Recruit</button>
     </div>
 
     <div class="card">
       <div class="filter-bar">
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search candidate name, email, or role..." oninput="filterRecruits()">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <label style="font-size: 0.85rem; font-weight: 600; color: #475569;">Stage:</label>
-          <select id="stageFilter" onchange="filterRecruits()" style="padding: 6px 10px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 0.85rem;">
-            <option value="All">All</option>
+        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search candidate name, surname, email, or position...">
+        <div class="filter-group">
+          <label for="stageFilter" class="filter-label">Stage:</label>
+          <select id="stageFilter" class="select-control">
+            <option value="">All</option>
             <option value="Sourced">Sourced</option>
             <option value="In Discussion">In Discussion</option>
             <option value="Screened">Screened</option>
@@ -260,7 +73,7 @@
             </tr>
           </thead>
           <tbody id="recruitsTableBody">
-            <tr><td colspan="7" style="text-align: center; color: #64748b;">Loading recruits...</td></tr>
+            <tr><td colspan="7" class="text-center text-muted">Loading recruits...</td></tr>
           </tbody>
         </table>
       </div>
@@ -268,61 +81,61 @@
   </main>
 
   <!-- Edit Recruit Modal -->
-  <div id="editRecruitModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-    <div style="background: #ffffff; width: 650px; max-width: 95%; border-radius: 8px; padding: 24px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h3 style="margin: 0; color: #1e293b;">Edit Recruit Information</h3>
-        <button type="button" id="closeEditRecruitModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #64748b;">&times;</button>
+  <div id="editRecruitModal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Edit Recruit Information</h3>
+        <button type="button" id="closeEditRecruitModal" class="modal-close-btn">&times;</button>
       </div>
 
       <form id="editRecruitForm">
         <input type="hidden" id="editRecruitId">
         <input type="hidden" id="editApplicationId">
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px;">
+        <div class="form-grid-2">
           <div>
-            <label style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">First Name</label>
-            <input type="text" id="editFirstName" required style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <label class="form-label-sm">First Name</label>
+            <input type="text" id="editFirstName" required class="input-control">
           </div>
           <div>
-            <label style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">Surname</label>
-            <input type="text" id="editSurname" required style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <label class="form-label-sm">Surname</label>
+            <input type="text" id="editSurname" required class="input-control">
           </div>
           <div>
-            <label style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">Email</label>
-            <input type="email" id="editEmail" required style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <label class="form-label-sm">Email</label>
+            <input type="email" id="editEmail" required class="input-control">
           </div>
           <div>
-            <label style="display: block; font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 4px;">Phone Number</label>
-            <input type="text" id="editPhone" style="width: 100%; padding: 8px; border: 1px solid #cbd5e1; border-radius: 4px;">
+            <label class="form-label-sm">Phone Number</label>
+            <input type="text" id="editPhone" class="input-control">
           </div>
         </div>
 
         <!-- Document Uploads Section -->
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 16px;">
-          <h4 style="margin: 0 0 12px 0; color: #334155; font-size: 14px;">Upload / Replace Documents</h4>
+        <div class="modal-section-divider">
+          <h4 class="section-subtitle">Upload / Replace Documents</h4>
           
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+          <div class="form-grid-2">
             <div>
-              <label style="font-size: 12px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px;">Main CV (.pdf, .doc)</label>
-              <input type="file" id="uploadMainCv" accept=".pdf,.doc,.docx" style="font-size: 12px; width: 100%;">
+              <label class="form-label-sm">Main CV (.pdf, .doc)</label>
+              <input type="file" id="uploadMainCv" accept=".pdf,.doc,.docx" class="file-control">
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px;">ID Document (.pdf, .jpg, .png)</label>
-              <input type="file" id="uploadDocId" accept=".pdf,.png,.jpg" style="font-size: 12px; width: 100%;">
+              <label class="form-label-sm">ID Document (.pdf, .jpg, .png)</label>
+              <input type="file" id="uploadDocId" accept=".pdf,.png,.jpg" class="file-control">
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px;">Payslips (.pdf)</label>
-              <input type="file" id="uploadPayslips" accept=".pdf" style="font-size: 12px; width: 100%;">
+              <label class="form-label-sm">Payslips (.pdf)</label>
+              <input type="file" id="uploadPayslips" accept=".pdf" class="file-control">
             </div>
             <div>
-              <label style="font-size: 12px; font-weight: 600; color: #64748b; display: block; margin-bottom: 4px;">Certificates (.pdf)</label>
-              <input type="file" id="uploadCerts" accept=".pdf" style="font-size: 12px; width: 100%;">
+              <label class="form-label-sm">Certificates (.pdf)</label>
+              <input type="file" id="uploadCerts" accept=".pdf" class="file-control">
             </div>
           </div>
         </div>
 
-        <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px;">
+        <div class="modal-actions">
           <button type="button" id="cancelEditRecruitBtn" class="btn-secondary">Cancel</button>
           <button type="submit" class="btn-primary">Save Changes</button>
         </div>

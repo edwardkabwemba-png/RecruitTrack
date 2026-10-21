@@ -61,7 +61,7 @@ module.exports = async function (context, req) {
     // GET REQUESTS
     // =========================================================================
     if (req.method === 'GET') {
-      const { action, id, country } = req.query;
+      const { action, id, country, search, stage } = req.query;
 
       if (action === 'locations') {
         const queryCountry = country || 'South Africa';
@@ -92,6 +92,13 @@ module.exports = async function (context, req) {
       }
 
       if (action === 'recent' || !action) {
+        const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
+        const stageFilter = stage && stage.trim() !== '' && stage.trim() !== 'All' ? stage.trim() : null;
+
+        const reqQuery = pool.request();
+        reqQuery.input('Search', sql.NVarChar(100), searchPattern);
+        reqQuery.input('Stage', sql.NVarChar(50), stageFilter);
+
         const query = `
           SELECT TOP 50 
             r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate, r.CurrentLocation,
@@ -104,9 +111,18 @@ module.exports = async function (context, req) {
           LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
           LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
           LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
+          WHERE 1=1
+            AND (
+              @Search IS NULL OR 
+              r.FirstName LIKE @Search OR 
+              r.Surname LIKE @Search OR 
+              r.Email LIKE @Search OR 
+              p.PositionTitle LIKE @Search
+            )
+            AND (@Stage IS NULL OR @Stage = '' OR a.LifecycleStage = @Stage)
           ORDER BY r.RecruitID DESC;
         `;
-        const result = await pool.request().query(query);
+        const result = await reqQuery.query(query);
         context.res.status = 200;
         context.res.body = result.recordset || [];
         return;
@@ -152,17 +168,17 @@ module.exports = async function (context, req) {
       const parsedDateSourced = safeParseDate(body.dateSourced);
 
       // Perform currency conversions to ZAR prior to saving to existing rate columns
-      const currentCurrency = body.currentCurrency || 'ZAR';
-      const expectedCurrency = body.expectedCurrency || 'ZAR';
+      const currentCurrency = body.currentRateCurrency || body.currentCurrency || 'ZAR';
+      const expectedCurrency = body.expectedRateCurrency || body.expectedCurrency || 'ZAR';
 
       const currentMultiplier = await getZarExchangeRate(pool, currentCurrency);
       const expectedMultiplier = await getZarExchangeRate(pool, expectedCurrency);
 
-      const rawCurrentRate = safeParseFloat(body.currentRate);
-      const rawExpectedRate = safeParseFloat(body.expectedRate);
+      const rawCurrentRate = safeParseFloat(body.currentRateRaw || body.currentRate);
+      const rawExpectedRate = safeParseFloat(body.expectedRateRaw || body.expectedRate);
 
-      const finalCurrentRateZar = rawCurrentRate !== null ? (rawCurrentRate * currentMultiplier) : null;
-      const finalExpectedRateZar = rawExpectedRate !== null ? (rawExpectedRate * expectedMultiplier) : 0.00;
+      const finalCurrentRateZar = safeParseFloat(body.currentRate) ?? (rawCurrentRate !== null ? rawCurrentRate * currentMultiplier : null);
+      const finalExpectedRateZar = safeParseFloat(body.expectedRate) ?? (rawExpectedRate !== null ? rawExpectedRate * expectedMultiplier : 0.00);
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
@@ -188,6 +204,12 @@ module.exports = async function (context, req) {
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
             .input('CurrentRate', sql.Decimal(18, 2), finalCurrentRateZar)
             .input('ExpectedRate', sql.Decimal(18, 2), finalExpectedRateZar)
+            .input('CurrentRateFrequency', sql.NVarChar(20), body.currentRateFrequency || 'Monthly')
+            .input('CurrentRateCurrency', sql.NVarChar(10), currentCurrency)
+            .input('CurrentRateRaw', sql.Decimal(18, 2), rawCurrentRate)
+            .input('ExpectedRateFrequency', sql.NVarChar(20), body.expectedRateFrequency || 'Monthly')
+            .input('ExpectedRateCurrency', sql.NVarChar(10), expectedCurrency)
+            .input('ExpectedRateRaw', sql.Decimal(18, 2), rawExpectedRate)
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
@@ -196,13 +218,17 @@ module.exports = async function (context, req) {
               INSERT INTO dbo.Recruits (
                 FirstName, Surname, Email, Phone, CountryOfResidency, CurrentLocation, SeniorityLevel,
                 TotalYearsExperience, CurrentRole, RoleClassification, IdType, IdNumber, 
-                CurrentRate, ExpectedRate, NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
+                CurrentRate, ExpectedRate, CurrentRateFrequency, CurrentRateCurrency, CurrentRateRaw,
+                ExpectedRateFrequency, ExpectedRateCurrency, ExpectedRateRaw,
+                NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
               )
               OUTPUT INSERTED.RecruitID
               VALUES (
                 @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @CurrentLocation, @SeniorityLevel,
                 @TotalYearsExperience, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
-                @CurrentRate, @ExpectedRate, @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
+                @CurrentRate, @ExpectedRate, @CurrentRateFrequency, @CurrentRateCurrency, @CurrentRateRaw,
+                @ExpectedRateFrequency, @ExpectedRateCurrency, @ExpectedRateRaw,
+                @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
               );
             `);
 
@@ -253,6 +279,12 @@ module.exports = async function (context, req) {
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
             .input('CurrentRate', sql.Decimal(18, 2), finalCurrentRateZar)
             .input('ExpectedRate', sql.Decimal(18, 2), finalExpectedRateZar)
+            .input('CurrentRateFrequency', sql.NVarChar(20), body.currentRateFrequency || 'Monthly')
+            .input('CurrentRateCurrency', sql.NVarChar(10), currentCurrency)
+            .input('CurrentRateRaw', sql.Decimal(18, 2), rawCurrentRate)
+            .input('ExpectedRateFrequency', sql.NVarChar(20), body.expectedRateFrequency || 'Monthly')
+            .input('ExpectedRateCurrency', sql.NVarChar(10), expectedCurrency)
+            .input('ExpectedRateRaw', sql.Decimal(18, 2), rawExpectedRate)
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
@@ -264,7 +296,10 @@ module.exports = async function (context, req) {
                   SeniorityLevel = @SeniorityLevel, TotalYearsExperience = @TotalYearsExperience, 
                   CurrentRole = @CurrentRole, RoleClassification = @RoleClassification, 
                   IdType = @IdType, IdNumber = @IdNumber, CurrentRate = @CurrentRate, 
-                  ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
+                  ExpectedRate = @ExpectedRate, CurrentRateFrequency = @CurrentRateFrequency,
+                  CurrentRateCurrency = @CurrentRateCurrency, CurrentRateRaw = @CurrentRateRaw,
+                  ExpectedRateFrequency = @ExpectedRateFrequency, ExpectedRateCurrency = @ExpectedRateCurrency,
+                  ExpectedRateRaw = @ExpectedRateRaw, NoticePeriod = @NoticePeriod,
                   Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
               WHERE RecruitID = @RecruitID;
             `);

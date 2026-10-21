@@ -1,3 +1,5 @@
+let roleDebounceTimer = null;
+
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
@@ -12,22 +14,61 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  setupRoleFilterListeners();
   await fetchAndRenderRoles();
 });
+
+function setupRoleFilterListeners() {
+  const searchInput = document.getElementById('roleSearchInput') || document.querySelector('.filter-bar input[type="text"]');
+  const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
+  const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
+
+  // Debounced search on typing
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(roleDebounceTimer);
+    roleDebounceTimer = setTimeout(() => {
+      fetchAndRenderRoles();
+    }, 300);
+  });
+
+  // Query immediately on status selection change
+  statusFilter?.addEventListener('change', () => {
+    fetchAndRenderRoles();
+  });
+
+  // Query immediately on "My Roles Only" toggle
+  myRolesCheckbox?.addEventListener('change', () => {
+    fetchAndRenderRoles();
+  });
+}
 
 async function fetchAndRenderRoles() {
   const tbody = document.getElementById('roles-table-body');
   if (!tbody) return;
 
   const activeUserId = getStoredUserId();
+  const searchInput = document.getElementById('roleSearchInput') || document.querySelector('.filter-bar input[type="text"]');
+  const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
+  const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
+
+  const searchVal = searchInput?.value.trim() || '';
+  const statusRaw = statusFilter?.value || '';
+  const statusVal = statusRaw.startsWith('Status:') ? '' : statusRaw;
+  const myRolesVal = myRolesCheckbox?.checked ? 'true' : 'false';
 
   try {
+    const params = new URLSearchParams();
+    if (searchVal) params.append('search', searchVal);
+    if (statusVal && statusVal !== 'All') params.append('status', statusVal);
+    if (myRolesVal === 'true') params.append('myRoles', 'true');
+
     const headers = { 
       'Content-Type': 'application/json',
       'x-user-id': activeUserId.toString()
     };
 
-    const res = await fetch('/api/roles', { headers });
+    const targetUrl = params.toString() ? `/api/roles?${params.toString()}` : '/api/roles';
+    const res = await fetch(targetUrl, { headers });
     
     if (res.status === 401 || res.status === 403) {
       localStorage.removeItem("user");
@@ -44,7 +85,7 @@ async function fetchAndRenderRoles() {
     const roles = await res.json();
 
     if (!Array.isArray(roles) || roles.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No roles found in database. Click "+ New Role" to create one.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No roles found matching your filter criteria.</td></tr>`;
       return;
     }
 
