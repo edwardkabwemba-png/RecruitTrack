@@ -401,16 +401,17 @@ table.data-table tbody tr:hover {
 }
 
 /* Red Badge styling for Not Successful / Failed Candidates */
+/* Red Badge styling for Unsuccessful / Failed Candidates */
 .badge-failed,
 .badge-not-successful,
-span.badge.badge-failed {
+span.badge-failed {
   background-color: #fee2e2 !important;
   color: #991b1b !important;
   border: 1px solid #fca5a5 !important;
   font-weight: 700 !important;
 }
 
-/* Red Progress Bar Segment */
+/* Red Progress Bar for Unsuccessful / Failed Candidates */
 .bg-failed,
 .progress-segment.bg-failed {
   background-color: #ef4444 !important;

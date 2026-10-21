@@ -69,7 +69,7 @@ async function loadDashboardData(userId, searchTerm = '') {
 }
 
 // =========================================================================
-// SECTION 1 — Roles We're Currently Sourcing For (All Stages Included)
+// SECTION 1 — Roles We're Currently Sourcing For (Always includes Unsuccessful)
 // =========================================================================
 function renderRoles(roles) {
   const container = document.getElementById('rolesContainer');
@@ -88,9 +88,11 @@ function renderRoles(roles) {
     const interviewed = r.InterviewedCount || r.InterviewCount || 0;
     const offer = r.OfferSentCount || r.OfferCount || 0;
     const hired = r.HiredCount || 0;
-    const failed = r.FailedCount || r.NotSuccessfulCount || 0;
+    
+    // Read unsuccessful count from any possible API field name
+    const unsuccessful = r.UnsuccessfulCount || r.NotSuccessfulCount || r.FailedCount || 0;
 
-    const total = r.TotalCandidates || (sourced + discussion + screened + cv + interviewed + offer + hired + failed) || 1;
+    const total = r.TotalCandidates || (sourced + discussion + screened + cv + interviewed + offer + hired + unsuccessful) || 1;
 
     const sourcedPct = (sourced / total) * 100;
     const discussionPct = (discussion / total) * 100;
@@ -99,7 +101,7 @@ function renderRoles(roles) {
     const interviewPct = (interviewed / total) * 100;
     const offerPct = (offer / total) * 100;
     const hiredPct = (hired / total) * 100;
-    const failedPct = (failed / total) * 100;
+    const unsuccessfulPct = (unsuccessful / total) * 100;
 
     return `
       <div class="role-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
@@ -122,22 +124,22 @@ function renderRoles(roles) {
 
         <div class="progress-group" style="margin-top: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; color: #475569; margin-bottom: 6px;">
-            <span><strong>Role total:</strong> ${r.TotalCandidates || (total === 1 && (sourced + discussion + screened + cv + interviewed + offer + hired + failed) === 0 ? 0 : total)} candidate(s)</span>
+            <span><strong>Role total:</strong> ${r.TotalCandidates || (total === 1 && (sourced + discussion + screened + cv + interviewed + offer + hired + unsuccessful) === 0 ? 0 : total)} candidate(s)</span>
             
-            <!-- All Stage Counts in Colors -->
+            <!-- All Stage Counts ALWAYS including Unsuccessful -->
             <div class="role-stage-counts" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.8rem; font-weight: 600;">
-              <span class="c-sourced">${sourced} Sourced</span> •
-              <span class="c-discussion">${discussion} Discussion</span> •
-              <span class="c-screened">${screened} Screened</span> •
-              <span class="c-cv">${cv} CV Prepared</span> •
-              <span class="c-interviewed">${interviewed} Interview</span> •
-              <span class="c-offer">${offer} Offer</span> •
-              <span class="c-hired">${hired} Hired</span>
-              ${failed > 0 ? `• <span class="c-failed">${failed} Not Successful</span>` : ''}
+              <span style="color: #0369a1;">${sourced} Sourced</span> •
+              <span style="color: #1d4ed8;">${discussion} Discussion</span> •
+              <span style="color: #92400e;">${screened} Screened</span> •
+              <span style="color: #6b21a8;">${cv} CV Prepared</span> •
+              <span style="color: #3730a3;">${interviewed} Interview</span> •
+              <span style="color: #9a3412;">${offer} Offer</span> •
+              <span style="color: #166534;">${hired} Hired</span> •
+              <span style="color: #dc2626; font-weight: 700;">${unsuccessful} Unsuccessful</span>
             </div>
           </div>
 
-          <!-- Multi-Segmented Bar -->
+          <!-- Multi-Segmented Progress Bar -->
           <div class="progress-bar-container" style="display: flex; width: 100%; height: 8px; background-color: #e2e8f0; border-radius: 4px; overflow: hidden;">
             <div class="progress-segment bg-sourced" style="width: ${sourcedPct}%; height: 100%;"></div>
             <div class="progress-segment bg-discussion" style="width: ${discussionPct}%; height: 100%;"></div>
@@ -146,7 +148,7 @@ function renderRoles(roles) {
             <div class="progress-segment bg-interview" style="width: ${interviewPct}%; height: 100%;"></div>
             <div class="progress-segment bg-offer" style="width: ${offerPct}%; height: 100%;"></div>
             <div class="progress-segment bg-hired" style="width: ${hiredPct}%; height: 100%;"></div>
-            <div class="progress-segment bg-failed" style="width: ${failedPct}%; height: 100%;"></div>
+            <div class="progress-segment bg-failed" style="width: ${unsuccessfulPct}%; height: 100%; background-color: #ef4444;"></div>
           </div>
         </div>
       </div>
@@ -167,7 +169,7 @@ function toggleDetails(elemId, btn) {
 }
 
 // =========================================================================
-// SECTION 2 — My Candidates: Pending & In Progress (Red Badges Fixed)
+// SECTION 2 — My Candidates: Pending & In Progress (Guaranteed Red Badge & Bar)
 // =========================================================================
 function renderCandidates(candidates) {
   const container = document.getElementById('candidatesContainer');
@@ -191,8 +193,14 @@ function renderCandidates(candidates) {
   container.innerHTML = candidates.map(c => {
     const rawStageStr = String(c.Stage || c.LifecycleStage || 'Sourced').trim();
 
-    // Check if candidate is marked as failed / not successful
-    const isFailed = !!(c.IsFailed || c.isFailed || rawStageStr.toUpperCase().includes('NOT SUCCESSFUL') || rawStageStr.toUpperCase().includes('FAILED'));
+    // Direct check for failed / not successful status
+    const isFailed = !!(
+      c.IsFailed || 
+      c.isFailed || 
+      rawStageStr.toUpperCase().includes('NOT SUCCESSFUL') || 
+      rawStageStr.toUpperCase().includes('FAILED') ||
+      rawStageStr.toUpperCase().includes('UNSUCCESSFUL')
+    );
 
     const normalizedStageLabel = getStageLabel(rawStageStr);
 
@@ -202,8 +210,17 @@ function renderCandidates(candidates) {
     const pct = stagePercentages[normalizedStageLabel] || 14;
 
     const displayBadgeText = isFailed 
-      ? (rawStageStr.toUpperCase().includes('NOT SUCCESSFUL') ? rawStageStr : `NOT SUCCESSFUL — ${normalizedStageLabel.toUpperCase()}`)
+      ? (rawStageStr.toUpperCase().includes('NOT SUCCESSFUL') ? rawStageStr.toUpperCase() : `NOT SUCCESSFUL — ${normalizedStageLabel.toUpperCase()}`)
       : normalizedStageLabel.toUpperCase();
+
+    // Explicit red styling applied directly to element to ensure override
+    const redBadgeInlineStyle = isFailed 
+      ? 'background-color: #fee2e2 !important; color: #991b1b !important; border: 1px solid #fca5a5 !important; font-weight: 700 !important; padding: 4px 10px; border-radius: 12px; display: inline-block; font-size: 0.75rem;'
+      : 'padding: 4px 10px; border-radius: 12px; display: inline-block; font-size: 0.75rem;';
+
+    const redBarInlineStyle = isFailed 
+      ? 'width: ' + pct + '%; height: 100%; background-color: #ef4444 !important;' 
+      : 'width: ' + pct + '%; height: 100%;';
 
     return `
       <div class="candidate-row" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #f1f5f9; gap: 12px; flex-wrap: wrap;">
@@ -218,12 +235,12 @@ function renderCandidates(candidates) {
         <div class="candidate-role" style="min-width: 120px; color: #64748b; font-size: 0.8rem;">
           Sourced ${c.DateSourced ? new Date(c.DateSourced).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'N/A'}
         </div>
-        <div class="candidate-stage" style="min-width: 160px;">
-          <span class="badge ${badgeClass}">${displayBadgeText}</span>
+        <div class="candidate-stage" style="min-width: 180px;">
+          <span class="badge ${badgeClass}" style="${redBadgeInlineStyle}">${displayBadgeText}</span>
         </div>
         <div class="candidate-progress" style="display: flex; align-items: center; gap: 8px; min-width: 140px; flex: 1;">
           <div class="progress-bar-container" style="flex: 1; margin: 0; background-color: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
-            <div class="progress-segment ${bgClass}" style="width: ${pct}%; height: 100%;"></div>
+            <div class="progress-segment ${bgClass}" style="${redBarInlineStyle}"></div>
           </div>
           <span style="font-size: 0.75rem; color: #64748b; width: 35px; text-align: right;">${pct}%</span>
         </div>
@@ -253,7 +270,7 @@ function getStageLabel(stage) {
   if (!stage) return 'Sourced';
 
   let stageStr = String(stage).trim();
-  if (stageStr.toUpperCase().includes('NOT SUCCESSFUL')) {
+  if (stageStr.toUpperCase().includes('NOT SUCCESSFUL') || stageStr.toUpperCase().includes('UNSUCCESSFUL')) {
     stageStr = stageStr.split('—').pop().split('-').pop().trim();
   }
 
