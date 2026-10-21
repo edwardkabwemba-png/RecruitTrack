@@ -861,3 +861,26 @@ body.page-login {
 .btn-submit:active {
   background-color: #2a4365;
 }
+
+/* Fail/Not Successful styling on Add/Edit Recruit Page */
+.stage-node.failed {
+  background-color: #ef4444 !important;
+  border-color: #dc2626 !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2);
+}
+
+.btn-not-successful.is-failed {
+  background-color: #3b82f6 !important;
+  color: #ffffff !important;
+}
+
+/* Stage Badge styling on Dashboard / Manage Recruits Page */
+.stage-badge.badge-failed,
+.stage-badge.badge-not-successful,
+.badge-failed {
+  background-color: #fee2e2 !important;
+  color: #991b1b !important;
+  border: 1px solid #fca5a5 !important;
+  font-weight: 600;
+}

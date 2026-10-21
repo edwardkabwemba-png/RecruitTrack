@@ -120,15 +120,12 @@ function getStageLabel(stage) {
 }
 
 // Map lifecycle stage to matching CSS badge styles
-function getStageBadgeClass(stageName) {
-  switch (stageName) {
-    case 'Sourced': return 'badge-sourced';
-    case 'In Discussion': return 'badge-discussion';
-    case 'Screened': return 'badge-screened';
-    case 'CV Prepared': return 'badge-cv';
-    case 'Interviewed': return 'badge-interviewed';
-    case 'Offer Sent': return 'badge-offer';
-    case 'Hired': return 'badge-hired';
-    default: return 'badge-sourced';
+function getStageBadgeHtml(stage, isFailed) {
+  const stageStr = String(stage || 'Sourced').trim();
+  
+  if (isFailed || stageStr.includes('Not Successful') || stageStr.includes('Failed')) {
+    return `<span class="stage-badge badge-failed">${stageStr}</span>`;
   }
+  
+  return `<span class="stage-badge badge-active">${stageStr}</span>`;
 }
