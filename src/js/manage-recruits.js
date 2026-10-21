@@ -1,3 +1,5 @@
+let searchDebounceTimer = null;
+
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
@@ -12,15 +14,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
+  setupFilterListeners();
   await fetchRecentRecruits();
 });
+
+function setupFilterListeners() {
+  const searchInput = document.getElementById('searchInput');
+  const stageFilter = document.getElementById('stageFilter');
+
+  // Debounced live database query on typing
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      fetchRecentRecruits();
+    }, 300);
+  });
+
+  // Query database immediately on dropdown change
+  stageFilter?.addEventListener('change', () => {
+    fetchRecentRecruits();
+  });
+}
 
 async function fetchRecentRecruits() {
   const tbody = document.getElementById('recruitsTableBody');
   if (!tbody) return;
 
+  const searchValue = document.getElementById('searchInput')?.value.trim() || '';
+  const stageValue = document.getElementById('stageFilter')?.value || '';
+
   try {
-    const response = await fetch('/api/recruits?action=recent', {
+    const queryParams = new URLSearchParams({ action: 'recent' });
+    if (searchValue) queryParams.append('search', searchValue);
+    if (stageValue && stageValue !== 'All') queryParams.append('stage', stageValue);
+
+    const response = await fetch(`/api/recruits?${queryParams.toString()}`, {
       headers: {
         'x-user-id': getStoredUserId()
       }
@@ -36,7 +64,7 @@ async function fetchRecentRecruits() {
     const data = await response.json();
 
     if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 30px;">No recruits found. Click "+ Add Recruit" to create one.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #64748b; padding: 30px;">No recruits found matching your search criteria.</td></tr>`;
       return;
     }
 
@@ -52,7 +80,7 @@ async function fetchRecentRecruits() {
             ${r.Email || 'N/A'}<br>
             <small style="color: #64748b;">${r.Phone || r.PhoneNumber || ''}</small>
           </td>
-          <td>${r.PositionTitle ? `${r.PositionTitle} @${r.ClientName}` : 'Unassigned'}</td>
+          <td>${r.PositionTitle ? `${r.PositionTitle} @${r.ClientName || ''}` : 'Unassigned'}</td>
           <td>${r.RecruiterName || 'Unassigned'}</td>
           <td>
             <span class="badge ${badgeClass}">${stageName}</span>

@@ -31,12 +31,12 @@ const safeParseDate = (val) => {
 
 // Exchange rate lookup function converting selected currency to ZAR multiplier
 async function getZarExchangeRate(pool, currency) {
-  if (!currency || currency === 'ZAR') return 1.0;
-  const pair = `${currency}_ZAR`;
+  if (!currency || currency.toUpperCase().trim() === 'ZAR') return 1.0;
+  const pair = `${currency.toUpperCase().trim()}_ZAR`;
   try {
     const res = await pool.request()
       .input('Pair', sql.NVarChar(10), pair)
-      .query("SELECT TOP 1 Rate FROM dbo.ExchangeRates WHERE CurrencyPair = @Pair");
+      .query("SELECT TOP 1 Rate FROM dbo.ExchangeRates WHERE UPPER(CurrencyPair) = UPPER(@Pair)");
 
     if (res.recordset && res.recordset.length > 0) {
       return parseFloat(res.recordset[0].Rate);
@@ -61,7 +61,7 @@ module.exports = async function (context, req) {
     // GET REQUESTS
     // =========================================================================
     if (req.method === 'GET') {
-      const { action, id, country } = req.query;
+      const { action, id, country, search, stage } = req.query;
 
       if (action === 'locations') {
         const queryCountry = country || 'South Africa';
@@ -91,7 +91,43 @@ module.exports = async function (context, req) {
         return;
       }
 
+      if (action === 'exchangeRates') {
+        const rates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
+        context.res.status = 200;
+        context.res.body = rates.recordset || [];
+        return;
+      }
+
+      if (action === 'dropdowns') {
+        const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
+        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
+        const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
+        const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
+        const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
+        const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
+        const exchangeRates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
+
+        context.res.status = 200;
+        context.res.body = {
+          recruiters: recruiters.recordset,
+          sources: sources.recordset,
+          roles: roles.recordset,
+          skills: skills.recordset,
+          certifications: certs.recordset,
+          positions: positions.recordset,
+          exchangeRates: exchangeRates.recordset || []
+        };
+        return;
+      }
+
       if (action === 'recent' || !action) {
+        const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
+        const stageFilter = stage && stage.trim() !== '' && stage.trim() !== 'All' ? stage.trim() : null;
+
+        const reqQuery = pool.request();
+        reqQuery.input('Search', sql.NVarChar(100), searchPattern);
+        reqQuery.input('Stage', sql.NVarChar(50), stageFilter);
+
         const query = `
           SELECT TOP 50 
             r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate, r.CurrentLocation,
@@ -104,31 +140,20 @@ module.exports = async function (context, req) {
           LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
           LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
           LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
+          WHERE 1=1
+            AND (
+              @Search IS NULL OR 
+              r.FirstName LIKE @Search OR 
+              r.Surname LIKE @Search OR 
+              r.Email LIKE @Search OR 
+              p.PositionTitle LIKE @Search
+            )
+            AND (@Stage IS NULL OR @Stage = '' OR a.LifecycleStage = @Stage)
           ORDER BY r.RecruitID DESC;
         `;
-        const result = await pool.request().query(query);
+        const result = await reqQuery.query(query);
         context.res.status = 200;
         context.res.body = result.recordset || [];
-        return;
-      }
-
-      if (action === 'dropdowns') {
-        const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
-        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
-        const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
-        const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
-        const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
-        const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
-
-        context.res.status = 200;
-        context.res.body = {
-          recruiters: recruiters.recordset,
-          sources: sources.recordset,
-          roles: roles.recordset,
-          skills: skills.recordset,
-          certifications: certs.recordset,
-          positions: positions.recordset
-        };
         return;
       }
     }
@@ -151,18 +176,25 @@ module.exports = async function (context, req) {
       const assignedRecruiterId = safeParseInt(body.recruiterId) || activeUserId;
       const parsedDateSourced = safeParseDate(body.dateSourced);
 
-      // Perform currency conversions to ZAR prior to saving to existing rate columns
-      const currentCurrency = body.currentCurrency || 'ZAR';
-      const expectedCurrency = body.expectedCurrency || 'ZAR';
+      const currentCurrency = (body.currentRateCurrency || body.currentCurrency || 'ZAR').toUpperCase().trim();
+      const expectedCurrency = (body.expectedRateCurrency || body.expectedCurrency || 'ZAR').toUpperCase().trim();
 
+      // Look up multipliers from SQL table dbo.ExchangeRates
       const currentMultiplier = await getZarExchangeRate(pool, currentCurrency);
       const expectedMultiplier = await getZarExchangeRate(pool, expectedCurrency);
 
-      const rawCurrentRate = safeParseFloat(body.currentRate);
-      const rawExpectedRate = safeParseFloat(body.expectedRate);
+      // Parse the raw input value entered by the user
+      const rawCurrentRate = safeParseFloat(body.currentRateRaw || body.currentRateOriginal || body.currentRate);
+      const rawExpectedRate = safeParseFloat(body.expectedRateRaw || body.expectedRateOriginal || body.expectedRate);
 
-      const finalCurrentRateZar = rawCurrentRate !== null ? (rawCurrentRate * currentMultiplier) : null;
-      const finalExpectedRateZar = rawExpectedRate !== null ? (rawExpectedRate * expectedMultiplier) : 0.00;
+      // ALWAYS perform the server-side multiplication to get Rand value for DB storage
+      const finalCurrentRateZar = currentCurrency === 'ZAR' 
+        ? rawCurrentRate 
+        : (rawCurrentRate !== null ? parseFloat((rawCurrentRate * currentMultiplier).toFixed(2)) : null);
+
+      const finalExpectedRateZar = expectedCurrency === 'ZAR' 
+        ? rawExpectedRate 
+        : (rawExpectedRate !== null ? parseFloat((rawExpectedRate * expectedMultiplier).toFixed(2)) : null);
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
@@ -188,6 +220,12 @@ module.exports = async function (context, req) {
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
             .input('CurrentRate', sql.Decimal(18, 2), finalCurrentRateZar)
             .input('ExpectedRate', sql.Decimal(18, 2), finalExpectedRateZar)
+            .input('CurrentRateFrequency', sql.NVarChar(20), body.currentRateFrequency || 'Monthly')
+            .input('CurrentRateCurrency', sql.NVarChar(10), currentCurrency)
+            .input('CurrentRateRaw', sql.Decimal(18, 2), rawCurrentRate)
+            .input('ExpectedRateFrequency', sql.NVarChar(20), body.expectedRateFrequency || 'Monthly')
+            .input('ExpectedRateCurrency', sql.NVarChar(10), expectedCurrency)
+            .input('ExpectedRateRaw', sql.Decimal(18, 2), rawExpectedRate)
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
@@ -196,13 +234,17 @@ module.exports = async function (context, req) {
               INSERT INTO dbo.Recruits (
                 FirstName, Surname, Email, Phone, CountryOfResidency, CurrentLocation, SeniorityLevel,
                 TotalYearsExperience, CurrentRole, RoleClassification, IdType, IdNumber, 
-                CurrentRate, ExpectedRate, NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
+                CurrentRate, ExpectedRate, CurrentRateFrequency, CurrentRateCurrency, CurrentRateRaw,
+                ExpectedRateFrequency, ExpectedRateCurrency, ExpectedRateRaw,
+                NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
               )
               OUTPUT INSERTED.RecruitID
               VALUES (
                 @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @CurrentLocation, @SeniorityLevel,
                 @TotalYearsExperience, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
-                @CurrentRate, @ExpectedRate, @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
+                @CurrentRate, @ExpectedRate, @CurrentRateFrequency, @CurrentRateCurrency, @CurrentRateRaw,
+                @ExpectedRateFrequency, @ExpectedRateCurrency, @ExpectedRateRaw,
+                @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
               );
             `);
 
@@ -253,6 +295,12 @@ module.exports = async function (context, req) {
             .input('IdNumber', sql.NVarChar(100), body.idNumber || null)
             .input('CurrentRate', sql.Decimal(18, 2), finalCurrentRateZar)
             .input('ExpectedRate', sql.Decimal(18, 2), finalExpectedRateZar)
+            .input('CurrentRateFrequency', sql.NVarChar(20), body.currentRateFrequency || 'Monthly')
+            .input('CurrentRateCurrency', sql.NVarChar(10), currentCurrency)
+            .input('CurrentRateRaw', sql.Decimal(18, 2), rawCurrentRate)
+            .input('ExpectedRateFrequency', sql.NVarChar(20), body.expectedRateFrequency || 'Monthly')
+            .input('ExpectedRateCurrency', sql.NVarChar(10), expectedCurrency)
+            .input('ExpectedRateRaw', sql.Decimal(18, 2), rawExpectedRate)
             .input('NoticePeriod', sql.NVarChar(50), body.noticePeriod || null)
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
@@ -264,7 +312,10 @@ module.exports = async function (context, req) {
                   SeniorityLevel = @SeniorityLevel, TotalYearsExperience = @TotalYearsExperience, 
                   CurrentRole = @CurrentRole, RoleClassification = @RoleClassification, 
                   IdType = @IdType, IdNumber = @IdNumber, CurrentRate = @CurrentRate, 
-                  ExpectedRate = @ExpectedRate, NoticePeriod = @NoticePeriod,
+                  ExpectedRate = @ExpectedRate, CurrentRateFrequency = @CurrentRateFrequency,
+                  CurrentRateCurrency = @CurrentRateCurrency, CurrentRateRaw = @CurrentRateRaw,
+                  ExpectedRateFrequency = @ExpectedRateFrequency, ExpectedRateCurrency = @ExpectedRateCurrency,
+                  ExpectedRateRaw = @ExpectedRateRaw, NoticePeriod = @NoticePeriod,
                   Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
               WHERE RecruitID = @RecruitID;
             `);

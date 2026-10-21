@@ -20,9 +20,9 @@ module.exports = async function (context, req) {
     // GET ROLES
     // ==========================================
     if (req.method === 'GET') {
-      const { positionId, clientId, id } = req.query;
+      const { positionId, clientId, id, search, status, stage, myRoles } = req.query;
 
-let query = 
+      let query = 
         'SELECT ' +
         '  r.RoleID, ' +
         '  r.PositionID, ' +
@@ -44,7 +44,8 @@ let query =
         '  rec.RecruiterIDs, ' +
         '  skReq.RequiredSkills, ' +
         '  skNice.NiceToHaveSkills, ' +
-        '  cert.RequiredCertifications ' +
+        '  cert.RequiredCertifications, ' +
+        '  ISNULL(cand.CandidateCount, 0) AS CandidateCount ' +
         'FROM dbo.Roles r ' +
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
@@ -59,7 +60,14 @@ let query =
         '  WHERE rr.RoleID = r.RoleID ' +
         ') rec ' +
 
-        // Required Skills Aggregation (with MinYears formatted)
+        // Candidate Count Aggregation
+        'OUTER APPLY ( ' +
+        '  SELECT COUNT(DISTINCT app.RecruitID) AS CandidateCount ' +
+        '  FROM dbo.Applications app ' +
+        '  WHERE app.RoleID = r.RoleID ' +
+        ') cand ' +
+
+        // Required Skills Aggregation
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG( ' +
         '    CONCAT(sl.SkillName, CASE WHEN rs.MinYears > 0 THEN CONCAT(\' (\', CAST(rs.MinYears AS VARCHAR(10)), \' yrs)\') ELSE \'\' END), ' +
@@ -70,7 +78,7 @@ let query =
         '  WHERE rs.RoleID = r.RoleID AND rs.IsRequired = 1 ' +
         ') skReq ' +
 
-        // Nice-To-Have Skills Aggregation (with MinYears formatted)
+        // Nice-To-Have Skills Aggregation
         'OUTER APPLY ( ' +
         '  SELECT STRING_AGG( ' +
         '    CONCAT(sl.SkillName, CASE WHEN rs.MinYears > 0 THEN CONCAT(\' (\', CAST(rs.MinYears AS VARCHAR(10)), \' yrs)\') ELSE \'\' END), ' +
@@ -95,6 +103,22 @@ let query =
       } else {
         if (positionId) whereConditions.push('r.PositionID = @PositionID');
         if (clientId) whereConditions.push('r.ClientID = @ClientID');
+
+        // Status Filter
+        const targetStatus = status || stage;
+        if (targetStatus && targetStatus !== 'All' && !targetStatus.startsWith('Status:')) {
+          whereConditions.push('r.Status = @Status');
+        }
+
+        // Search Filter
+        if (search && search.trim() !== '') {
+          whereConditions.push('(p.PositionTitle LIKE @Search OR c.ClientName LIKE @Search OR CAST(r.RoleID AS NVARCHAR(20)) LIKE @SearchClean)');
+        }
+
+        // My Roles Filter
+        if (myRoles === 'true' && activeUserId) {
+          whereConditions.push('EXISTS (SELECT 1 FROM dbo.RoleRecruiters myRR WHERE myRR.RoleID = r.RoleID AND myRR.UserID = @ActiveUserID)');
+        }
       }
 
       if (whereConditions.length > 0) {
@@ -109,6 +133,22 @@ let query =
       } else {
         if (positionId) request.input('PositionID', sql.Int, parseInt(positionId, 10));
         if (clientId) request.input('ClientID', sql.Int, parseInt(clientId, 10));
+
+        const targetStatus = status || stage;
+        if (targetStatus && targetStatus !== 'All' && !targetStatus.startsWith('Status:')) {
+          request.input('Status', sql.NVarChar(50), targetStatus);
+        }
+
+        if (search && search.trim() !== '') {
+          const cleanSearch = search.trim();
+          const digitsOnly = cleanSearch.replace(/[^0-9]/g, '');
+          request.input('Search', sql.NVarChar(100), `%${cleanSearch}%`);
+          request.input('SearchClean', sql.NVarChar(100), `%${digitsOnly || cleanSearch}%`);
+        }
+
+        if (myRoles === 'true' && activeUserId) {
+          request.input('ActiveUserID', sql.Int, activeUserId);
+        }
       }
 
       const result = await request.query(query);
@@ -139,7 +179,6 @@ let query =
         return;
       }
 
-      // Verify the UserID exists in dbo.Users
       const userCheck = await pool.request()
         .input('CheckUserID', sql.Int, activeUserId)
         .query('SELECT TOP 1 UserID FROM dbo.Users WHERE UserID = @CheckUserID');
@@ -152,12 +191,10 @@ let query =
         return;
       }
 
-      // Use a SQL Transaction to ensure Role + Skills/Certs/Recruiters are saved atomically
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
 
       try {
-        // 1. Insert into dbo.Roles
         const insertRoleQuery = 
           'INSERT INTO dbo.Roles ' +
           '  (PositionID, ClientID, SeniorityLevel, MinEducation, FieldOfStudy, MinYearsExperience, Location, WorkModel, RateBudgetMin, RateBudgetMax, Status, CreatedByUserID, CreatedDate) ' +
@@ -184,43 +221,40 @@ let query =
 
         const newRoleId = roleResult.recordset[0].RoleID;
 
-// 2. Insert Required Skills into dbo.RoleSkills with MinYears
-if (Array.isArray(reqSkills) && reqSkills.length > 0) {
-  for (const item of reqSkills) {
-    const skillId = parseInt(item.id, 10);
-    const minYears = item.years ? parseInt(item.years, 10) : 0;
+        if (Array.isArray(reqSkills) && reqSkills.length > 0) {
+          for (const item of reqSkills) {
+            const skillId = parseInt(item.id, 10);
+            const minYears = item.years ? parseInt(item.years, 10) : 0;
 
-    if (!isNaN(skillId)) {
-      const skillReq = new sql.Request(transaction);
-      await skillReq
-        .input('RoleID', sql.Int, newRoleId)
-        .input('SkillID', sql.Int, skillId)
-        .input('IsRequired', sql.Bit, 1)
-        .input('MinYears', sql.Int, !isNaN(minYears) ? minYears : 0)
-        .query('INSERT INTO dbo.RoleSkills (RoleID, SkillID, IsRequired, MinYears) VALUES (@RoleID, @SkillID, @IsRequired, @MinYears)');
-    }
-  }
-}
+            if (!isNaN(skillId)) {
+              const skillReq = new sql.Request(transaction);
+              await skillReq
+                .input('RoleID', sql.Int, newRoleId)
+                .input('SkillID', sql.Int, skillId)
+                .input('IsRequired', sql.Bit, 1)
+                .input('MinYears', sql.Int, !isNaN(minYears) ? minYears : 0)
+                .query('INSERT INTO dbo.RoleSkills (RoleID, SkillID, IsRequired, MinYears) VALUES (@RoleID, @SkillID, @IsRequired, @MinYears)');
+            }
+          }
+        }
 
-// 3. Insert Nice-to-Have Skills into dbo.RoleSkills
-if (Array.isArray(niceSkills) && niceSkills.length > 0) {
-  for (const item of niceSkills) {
-    const skillId = parseInt(item.id, 10);
-    const minYears = item.years ? parseInt(item.years, 10) : 0;
+        if (Array.isArray(niceSkills) && niceSkills.length > 0) {
+          for (const item of niceSkills) {
+            const skillId = parseInt(item.id, 10);
+            const minYears = item.years ? parseInt(item.years, 10) : 0;
 
-    if (!isNaN(skillId)) {
-      const skillReq = new sql.Request(transaction);
-      await skillReq
-        .input('RoleID', sql.Int, newRoleId)
-        .input('SkillID', sql.Int, skillId)
-        .input('IsRequired', sql.Bit, 0)
-        .input('MinYears', sql.Int, !isNaN(minYears) ? minYears : 0)
-        .query('INSERT INTO dbo.RoleSkills (RoleID, SkillID, IsRequired, MinYears) VALUES (@RoleID, @SkillID, @IsRequired, @MinYears)');
-    }
-  }
-}
+            if (!isNaN(skillId)) {
+              const skillReq = new sql.Request(transaction);
+              await skillReq
+                .input('RoleID', sql.Int, newRoleId)
+                .input('SkillID', sql.Int, skillId)
+                .input('IsRequired', sql.Bit, 0)
+                .input('MinYears', sql.Int, !isNaN(minYears) ? minYears : 0)
+                .query('INSERT INTO dbo.RoleSkills (RoleID, SkillID, IsRequired, MinYears) VALUES (@RoleID, @SkillID, @IsRequired, @MinYears)');
+            }
+          }
+        }
 
-        // 4. Insert Certifications into dbo.RoleCertifications
         if (Array.isArray(certifications) && certifications.length > 0) {
           for (const item of certifications) {
             const certReq = new sql.Request(transaction);
@@ -231,7 +265,6 @@ if (Array.isArray(niceSkills) && niceSkills.length > 0) {
           }
         }
 
-        // 5. Insert Recruiters into dbo.RoleRecruiters
         if (Array.isArray(recruiters) && recruiters.length > 0) {
           for (const item of recruiters) {
             const recUserId = parseInt(item.id, 10);
@@ -245,7 +278,6 @@ if (Array.isArray(niceSkills) && niceSkills.length > 0) {
           }
         }
 
-        // Commit transaction after all inserts complete
         await transaction.commit();
 
         context.res.status = 201;

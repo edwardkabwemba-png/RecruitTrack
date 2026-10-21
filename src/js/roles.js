@@ -1,3 +1,5 @@
+let roleDebounceTimer = null;
+
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
@@ -12,22 +14,66 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
 
+  setupRoleFilterListeners();
   await fetchAndRenderRoles();
 });
+
+function setupRoleFilterListeners() {
+  const searchInput = document.getElementById('roleSearchInput') || document.querySelector('.filter-bar input[type="text"]');
+  const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
+  const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
+
+  // Debounced live search on typing
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(roleDebounceTimer);
+    roleDebounceTimer = setTimeout(() => {
+      fetchAndRenderRoles();
+    }, 300);
+  });
+
+  // Query immediately on status dropdown selection change
+  statusFilter?.addEventListener('change', () => {
+    fetchAndRenderRoles();
+  });
+
+  // Query immediately on "My Roles Only" toggle
+  myRolesCheckbox?.addEventListener('change', () => {
+    fetchAndRenderRoles();
+  });
+}
 
 async function fetchAndRenderRoles() {
   const tbody = document.getElementById('roles-table-body');
   if (!tbody) return;
 
   const activeUserId = getStoredUserId();
+  const searchInput = document.getElementById('roleSearchInput') || document.querySelector('.filter-bar input[type="text"]');
+  const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
+  const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
+
+  const searchVal = searchInput?.value.trim() || '';
+  let statusVal = statusFilter?.value || '';
+
+  // Clean up status value if "All" or placeholder options are selected
+  if (statusVal.toLowerCase().includes('all') || statusVal.startsWith('Status:')) {
+    statusVal = '';
+  }
+
+  const myRolesVal = myRolesCheckbox?.checked ? 'true' : 'false';
 
   try {
+    const params = new URLSearchParams();
+    if (searchVal) params.append('search', searchVal);
+    if (statusVal) params.append('status', statusVal);
+    if (myRolesVal === 'true') params.append('myRoles', 'true');
+
     const headers = { 
       'Content-Type': 'application/json',
       'x-user-id': activeUserId.toString()
     };
 
-    const res = await fetch('/api/roles', { headers });
+    const targetUrl = params.toString() ? `/api/roles?${params.toString()}` : '/api/roles';
+    const res = await fetch(targetUrl, { headers });
     
     if (res.status === 401 || res.status === 403) {
       localStorage.removeItem("user");
@@ -38,13 +84,18 @@ async function fetchAndRenderRoles() {
 
     if (!res.ok) {
       const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.message || `Server error (Status: ${res.status})`);
+      throw new Error(errData.error || errData.message || `Server error (Status: ${res.status})`);
     }
 
-    const roles = await res.json();
+    let roles = await res.json();
+
+    // Safely parse double-stringified JSON response if returned by backend
+    if (typeof roles === 'string') {
+      try { roles = JSON.parse(roles); } catch (e) {}
+    }
 
     if (!Array.isArray(roles) || roles.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No roles found in database. Click "+ New Role" to create one.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: #64748b;">No roles found matching your filter criteria.</td></tr>`;
       return;
     }
 
@@ -53,6 +104,7 @@ async function fetchAndRenderRoles() {
       const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
       const status = role.Status || 'Active';
       const statusClass = `badge-${status.toLowerCase()}`;
+      const candidateCount = role.CandidateCount || 0;
       
       const initialsList = role.RecruiterInitials ? role.RecruiterInitials.split(',').filter(Boolean) : [];
       const idList = role.RecruiterIDs ? role.RecruiterIDs.split(',').map(Number).filter(Boolean) : [];
@@ -89,6 +141,7 @@ async function fetchAndRenderRoles() {
           <td>${role.ClientName || 'N/A'}</td>
           <td><span class="badge ${statusClass}">${status}</span></td>
           <td>${recruitersHtml}</td>
+          <td><span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.8rem;">${candidateCount}</span></td>
           <td>${actionsHtml}</td>
         </tr>
       `;
@@ -96,7 +149,7 @@ async function fetchAndRenderRoles() {
 
   } catch (err) {
     console.error("Roles table render error:", err);
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding:20px;">Failed to load roles: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red; padding:20px;">Failed to load roles: ${err.message}</td></tr>`;
   }
 }
 
@@ -109,7 +162,6 @@ async function handleRoleAction(action, roleId) {
     return;
   }
 
-  // Confirm with user if attempting to close the ticket/role
   if (action === 'Close') {
     const formattedId = `#RL-${String(roleId).padStart(4, '0')}`;
     const confirmed = confirm(`Are you sure you want to close ticket ${formattedId}? This will archive the role.`);
