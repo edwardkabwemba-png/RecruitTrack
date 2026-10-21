@@ -2,9 +2,9 @@
 app.get('/api/clients', async (req, res) => {
   try {
     const result = await pool.request().query(`
-      SELECT ClientID, ClientName, Industry, ISNULL(IsActive, 1) AS IsActive
+      SELECT ClientID, ClientName, Industry, IsActive
       FROM dbo.Clients
-      WHERE IsActive = 1 OR IsActive IS NULL
+      WHERE IsActive = 1
       ORDER BY ClientName ASC
     `);
     res.json(result.recordset);

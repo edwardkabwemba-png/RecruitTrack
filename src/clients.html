@@ -95,17 +95,28 @@
       return storedUser.userId || storedUser.UserID || storedUser.id || '';
     }
 
-    async function fetchClients() {
-      try {
-        const res = await fetch('/api/clients', {
-          headers: { 'x-user-id': getStoredUserId() }
-        });
-        list = res.ok ? await res.json() : [];
-        renderTable(list);
-      } catch (err) {
-        console.error('Error fetching clients:', err);
-      }
+async function fetchClients() {
+  try {
+    const res = await fetch('/api/clients', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+
+    if (!res.ok) {
+      const errPayload = await res.json().catch(() => ({}));
+      console.error('API Error Response:', errPayload);
+      document.getElementById('clientTableBody').innerHTML = 
+        `<tr><td colspan="3" style="text-align:center; color:#ef4444; padding:20px;">
+          Failed to load clients: ${errPayload.error || res.statusText}
+        </td></tr>`;
+      return;
     }
+
+    list = await res.json();
+    renderTable(list);
+  } catch (err) {
+    console.error('Network/Client Error:', err);
+  }
+}
 
     function renderTable(data) {
       const tbody = document.getElementById('clientTableBody');
