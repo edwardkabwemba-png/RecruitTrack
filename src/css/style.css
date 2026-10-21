@@ -31,6 +31,170 @@ body {
   color: var(--text-main);
 }
 
+/* =========================================================
+   LOGIN PAGE STYLES
+   ========================================================= */
+
+body.page-login {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f4f6f8;
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 36px 32px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+/* Brand Branding */
+.brand-icon {
+  width: 56px;
+  height: 56px;
+  background-color: #ebf8ff;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.brand-icon svg {
+  width: 28px;
+  height: 28px;
+  fill: #2b6cb0;
+}
+
+.brand-title {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #1a202c;
+  margin-bottom: 4px;
+}
+
+.brand-subtitle {
+  font-size: 0.9rem;
+  color: #718096;
+  margin-bottom: 24px;
+}
+
+/* SSO Button */
+.btn-sso {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 42px;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  color: #2d3748;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.btn-sso:hover {
+  background-color: #f7fafc;
+  border-color: #a0aec0;
+}
+
+.ms-logo {
+  width: 18px;
+  height: 18px;
+  margin-right: 10px;
+}
+
+/* Divider */
+.divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 20px 0;
+  color: #a0aec0;
+}
+
+.divider::before,
+.divider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.divider span {
+  padding: 0 12px;
+  font-size: 0.8rem;
+  color: #a0aec0;
+  text-transform: lowercase;
+}
+
+/* Form Controls */
+.form {
+  text-align: left;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a5568;
+  margin-bottom: 6px;
+}
+
+.form-control {
+  width: 100%;
+  height: 40px;
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  color: #2d3748;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.form-control:focus {
+  border-color: #3182ce;
+  box-shadow: 0 0 0 3px rgba(49, 130, 206, 0.15);
+}
+
+/* Submit Button */
+.btn-submit {
+  width: 100%;
+  height: 42px;
+  background-color: #2b6cb0;
+  color: #ffffff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.btn-submit:hover {
+  background-color: #2c5282;
+}
+
+.btn-submit:active {
+  background-color: #2a4365;
+}
+
 /* ==========================================================================
    SIDEBAR & BRANDING STYLES
    ========================================================================== */
