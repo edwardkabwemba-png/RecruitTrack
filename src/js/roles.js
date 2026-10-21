@@ -95,7 +95,7 @@ async function fetchAndRenderRoles() {
     }
 
     if (!Array.isArray(roles) || roles.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 20px; color: #64748b;">No roles found matching your filter criteria.</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: #64748b;">No roles found matching your filter criteria.</td></tr>`;
       return;
     }
 
@@ -104,6 +104,7 @@ async function fetchAndRenderRoles() {
       const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
       const status = role.Status || 'Active';
       const statusClass = `badge-${status.toLowerCase()}`;
+      const candidateCount = role.CandidateCount || 0;
       
       const initialsList = role.RecruiterInitials ? role.RecruiterInitials.split(',').filter(Boolean) : [];
       const idList = role.RecruiterIDs ? role.RecruiterIDs.split(',').map(Number).filter(Boolean) : [];
@@ -140,6 +141,7 @@ async function fetchAndRenderRoles() {
           <td>${role.ClientName || 'N/A'}</td>
           <td><span class="badge ${statusClass}">${status}</span></td>
           <td>${recruitersHtml}</td>
+          <td><span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.8rem;">${candidateCount}</span></td>
           <td>${actionsHtml}</td>
         </tr>
       `;
@@ -147,7 +149,7 @@ async function fetchAndRenderRoles() {
 
   } catch (err) {
     console.error("Roles table render error:", err);
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding:20px;">Failed to load roles: ${err.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red; padding:20px;">Failed to load roles: ${err.message}</td></tr>`;
   }
 }
 

@@ -44,12 +44,13 @@ module.exports = async function (context, req) {
         '  rec.RecruiterIDs, ' +
         '  skReq.RequiredSkills, ' +
         '  skNice.NiceToHaveSkills, ' +
-        '  cert.RequiredCertifications ' +
+        '  cert.RequiredCertifications, ' +
+        '  ISNULL(cand.CandidateCount, 0) AS CandidateCount ' +
         'FROM dbo.Roles r ' +
         'LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID ' +
         'LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID ' +
         
-        // Recruiters Aggregation (Uses u.AvatarInitials existing column)
+        // Recruiters Aggregation
         'OUTER APPLY ( ' +
         '  SELECT ' +
         '    STRING_AGG(CAST(ISNULL(u.AvatarInitials, \'\') AS NVARCHAR(10)), \',\') AS RecruiterInitials, ' +
@@ -58,6 +59,13 @@ module.exports = async function (context, req) {
         '  JOIN dbo.Users u ON rr.UserID = u.UserID ' +
         '  WHERE rr.RoleID = r.RoleID ' +
         ') rec ' +
+
+        // Candidate Count Aggregation
+        'OUTER APPLY ( ' +
+        '  SELECT COUNT(DISTINCT app.RecruitID) AS CandidateCount ' +
+        '  FROM dbo.Applications app ' +
+        '  WHERE app.RoleID = r.RoleID ' +
+        ') cand ' +
 
         // Required Skills Aggregation
         'OUTER APPLY ( ' +
