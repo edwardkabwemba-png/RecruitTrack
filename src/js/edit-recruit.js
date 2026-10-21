@@ -2,7 +2,6 @@ let selectedSkills = new Set();
 let selectedCerts = new Set();
 let currentStage = 'Sourced';
 
-// Document state tracking
 let docStates = {
   DocCvStatus: 'Pending',
   DocIdStatus: 'Pending',
@@ -22,7 +21,6 @@ let exchangeRates = {
   'ZAR': 1.00
 };
 
-// Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
   return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
@@ -32,8 +30,12 @@ function getElem(id) {
   return document.getElementById(id);
 }
 
+function getCleanCurrencyCode(currencyStr) {
+  if (!currencyStr) return 'ZAR';
+  return String(currencyStr).split('(')[0].trim().toUpperCase() || 'ZAR';
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
-  // --- ROUTE GUARD: Verify user credentials before running any logic ---
   const currentUserId = getStoredUserId();
   if (!currentUserId) {
     window.location.href = "index.html";
@@ -49,11 +51,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     return;
   }
 
-  // Ensure dropdowns and SQL exchange rates are fully loaded before setting candidate values
   await loadDropdowns();
   await loadRecruitDetails(recruitId);
 
-  // Bind rate & currency live conversion triggers
   getElem('currentRateInput')?.addEventListener('input', calculateRateConversions);
   getElem('currentRate')?.addEventListener('input', calculateRateConversions);
   getElem('expectedRateInput')?.addEventListener('input', calculateRateConversions);
@@ -67,6 +67,41 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupLifecycleClick();
   setupDocumentHandlers();
 });
+
+function parseExchangeRates(ratesData) {
+  if (!ratesData) return;
+
+  const list = Array.isArray(ratesData) 
+    ? ratesData 
+    : Object.entries(ratesData).map(([k, v]) => ({ CurrencyPair: k, Rate: v }));
+
+  list.forEach(item => {
+    const pair = String(item.CurrencyPair || item.currencypair || item.Pair || item.pair || '').toUpperCase().trim();
+    const rateVal = parseFloat(item.Rate || item.rate || item.ExchangeRate || item.exchangeRate);
+
+    if (pair && !isNaN(rateVal) && rateVal > 0) {
+      exchangeRates[pair] = rateVal;
+      const baseCurr = pair.split('_')[0];
+      if (baseCurr) exchangeRates[baseCurr] = rateVal;
+    }
+  });
+
+  console.log('✅ Exchange Rates Map Loaded:', exchangeRates);
+}
+
+async function fetchExchangeRates() {
+  try {
+    const res = await fetch('/api/recruits?action=exchangeRates', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+    if (res.ok) {
+      const ratesData = await res.json();
+      parseExchangeRates(ratesData);
+    }
+  } catch (e) {
+    console.warn('Could not fetch exchange rates separately:', e);
+  }
+}
 
 async function loadDropdowns() {
   try {
@@ -83,9 +118,10 @@ async function loadDropdowns() {
 
     const data = await res.json();
 
-    // Populate exchange rates dynamically from SQL database query
     if (data.exchangeRates) {
-      exchangeRates = data.exchangeRates;
+      parseExchangeRates(data.exchangeRates);
+    } else {
+      await fetchExchangeRates();
     }
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName');
@@ -93,6 +129,8 @@ async function loadDropdowns() {
     populateSelect('roleSelect', data.roles, 'RoleID', 'RoleTitle', 'PositionTitle');
     populateSelect('skillSelect', data.skills, 'SkillName', 'SkillName');
     populateSelect('certSelect', data.certifications, 'CertName', 'CertName');
+
+    calculateRateConversions();
   } catch (err) {
     console.error("Dropdown loading failed:", err);
   }
@@ -114,25 +152,30 @@ function cleanTagItems(rawInput) {
     const parsed = JSON.parse(rawInput);
     if (Array.isArray(parsed)) return parsed.map(s => String(s).replace(/[\[\]"']/g, '').trim());
   } catch (e) {
-    // Treat as comma-delimited text if not JSON
   }
   return String(rawInput).split(',').map(s => s.replace(/[\[\]"']/g, '').trim()).filter(Boolean);
 }
 
 function calculateRateConversions() {
-  const currentCurr = getElem('currentCurrencySelect')?.value || 'ZAR';
+  const currentCurrSel = getElem('currentCurrencySelect')?.value || 'ZAR';
   const currentVal = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || 0;
 
-  const expectedCurr = getElem('expectedCurrencySelect')?.value || 'ZAR';
+  const expectedCurrSel = getElem('expectedCurrencySelect')?.value || 'ZAR';
   const expectedVal = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || 0;
+
+  const currentCurr = getCleanCurrencyCode(currentCurrSel);
+  const expectedCurr = getCleanCurrencyCode(expectedCurrSel);
 
   const currentZar = convertToZar(currentVal, currentCurr);
   const expectedZar = convertToZar(expectedVal, expectedCurr);
 
+  const currentRateMultiplier = exchangeRates[`${currentCurr}_ZAR`] || exchangeRates[currentCurr] || 1.0;
+  const expectedRateMultiplier = exchangeRates[`${expectedCurr}_ZAR`] || exchangeRates[expectedCurr] || 1.0;
+
   const currentPreview = getElem('currentRateZarPreview');
   if (currentPreview) {
     if (currentVal > 0 && currentCurr !== 'ZAR') {
-      currentPreview.textContent = `≈ R ${currentZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
+      currentPreview.textContent = `≈ R ${currentZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted from ${currentCurr} @ ${currentRateMultiplier})`;
     } else {
       currentPreview.textContent = '';
     }
@@ -141,7 +184,7 @@ function calculateRateConversions() {
   const expectedPreview = getElem('expectedRateZarPreview');
   if (expectedPreview) {
     if (expectedVal > 0 && expectedCurr !== 'ZAR') {
-      expectedPreview.textContent = `≈ R ${expectedZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
+      expectedPreview.textContent = `≈ R ${expectedZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted from ${expectedCurr} @ ${expectedRateMultiplier})`;
     } else {
       expectedPreview.textContent = '';
     }
@@ -151,10 +194,13 @@ function calculateRateConversions() {
 function convertToZar(amount, currency) {
   const numericAmount = parseFloat(amount);
   if (isNaN(numericAmount) || numericAmount <= 0) return 0;
-  if (currency === 'ZAR') return numericAmount;
 
-  const pair = `${currency}_ZAR`;
-  const rate = exchangeRates[pair] || exchangeRates[currency] || 1.0;
+  const cleanCurr = getCleanCurrencyCode(currency);
+  if (cleanCurr === 'ZAR') return numericAmount;
+
+  const pairKey = `${cleanCurr}_ZAR`;
+  const rate = exchangeRates[pairKey] || exchangeRates[cleanCurr] || 1.0;
+
   return parseFloat((numericAmount * rate).toFixed(2));
 }
 
@@ -163,13 +209,16 @@ function handleCountryChange() {
   if (!countrySelect) return;
 
   const country = countrySelect.value || 'South Africa';
-  const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
 
   const currentCurrSel = getElem('currentCurrencySelect');
   const expectedCurrSel = getElem('expectedCurrencySelect');
 
-  if (currentCurrSel && !currentCurrSel.value) currentCurrSel.value = defaultCurrency;
-  if (expectedCurrSel && !expectedCurrSel.value) expectedCurrSel.value = defaultCurrency;
+  if (currentCurrSel && !currentCurrSel.value) {
+    currentCurrSel.value = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
+  }
+  if (expectedCurrSel && !expectedCurrSel.value) {
+    expectedCurrSel.value = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
+  }
 
   calculateRateConversions();
 }
@@ -201,12 +250,15 @@ async function loadRecruitDetails(id) {
     document.getElementById('sourceSelect').value = data.SourceID || '';
     document.getElementById('noticePeriod').value = data.NoticePeriod || '30 Days';
 
-    // Currencies and Rates loading
-    if (getElem('currentCurrencySelect')) getElem('currentCurrencySelect').value = data.CurrentCurrency || 'ZAR';
-    if (getElem('expectedCurrencySelect')) getElem('expectedCurrencySelect').value = data.ExpectedCurrency || 'ZAR';
+    // Parse clean currency code from DB column names
+    const currentCurrencyVal = getCleanCurrencyCode(data.CurrentRateCurrency || data.CurrentCurrency || 'ZAR');
+    const expectedCurrencyVal = getCleanCurrencyCode(data.ExpectedRateCurrency || data.ExpectedCurrency || 'ZAR');
 
-    const curRateVal = data.CurrentRateOriginal || data.CurrentRate || '';
-    const expRateVal = data.ExpectedRateOriginal || data.ExpectedRate || '';
+    if (getElem('currentCurrencySelect')) getElem('currentCurrencySelect').value = currentCurrencyVal;
+    if (getElem('expectedCurrencySelect')) getElem('expectedCurrencySelect').value = expectedCurrencyVal;
+
+    const curRateVal = data.CurrentRateRaw !== null && data.CurrentRateRaw !== undefined ? data.CurrentRateRaw : (data.CurrentRateOriginal || data.CurrentRate || '');
+    const expRateVal = data.ExpectedRateRaw !== null && data.ExpectedRateRaw !== undefined ? data.ExpectedRateRaw : (data.ExpectedRateOriginal || data.ExpectedRate || '');
 
     if (getElem('currentRateInput')) getElem('currentRateInput').value = curRateVal;
     if (getElem('currentRate')) getElem('currentRate').value = curRateVal;
@@ -222,8 +274,7 @@ async function loadRecruitDetails(id) {
     document.getElementById('phone').value = data.Phone || '';
     document.getElementById('idType').value = data.IdType || 'ID';
     document.getElementById('idNumber').value = data.IdNumber || '';
-    
-    // Set Current Role Title & Role Classification
+
     if (document.getElementById('currentRole')) {
       document.getElementById('currentRole').value = data.CurrentRole || '';
     }
@@ -231,13 +282,11 @@ async function loadRecruitDetails(id) {
       document.getElementById('roleClassification').value = data.RoleClassification || '';
     }
 
-    // Set Role drop down value
     const roleSel = document.getElementById('roleSelect');
     if (roleSel) {
       roleSel.value = data.RoleID || '';
     }
 
-    // Set Recruiter drop down value
     const recruiterSel = document.getElementById('recruiterSelect');
     if (recruiterSel) {
       recruiterSel.value = data.RecruiterUserID || '';
@@ -251,25 +300,21 @@ async function loadRecruitDetails(id) {
     }
     document.getElementById('otherSkills').value = data.OtherSkills || '';
 
-    // Clean up & Parse Skills & Certifications Tags
     cleanTagItems(data.Skills).forEach(s => selectedSkills.add(s));
     renderTags('skillsContainer', selectedSkills);
 
     cleanTagItems(data.Certifications).forEach(c => selectedCerts.add(c));
     renderTags('certsContainer', selectedCerts);
 
-    // Lifecycle Stage
     const stageVal = data.LifecycleStage || data.Stage || 'Sourced';
     setLifecycleStage(stageVal);
 
-    // Save initial document states
     docStates.DocCvStatus = data.DocCvStatus || 'Pending';
     docStates.DocIdStatus = data.DocIdStatus || 'Pending';
     docStates.DocPaySlipsStatus = data.DocPaySlipsStatus || 0;
     docStates.DocCertsStatus = data.DocCertsStatus || 'Pending';
     docStates.DocDegreesStatus = data.DocDegreesStatus || 'Pending';
 
-    // Set Document Badges
     updateDocBadge('badgeCv', docStates.DocCvStatus);
     updateDocBadge('badgeId', docStates.DocIdStatus);
     updateDocBadge('badgePayslips', docStates.DocPaySlipsStatus);
@@ -310,7 +355,6 @@ function setLifecycleStage(stage) {
     currentStage = stages[targetIndex] || 'Sourced';
   }
 
-  // Update dropdown if present
   const stageSelect = document.getElementById('lifecycleStage');
   if (stageSelect) stageSelect.value = currentStage;
 
@@ -437,14 +481,11 @@ function setupFormSubmit() {
     const currentUserId = getStoredUserId();
     const id = document.getElementById('recruitId').value;
 
-    const currentCurrency = getElem('currentCurrencySelect')?.value || 'ZAR';
-    const expectedCurrency = getElem('expectedCurrencySelect')?.value || 'ZAR';
+    const currentCurrency = getCleanCurrencyCode(getElem('currentCurrencySelect')?.value);
+    const expectedCurrency = getCleanCurrencyCode(getElem('expectedCurrencySelect')?.value);
 
-    const rawCurrentRate = getElem('currentRateInput')?.value || getElem('currentRate')?.value || null;
-    const rawExpectedRate = getElem('expectedRateInput')?.value || getElem('expectedRate')?.value || null;
-
-    const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
-    const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
+    const rawCurrentRate = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || null;
+    const rawExpectedRate = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || null;
 
     const bodyPayload = {
       recruitId: id,
@@ -457,14 +498,12 @@ function setupFormSubmit() {
       noticePeriod: document.getElementById('noticePeriod').value,
       
       currentCurrency: currentCurrency,
-      currentRate: convertedCurrentRateZar,
-      currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
-      currentRateZar: convertedCurrentRateZar,
+      currentRateRaw: rawCurrentRate,
+      currentRateOriginal: rawCurrentRate,
 
       expectedCurrency: expectedCurrency,
-      expectedRate: convertedExpectedRateZar,
-      expectedRateOriginal: rawExpectedRate ? parseFloat(rawExpectedRate) : null,
-      expectedRateZar: convertedExpectedRateZar,
+      expectedRateRaw: rawExpectedRate,
+      expectedRateOriginal: rawExpectedRate,
 
       email: document.getElementById('email').value,
       countryOfResidence: document.getElementById('countrySelect') ? document.getElementById('countrySelect').value : 'South Africa',

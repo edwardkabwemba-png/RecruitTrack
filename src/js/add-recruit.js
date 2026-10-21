@@ -50,12 +50,30 @@ function getStoredUserId() {
   return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
 }
 
+function getElem(id) {
+  return document.getElementById(id);
+}
+
+function getAdvanceBtn() {
+  return document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
+}
+
+function getNotSuccessfulBtn() {
+  return document.getElementById('btnNotSuccessful');
+}
+
 function defaultActiveRecruiter() {
   const recruiterSelect = getElem('recruiterSelect');
   const currentUserId = getStoredUserId();
   if (recruiterSelect && currentUserId && !editingRecruitId) {
     recruiterSelect.value = currentUserId;
   }
+}
+
+// Extract 3-letter ISO code cleanly (e.g., "INR (₹)" -> "INR")
+function getCleanCurrencyCode(currencyStr) {
+  if (!currencyStr) return 'ZAR';
+  return String(currencyStr).split('(')[0].trim().toUpperCase() || 'ZAR';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -105,13 +123,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   firstNameInput?.addEventListener('input', updateDisplayName);
   surnameInput?.addEventListener('input', updateDisplayName);
 
-  // Rate & currency change listeners for live preview updates
+  // Live currency & rate conversion event listeners
   getElem('currentRateInput')?.addEventListener('input', calculateRateConversions);
   getElem('currentRate')?.addEventListener('input', calculateRateConversions);
   getElem('expectedRateInput')?.addEventListener('input', calculateRateConversions);
   getElem('expectedRate')?.addEventListener('input', calculateRateConversions);
   getElem('currentCurrencySelect')?.addEventListener('change', calculateRateConversions);
   getElem('expectedCurrencySelect')?.addEventListener('change', calculateRateConversions);
+  getElem('countrySelect')?.addEventListener('change', handleCountryChange);
 
   setupCurrentRoleAutoFill();
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
@@ -140,16 +159,87 @@ document.addEventListener('DOMContentLoaded', async () => {
   updateStageUI();
 });
 
-function getElem(id) {
-  return document.getElementById(id);
+function parseExchangeRates(ratesData) {
+  if (!ratesData) return;
+
+  const list = Array.isArray(ratesData) 
+    ? ratesData 
+    : Object.entries(ratesData).map(([k, v]) => ({ CurrencyPair: k, Rate: v }));
+
+  list.forEach(item => {
+    const pair = String(item.CurrencyPair || item.currencypair || item.Pair || item.pair || '').toUpperCase().trim();
+    const rateVal = parseFloat(item.Rate || item.rate || item.ExchangeRate || item.exchangeRate);
+
+    if (pair && !isNaN(rateVal) && rateVal > 0) {
+      exchangeRates[pair] = rateVal;
+      const baseCurr = pair.split('_')[0];
+      if (baseCurr) exchangeRates[baseCurr] = rateVal;
+    }
+  });
+
+  console.log('✅ Exchange Rates Map Loaded:', exchangeRates);
 }
 
-function getAdvanceBtn() {
-  return document.getElementById('btnAdvanceStage') || document.querySelector('.btn-advance-stage');
+async function fetchExchangeRates() {
+  try {
+    const res = await fetch('/api/recruits?action=exchangeRates', {
+      headers: { 'x-user-id': getStoredUserId() }
+    });
+    if (res.ok) {
+      const ratesData = await res.json();
+      parseExchangeRates(ratesData);
+    }
+  } catch (e) {
+    console.warn('Could not fetch exchange rates separately:', e);
+  }
 }
 
-function getNotSuccessfulBtn() {
-  return document.getElementById('btnNotSuccessful');
+function convertToZar(amount, currency) {
+  const numericAmount = parseFloat(amount);
+  if (isNaN(numericAmount) || numericAmount <= 0) return 0;
+
+  const cleanCurr = getCleanCurrencyCode(currency);
+  if (cleanCurr === 'ZAR') return numericAmount;
+
+  const pairKey = `${cleanCurr}_ZAR`;
+  const rate = exchangeRates[pairKey] || exchangeRates[cleanCurr] || 1.0;
+
+  return parseFloat((numericAmount * rate).toFixed(2));
+}
+
+function calculateRateConversions() {
+  const currentCurrSel = getElem('currentCurrencySelect')?.value || 'ZAR';
+  const currentVal = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || 0;
+
+  const expectedCurrSel = getElem('expectedCurrencySelect')?.value || 'ZAR';
+  const expectedVal = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || 0;
+
+  const currentCurr = getCleanCurrencyCode(currentCurrSel);
+  const expectedCurr = getCleanCurrencyCode(expectedCurrSel);
+
+  const currentZar = convertToZar(currentVal, currentCurr);
+  const expectedZar = convertToZar(expectedVal, expectedCurr);
+
+  const currentRateMultiplier = exchangeRates[`${currentCurr}_ZAR`] || exchangeRates[currentCurr] || 1.0;
+  const expectedRateMultiplier = exchangeRates[`${expectedCurr}_ZAR`] || exchangeRates[expectedCurr] || 1.0;
+
+  const currentPreview = getElem('currentRateZarPreview');
+  if (currentPreview) {
+    if (currentVal > 0 && currentCurr !== 'ZAR') {
+      currentPreview.textContent = `≈ R ${currentZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted from ${currentCurr} @ ${currentRateMultiplier})`;
+    } else {
+      currentPreview.textContent = '';
+    }
+  }
+
+  const expectedPreview = getElem('expectedRateZarPreview');
+  if (expectedPreview) {
+    if (expectedVal > 0 && expectedCurr !== 'ZAR') {
+      expectedPreview.textContent = `≈ R ${expectedZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted from ${expectedCurr} @ ${expectedRateMultiplier})`;
+    } else {
+      expectedPreview.textContent = '';
+    }
+  }
 }
 
 function advanceStage(e) {
@@ -238,13 +328,15 @@ async function handleCountryChange() {
   if (!countrySelect) return;
 
   const country = countrySelect.value || 'South Africa';
-  const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
 
-  const currentCurrSel = getElem('currentCurrencySelect');
-  const expectedCurrSel = getElem('expectedCurrencySelect');
+  if (!editingRecruitId) {
+    const defaultCurrency = COUNTRY_CURRENCY_MAP[country] || 'ZAR';
+    const currentCurrSel = getElem('currentCurrencySelect');
+    const expectedCurrSel = getElem('expectedCurrencySelect');
 
-  if (currentCurrSel) currentCurrSel.value = defaultCurrency;
-  if (expectedCurrSel) expectedCurrSel.value = defaultCurrency;
+    if (currentCurrSel) currentCurrSel.value = defaultCurrency;
+    if (expectedCurrSel) expectedCurrSel.value = defaultCurrency;
+  }
 
   await loadLocationsForCountry(country);
   calculateRateConversions();
@@ -276,45 +368,6 @@ async function loadLocationsForCountry(countryName) {
     console.error('Error loading locations:', err);
     locationSelect.innerHTML = '<option value="">Select Location / City...</option>';
   }
-}
-
-function calculateRateConversions() {
-  const currentCurr = getElem('currentCurrencySelect')?.value || 'ZAR';
-  const currentVal = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || 0;
-
-  const expectedCurr = getElem('expectedCurrencySelect')?.value || 'ZAR';
-  const expectedVal = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || 0;
-
-  const currentZar = convertToZar(currentVal, currentCurr);
-  const expectedZar = convertToZar(expectedVal, expectedCurr);
-
-  const currentPreview = getElem('currentRateZarPreview');
-  if (currentPreview) {
-    if (currentVal > 0 && currentCurr !== 'ZAR') {
-      currentPreview.textContent = `≈ R ${currentZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
-    } else {
-      currentPreview.textContent = '';
-    }
-  }
-
-  const expectedPreview = getElem('expectedRateZarPreview');
-  if (expectedPreview) {
-    if (expectedVal > 0 && expectedCurr !== 'ZAR') {
-      expectedPreview.textContent = `≈ R ${expectedZar.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})} (Converted to ZAR for DB storage)`;
-    } else {
-      expectedPreview.textContent = '';
-    }
-  }
-}
-
-function convertToZar(amount, currency) {
-  const numericAmount = parseFloat(amount);
-  if (isNaN(numericAmount) || numericAmount <= 0) return 0;
-  if (currency === 'ZAR') return numericAmount;
-
-  const pair = `${currency}_ZAR`;
-  const rate = exchangeRates[pair] || exchangeRates[currency] || 1.0;
-  return parseFloat((numericAmount * rate).toFixed(2));
 }
 
 function bindFileInput(elementId, badgeId, category) {
@@ -419,11 +472,15 @@ async function loadExistingCandidateData(recruitId) {
     setVal('idNumber', data.IdNumber);
     setVal('noticePeriod', data.NoticePeriod);
 
-    setVal('currentCurrencySelect', data.CurrentCurrency || 'ZAR');
-    setVal('expectedCurrencySelect', data.ExpectedCurrency || 'ZAR');
+    // Read Currency columns from DB
+    const currentCurrencyVal = getCleanCurrencyCode(data.CurrentRateCurrency || data.CurrentCurrency || 'ZAR');
+    const expectedCurrencyVal = getCleanCurrencyCode(data.ExpectedRateCurrency || data.ExpectedCurrency || 'ZAR');
 
-    const curRateVal = data.CurrentRateOriginal || data.CurrentRate;
-    const expRateVal = data.ExpectedRateOriginal || data.ExpectedRate;
+    setVal('currentCurrencySelect', currentCurrencyVal);
+    setVal('expectedCurrencySelect', expectedCurrencyVal);
+
+    const curRateVal = data.CurrentRateRaw !== null && data.CurrentRateRaw !== undefined ? data.CurrentRateRaw : (data.CurrentRateOriginal || data.CurrentRate);
+    const expRateVal = data.ExpectedRateRaw !== null && data.ExpectedRateRaw !== undefined ? data.ExpectedRateRaw : (data.ExpectedRateOriginal || data.ExpectedRate);
 
     setVal('currentRateInput', curRateVal !== null && curRateVal !== undefined ? parseFloat(curRateVal) : '');
     setVal('currentRate', curRateVal !== null && curRateVal !== undefined ? parseFloat(curRateVal) : '');
@@ -526,7 +583,9 @@ async function loadDropdownData() {
     const data = await res.json();
 
     if (data.exchangeRates) {
-      exchangeRates = data.exchangeRates;
+      parseExchangeRates(data.exchangeRates);
+    } else {
+      await fetchExchangeRates();
     }
 
     populateSelect('recruiterSelect', data.recruiters, 'UserID', 'FullName', 'Select Recruiter...');
@@ -539,6 +598,8 @@ async function loadDropdownData() {
     if (!editingRecruitId) {
       defaultActiveRecruiter();
     }
+
+    calculateRateConversions();
   } catch (err) {
     console.error('Error loading dropdowns:', err.message);
   }
@@ -692,14 +753,11 @@ async function handleCandidateSubmit(e) {
     const countryVal = getElem('countrySelect')?.value || getElem('countryOfResidence')?.value || 'South Africa';
     const locationVal = getElem('locationSelect')?.value || null;
 
-    const currentCurrency = getElem('currentCurrencySelect')?.value || 'ZAR';
-    const expectedCurrency = getElem('expectedCurrencySelect')?.value || 'ZAR';
+    const currentCurrency = getCleanCurrencyCode(getElem('currentCurrencySelect')?.value);
+    const expectedCurrency = getCleanCurrencyCode(getElem('expectedCurrencySelect')?.value);
 
-    const rawCurrentRate = getElem('currentRateInput')?.value || getElem('currentRate')?.value || null;
-    const rawExpectedRate = getElem('expectedRateInput')?.value || getElem('expectedRate')?.value || null;
-
-    const convertedCurrentRateZar = rawCurrentRate ? convertToZar(rawCurrentRate, currentCurrency) : null;
-    const convertedExpectedRateZar = rawExpectedRate ? convertToZar(rawExpectedRate, expectedCurrency) : null;
+    const rawCurrentRate = parseFloat(getElem('currentRateInput')?.value || getElem('currentRate')?.value) || null;
+    const rawExpectedRate = parseFloat(getElem('expectedRateInput')?.value || getElem('expectedRate')?.value) || null;
 
     const currentStageName = STAGES[currentStageIndex];
     const resolvedStage = isCandidateFailed ? `Not Successful — ${currentStageName}` : currentStageName;
@@ -723,15 +781,13 @@ async function handleCandidateSubmit(e) {
       otherSkills: getElem('otherSkills')?.value?.trim() || null,
       noticePeriod: getElem('noticePeriod')?.value || '30 Days',
       
-      currentRate: convertedCurrentRateZar,
       currentCurrency: currentCurrency,
-      currentRateOriginal: rawCurrentRate ? parseFloat(rawCurrentRate) : null,
-      currentRateZar: convertedCurrentRateZar,
-      
-      expectedRate: convertedExpectedRateZar,
+      currentRateRaw: rawCurrentRate,
+      currentRateOriginal: rawCurrentRate,
+
       expectedCurrency: expectedCurrency,
-      expectedRateOriginal: rawExpectedRate ? parseFloat(rawExpectedRate) : null,
-      expectedRateZar: convertedExpectedRateZar,
+      expectedRateRaw: rawExpectedRate,
+      expectedRateOriginal: rawExpectedRate,
 
       email: email,
       phone: getElem('phone')?.value?.trim() || null,
