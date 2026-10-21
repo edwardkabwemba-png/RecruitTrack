@@ -4,7 +4,12 @@ module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
   try {
-    const pool = await sql.connect(process.env.SqlConnectionString);
+    const connectionString = process.env.SqlConnectionString || process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error("SqlConnectionString is not configured in Azure settings.");
+    }
+
+    const pool = await sql.connect(connectionString);
 
     // Read logged in user ID and search term
     const currentUserId = req.headers['x-user-id'] || req.query.userId || 1;
@@ -25,7 +30,7 @@ module.exports = async function (context, req) {
       context.log.warn("User lookup non-fatal error:", uErr.message);
     }
 
-    // 2. Fetch Roles with Required Skills included
+    // 2. Fetch Roles with Required Skills and ALL Stage Aggregations included
     let rolesWhereClause = "WHERE a.RecruiterUserID = @RecruiterUserID";
     if (searchTerm) {
       rolesWhereClause += " AND (p.PositionTitle LIKE @Search OR EXISTS (SELECT 1 FROM dbo.Recruits rec INNER JOIN dbo.Applications app ON rec.RecruitID = app.RecruitID WHERE app.RoleID = r.RoleID AND (rec.FirstName LIKE @Search OR rec.Surname LIKE @Search)))";
@@ -41,12 +46,19 @@ module.exports = async function (context, req) {
         c.ClientName,
         skReq.RequiredSkills,
         COUNT(a.ApplicationID) AS TotalCandidates,
-        SUM(CASE WHEN a.LifecycleStage = 'Sourced' THEN 1 ELSE 0 END) AS SourcedCount,
-        SUM(CASE WHEN a.LifecycleStage = 'Screened' THEN 1 ELSE 0 END) AS ScreenedCount,
-        SUM(CASE WHEN a.LifecycleStage = 'CV Prepared' THEN 1 ELSE 0 END) AS CvPreparedCount,
-        SUM(CASE WHEN a.LifecycleStage = 'Interviewed' THEN 1 ELSE 0 END) AS InterviewedCount,
-        SUM(CASE WHEN a.LifecycleStage = 'Offer Sent' THEN 1 ELSE 0 END) AS OfferSentCount,
-        SUM(CASE WHEN a.LifecycleStage = 'Hired' THEN 1 ELSE 0 END) AS HiredCount
+
+        -- All Pipeline Stage Counts (excluding failed candidates from active stages)
+        SUM(CASE WHEN (a.LifecycleStage = 'Sourced' OR a.LifecycleStage LIKE '%Sourced%') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS SourcedCount,
+        SUM(CASE WHEN (a.LifecycleStage LIKE '%Discussion%' OR a.LifecycleStage = 'In Discussion') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS InDiscussionCount,
+        SUM(CASE WHEN (a.LifecycleStage = 'Screened' OR a.LifecycleStage LIKE '%Screened%') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS ScreenedCount,
+        SUM(CASE WHEN (a.LifecycleStage LIKE '%CV%' OR a.LifecycleStage = 'CV Prepared') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS CvPreparedCount,
+        SUM(CASE WHEN (a.LifecycleStage LIKE '%Interview%' OR a.LifecycleStage = 'Interviewed') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS InterviewedCount,
+        SUM(CASE WHEN (a.LifecycleStage LIKE '%Offer%' OR a.LifecycleStage = 'Offer Sent') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS OfferSentCount,
+        SUM(CASE WHEN (a.LifecycleStage = 'Hired' OR a.LifecycleStage LIKE '%Hired%') AND ISNULL(a.IsFailed, 0) = 0 THEN 1 ELSE 0 END) AS HiredCount,
+        
+        -- Failed / Not Successful Candidate Aggregation
+        SUM(CASE WHEN ISNULL(a.IsFailed, 0) = 1 OR a.LifecycleStage LIKE '%Not Successful%' OR a.LifecycleStage LIKE '%Failed%' THEN 1 ELSE 0 END) AS UnsuccessfulCount
+
       FROM dbo.Roles r
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
       LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
@@ -73,7 +85,7 @@ module.exports = async function (context, req) {
     }
     const rolesRes = await rolesRequest.query(rolesQuery);
 
-    // 3. Fetch Candidates
+    // 3. Fetch Candidates with IsFailed Flag and LifecycleStage
     let candidatesWhereClause = "WHERE a.RecruiterUserID = @RecruiterUserID";
     if (searchTerm) {
       candidatesWhereClause += " AND (r.FirstName LIKE @Search OR r.Surname LIKE @Search OR p.PositionTitle LIKE @Search)";
@@ -90,6 +102,8 @@ module.exports = async function (context, req) {
         c.ClientName,
         a.DateSourced,
         ISNULL(a.LifecycleStage, 'Sourced') AS Stage,
+        ISNULL(a.LifecycleStage, 'Sourced') AS LifecycleStage,
+        ISNULL(a.IsFailed, 0) AS IsFailed,
         (CASE WHEN a.DocCvStatus = 'Uploaded' THEN 1 ELSE 0 END +
          CASE WHEN a.DocIdStatus = 'Uploaded' THEN 1 ELSE 0 END +
          CASE WHEN a.DocPaySlipsStatus > 0 THEN 1 ELSE 0 END +
