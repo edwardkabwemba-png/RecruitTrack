@@ -69,7 +69,7 @@ async function loadDashboardData(userId, searchTerm = '') {
 }
 
 // =========================================================================
-// SECTION 1 — Roles We're Currently Sourcing For (Always includes Unsuccessful)
+// SECTION 1 — Roles We're Currently Sourcing For (Includes All Stage Counts)
 // =========================================================================
 function renderRoles(roles) {
   const container = document.getElementById('rolesContainer');
@@ -81,27 +81,32 @@ function renderRoles(roles) {
   }
 
   container.innerHTML = roles.map(r => {
-    const sourced = r.SourcedCount || 0;
-    const discussion = r.InDiscussionCount || r.DiscussionCount || 0;
-    const screened = r.ScreenedCount || 0;
-    const cv = r.CvPreparedCount || 0;
-    const interviewed = r.InterviewedCount || r.InterviewCount || 0;
-    const offer = r.OfferSentCount || r.OfferCount || 0;
-    const hired = r.HiredCount || 0;
+    // Read stage counts with robust field name fallbacks
+    const sourced = r.SourcedCount || r.sourcedCount || r.sourcedcount || 0;
     
-    // Read unsuccessful count from any possible API field name
-    const unsuccessful = r.UnsuccessfulCount || r.NotSuccessfulCount || r.FailedCount || 0;
+    const discussion = r.InDiscussionCount !== undefined ? r.InDiscussionCount : 
+                      (r.indiscussioncount !== undefined ? r.indiscussioncount : 
+                      (r.DiscussionCount !== undefined ? r.DiscussionCount : (r.discussionCount || 0)));
 
-    const total = r.TotalCandidates || (sourced + discussion + screened + cv + interviewed + offer + hired + unsuccessful) || 1;
+    const screened = r.ScreenedCount || r.screenedCount || r.screenedcount || 0;
+    const cv = r.CvPreparedCount || r.cvPreparedCount || r.cvpreparedcount || 0;
+    const interviewed = r.InterviewedCount || r.InterviewCount || r.interviewedCount || 0;
+    const offer = r.OfferSentCount || r.OfferCount || r.offerSentCount || 0;
+    const hired = r.HiredCount || r.hiredCount || r.hiredcount || 0;
+    const unsuccessful = r.UnsuccessfulCount || r.NotSuccessfulCount || r.FailedCount || r.unsuccessfulCount || 0;
 
-    const sourcedPct = (sourced / total) * 100;
-    const discussionPct = (discussion / total) * 100;
-    const screenedPct = (screened / total) * 100;
-    const cvPct = (cv / total) * 100;
-    const interviewPct = (interviewed / total) * 100;
-    const offerPct = (offer / total) * 100;
-    const hiredPct = (hired / total) * 100;
-    const unsuccessfulPct = (unsuccessful / total) * 100;
+    const total = r.TotalCandidates !== undefined && r.TotalCandidates !== null ? r.TotalCandidates : (sourced + discussion + screened + cv + interviewed + offer + hired + unsuccessful);
+
+    const safeTotal = total > 0 ? total : 1;
+
+    const sourcedPct = (sourced / safeTotal) * 100;
+    const discussionPct = (discussion / safeTotal) * 100;
+    const screenedPct = (screened / safeTotal) * 100;
+    const cvPct = (cv / safeTotal) * 100;
+    const interviewPct = (interviewed / safeTotal) * 100;
+    const offerPct = (offer / safeTotal) * 100;
+    const hiredPct = (hired / safeTotal) * 100;
+    const unsuccessfulPct = (unsuccessful / safeTotal) * 100;
 
     return `
       <div class="role-card" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
@@ -124,9 +129,9 @@ function renderRoles(roles) {
 
         <div class="progress-group" style="margin-top: 14px;">
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 0.8rem; color: #475569; margin-bottom: 6px;">
-            <span><strong>Role total:</strong> ${r.TotalCandidates || (total === 1 && (sourced + discussion + screened + cv + interviewed + offer + hired + unsuccessful) === 0 ? 0 : total)} candidate(s)</span>
+            <span><strong>Role total:</strong> ${total} candidate(s)</span>
             
-            <!-- All Stage Counts ALWAYS including Unsuccessful -->
+            <!-- All Stage Counts -->
             <div class="role-stage-counts" style="display: flex; gap: 6px; flex-wrap: wrap; font-size: 0.8rem; font-weight: 600;">
               <span style="color: #0369a1;">${sourced} Sourced</span> •
               <span style="color: #1d4ed8;">${discussion} Discussion</span> •
@@ -142,7 +147,7 @@ function renderRoles(roles) {
           <!-- Multi-Segmented Progress Bar -->
           <div class="progress-bar-container" style="display: flex; width: 100%; height: 8px; background-color: #e2e8f0; border-radius: 4px; overflow: hidden;">
             <div class="progress-segment bg-sourced" style="width: ${sourcedPct}%; height: 100%;"></div>
-            <div class="progress-segment bg-discussion" style="width: ${discussionPct}%; height: 100%;"></div>
+            <div class="progress-segment bg-discussion" style="width: ${discussionPct}%; height: 100%; background-color: #2563eb;"></div>
             <div class="progress-segment bg-screened" style="width: ${screenedPct}%; height: 100%;"></div>
             <div class="progress-segment bg-cv" style="width: ${cvPct}%; height: 100%;"></div>
             <div class="progress-segment bg-interview" style="width: ${interviewPct}%; height: 100%;"></div>
