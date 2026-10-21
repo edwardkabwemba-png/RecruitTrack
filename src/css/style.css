@@ -201,12 +201,9 @@ body.page-login {
 
 aside.sidebar { width: 240px; background-color: #1e293b; color: #94a3b8; display: flex; flex-direction: column; padding: 20px 0; }
 
-
-
-.brand {
-  margin-bottom: 24px;
-  padding-left: 8px;
-}
+.brand { padding: 0 20px 20px; font-weight: bold; color: #fff; font-size: 1.2rem; }
+.brand span { display: block; font-size: 0.75rem; color: #64748b; font-weight: normal; }
+.nav-section { margin-top: 15px; }
 
 .brand-title {
   font-size: 1.15rem;
@@ -498,10 +495,6 @@ body {
   font-weight: normal; 
 }
 
-.nav-section { 
-  margin-top: 15px; 
-}
-
 .nav-title { 
   font-size: 0.65rem; 
   text-transform: uppercase; 
@@ -510,8 +503,8 @@ body {
   font-weight: 700; 
 }
 
-  .nav-item { display: flex; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
-  .nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; border-left: 4px solid #3b82f6; }
+.nav-item { display: flex; align-items: center; padding: 10px 20px; color: #94a3b8; text-decoration: none; font-size: 0.9rem; }
+.nav-item:hover, .nav-item.active { background-color: #334155; color: #fff; border-left: 4px solid #3b82f6; }
 
 
 /* Main Content Layout */
