@@ -91,6 +91,38 @@ module.exports = async function (context, req) {
         return;
       }
 
+      // Explicit route for fetching exchange rates directly
+      if (action === 'exchangeRates') {
+        const rates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
+        context.res.status = 200;
+        context.res.body = rates.recordset || [];
+        return;
+      }
+
+      if (action === 'dropdowns') {
+        const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
+        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
+        const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
+        const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
+        const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
+        const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
+        
+        // FIX #1: Query dbo.ExchangeRates table and include in dropdown payload
+        const exchangeRates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
+
+        context.res.status = 200;
+        context.res.body = {
+          recruiters: recruiters.recordset,
+          sources: sources.recordset,
+          roles: roles.recordset,
+          skills: skills.recordset,
+          certifications: certs.recordset,
+          positions: positions.recordset,
+          exchangeRates: exchangeRates.recordset || []
+        };
+        return;
+      }
+
       if (action === 'recent' || !action) {
         const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
         const stageFilter = stage && stage.trim() !== '' && stage.trim() !== 'All' ? stage.trim() : null;
@@ -127,26 +159,6 @@ module.exports = async function (context, req) {
         context.res.body = result.recordset || [];
         return;
       }
-
-      if (action === 'dropdowns') {
-        const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
-        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
-        const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
-        const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
-        const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
-        const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
-
-        context.res.status = 200;
-        context.res.body = {
-          recruiters: recruiters.recordset,
-          sources: sources.recordset,
-          roles: roles.recordset,
-          skills: skills.recordset,
-          certifications: certs.recordset,
-          positions: positions.recordset
-        };
-        return;
-      }
     }
 
     // =========================================================================
@@ -167,18 +179,26 @@ module.exports = async function (context, req) {
       const assignedRecruiterId = safeParseInt(body.recruiterId) || activeUserId;
       const parsedDateSourced = safeParseDate(body.dateSourced);
 
-      // Perform currency conversions to ZAR prior to saving to existing rate columns
       const currentCurrency = body.currentRateCurrency || body.currentCurrency || 'ZAR';
       const expectedCurrency = body.expectedRateCurrency || body.expectedCurrency || 'ZAR';
 
       const currentMultiplier = await getZarExchangeRate(pool, currentCurrency);
       const expectedMultiplier = await getZarExchangeRate(pool, expectedCurrency);
 
-      const rawCurrentRate = safeParseFloat(body.currentRateRaw || body.currentRate);
-      const rawExpectedRate = safeParseFloat(body.expectedRateRaw || body.expectedRate);
+      const rawCurrentRate = safeParseFloat(body.currentRateRaw || body.currentRateOriginal || body.currentRate);
+      const rawExpectedRate = safeParseFloat(body.expectedRateRaw || body.expectedRateOriginal || body.expectedRate);
 
-      const finalCurrentRateZar = safeParseFloat(body.currentRate) ?? (rawCurrentRate !== null ? rawCurrentRate * currentMultiplier : null);
-      const finalExpectedRateZar = safeParseFloat(body.expectedRate) ?? (rawExpectedRate !== null ? rawExpectedRate * expectedMultiplier : 0.00);
+      // FIX #3: Calculate ZAR values accurately without bypassing the exchange multiplier
+      const preConvertedCurrentRateZar = safeParseFloat(body.currentRateZar);
+      const preConvertedExpectedRateZar = safeParseFloat(body.expectedRateZar);
+
+      const finalCurrentRateZar = preConvertedCurrentRateZar !== null
+        ? preConvertedCurrentRateZar
+        : (rawCurrentRate !== null ? parseFloat((rawCurrentRate * currentMultiplier).toFixed(2)) : null);
+
+      const finalExpectedRateZar = preConvertedExpectedRateZar !== null
+        ? preConvertedExpectedRateZar
+        : (rawExpectedRate !== null ? parseFloat((rawExpectedRate * expectedMultiplier).toFixed(2)) : null);
 
       const transaction = new sql.Transaction(pool);
       await transaction.begin();
