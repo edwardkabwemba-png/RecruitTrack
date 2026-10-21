@@ -41,8 +41,6 @@ const STAGE_VERB_MAP = {
 };
 
 let exchangeRates = {
-  'INR_ZAR': 0.21,
-  'USD_ZAR': 18.50,
   'ZAR_ZAR': 1.00
 };
 
