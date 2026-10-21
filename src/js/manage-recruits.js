@@ -120,7 +120,7 @@ function getStageLabel(stage) {
 }
 
 // Map lifecycle stage to matching CSS badge styles
-function getStageBadgeHtml(stage, isFailed) {
+function getStageBadgeClass(stage, isFailed) {
   const stageStr = String(stage || 'Sourced').trim();
   
   if (isFailed || stageStr.includes('Not Successful') || stageStr.includes('Failed')) {
