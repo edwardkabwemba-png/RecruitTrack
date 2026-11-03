@@ -1,201 +1,198 @@
-let roleDebounceTimer = null;
+const sql = require('mssql');
 
-// Helper: Safely retrieve logged-in User ID from storage
-function getStoredUserId() {
-  const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
-  return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-  // --- ROUTE GUARD: Verify user credentials before running any logic ---
-  const currentUserId = getStoredUserId();
-  if (!currentUserId) {
-    window.location.href = "index.html";
-    return;
-  }
-
-  setupRoleFilterListeners();
-  await fetchAndRenderRoles();
-});
-
-function setupRoleFilterListeners() {
-  const searchInput = document.getElementById('roleSearchInput') || document.querySelector('.filter-bar input[type="text"]');
-  const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
-  const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
-
-  // Debounced live search on typing
-  searchInput?.addEventListener('input', () => {
-    clearTimeout(roleDebounceTimer);
-    roleDebounceTimer = setTimeout(() => {
-      fetchAndRenderRoles();
-    }, 300);
-  });
-
-  // Query immediately on status dropdown selection change
-  statusFilter?.addEventListener('change', () => {
-    fetchAndRenderRoles();
-  });
-
-  // Query immediately on "My Roles Only" toggle
-  myRolesCheckbox?.addEventListener('change', () => {
-    fetchAndRenderRoles();
-  });
-}
-
-async function fetchAndRenderRoles() {
-  const tbody = document.getElementById('roles-table-body');
-  if (!tbody) return;
-
-  const activeUserId = getStoredUserId();
-  const searchInput = document.getElementById('roleSearchInput') || document.querySelector('.filter-bar input[type="text"]');
-  const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
-  const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
-
-  const searchVal = searchInput?.value.trim() || '';
-  let statusVal = statusFilter?.value || '';
-
-  // Clean up status value if "All" or placeholder options are selected
-  if (statusVal.toLowerCase().includes('all') || statusVal.startsWith('Status:')) {
-    statusVal = '';
-  }
-
-  const myRolesVal = myRolesCheckbox?.checked ? 'true' : 'false';
+module.exports = async function (context, req) {
+  context.res = { headers: { 'Content-Type': 'application/json' } };
 
   try {
-    const params = new URLSearchParams();
-    if (searchVal) params.append('search', searchVal);
-    if (statusVal) params.append('status', statusVal);
-    if (myRolesVal === 'true') params.append('myRoles', 'true');
+    const connectionString = process.env.SqlConnectionString || process.env.DATABASE_URL;
+    const pool = await sql.connect(connectionString);
 
-    const headers = { 
-      'Content-Type': 'application/json',
-      'x-user-id': activeUserId.toString()
-    };
+    // =========================================================================
+    // GET: List roles with recruiter initials, IDs, and candidate counts
+    // =========================================================================
+    if (req.method === 'GET') {
+      const search = req.query.search || '';
+      const status = req.query.status || '';
+      const myRoles = req.query.myRoles === 'true';
+      const activeUserId = req.headers['x-user-id'] || req.query.userId;
 
-    const targetUrl = params.toString() ? `/api/roles?${params.toString()}` : '/api/roles';
-    const res = await fetch(targetUrl, { headers });
-    
-    if (res.status === 401 || res.status === 403) {
-      localStorage.removeItem("user");
-      sessionStorage.removeItem("user");
-      window.location.href = "index.html";
-      return;
-    }
-
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || errData.message || `Server error (Status: ${res.status})`);
-    }
-
-    let roles = await res.json();
-
-    // Safely parse double-stringified JSON response if returned by backend
-    if (typeof roles === 'string') {
-      try { roles = JSON.parse(roles); } catch (e) {}
-    }
-
-    if (!Array.isArray(roles) || roles.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color: #64748b;">No roles found matching your filter criteria.</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = roles.map(role => {
-      const roleIdNum = role.RoleID || 0;
-      const formattedId = `#RL-${String(roleIdNum).padStart(4, '0')}`;
-      const status = role.Status || 'Active';
-      const statusClass = `badge-${status.toLowerCase()}`;
-      const candidateCount = role.CandidateCount || 0;
-      
-      const initialsList = role.RecruiterInitials ? role.RecruiterInitials.split(',').filter(Boolean) : [];
-      const idList = role.RecruiterIDs ? role.RecruiterIDs.split(',').map(Number).filter(Boolean) : [];
-
-      const recruitersHtml = initialsList.length > 0 
-        ? initialsList.map(i => `<span class="avatar">${i}</span>`).join('') 
-        : '-';
-
-      // Robust check for user assignment
-      const isUserAssigned = activeUserId ? idList.includes(Number(activeUserId)) : false;
-      const canJoin = !isUserAssigned && idList.length < 2 && status !== 'Closed';
-
-      let actionsHtml = '';
-      if (status === 'Closed') {
-        actionsHtml = `<a href="role-details.html?id=${roleIdNum}" style="color: #94a3b8; font-style: italic; text-decoration: none;">View (archived)</a>`;
-      } else {
-        const freezeAction = status === 'Frozen' ? 'Unfreeze' : 'Freeze';
-
-        actionsHtml = `
-          <a href="role-details.html?id=${roleIdNum}" style="color: #2563eb; margin-right: 8px; font-weight: 500;">View</a>
-          <a href="#" onclick="handleRoleAction('${freezeAction}', ${roleIdNum}); return false;" style="color: #475569; margin-right: 8px;">${freezeAction}</a>
-          <a href="#" onclick="handleRoleAction('Close', ${roleIdNum}); return false;" style="color: #dc2626; margin-right: 8px;">Close</a>
-        `;
-
-        if (canJoin) {
-          actionsHtml += `<a href="#" onclick="handleRoleAction('Join', ${roleIdNum}); return false;" style="color: #1d4ed8; font-weight: bold;">Join as Co-Recruiter</a>`;
-        }
+      let whereClauses = [];
+      if (search) {
+        whereClauses.push(`(p.PositionTitle LIKE '%${search}%' OR c.ClientName LIKE '%${search}%')`);
+      }
+      if (status) {
+        whereClauses.push(`r.Status = '${status}'`);
+      }
+      if (myRoles && activeUserId) {
+        whereClauses.push(`r.RoleID IN (SELECT RoleID FROM dbo.RoleRecruiters WHERE UserID = ${parseInt(activeUserId)})`);
       }
 
-      return `
-        <tr>
-          <td><strong>${formattedId}</strong></td>
-          <td>${role.PositionTitle || 'N/A'}</td>
-          <td>${role.ClientName || 'N/A'}</td>
-          <td><span class="badge ${statusClass}">${status}</span></td>
-          <td>${recruitersHtml}</td>
-          <td><span class="badge" style="background: #e2e8f0; color: #334155; font-size: 0.8rem;">${candidateCount}</span></td>
-          <td>${actionsHtml}</td>
-        </tr>
+      const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+      const query = `
+        SELECT 
+          r.RoleID,
+          p.PositionTitle,
+          c.ClientName,
+          ISNULL(r.Status, 'Active') AS Status,
+          (
+            SELECT STRING_AGG(SUBSTRING(u.FullName, 1, 1) + SUBSTRING(u.Surname, 1, 1), ', ')
+            FROM dbo.RoleRecruiters rr
+            INNER JOIN dbo.Users u ON rr.UserID = u.UserID
+            WHERE rr.RoleID = r.RoleID
+          ) AS RecruiterInitials,
+          (
+            SELECT STRING_AGG(CAST(rr.UserID AS VARCHAR), ',')
+            FROM dbo.RoleRecruiters rr
+            WHERE rr.RoleID = r.RoleID
+          ) AS RecruiterIDs,
+          (
+            SELECT COUNT(*) 
+            FROM dbo.Applications a 
+            WHERE a.RoleID = r.RoleID
+          ) AS CandidateCount
+        FROM dbo.Roles r
+        LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
+        LEFT JOIN dbo.Clients c ON r.ClientID = c.ClientID
+        ${whereSql}
+        ORDER BY r.RoleID DESC;
       `;
-    }).join('');
 
-  } catch (err) {
-    console.error("Roles table render error:", err);
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:red; padding:20px;">Failed to load roles: ${err.message}</td></tr>`;
-  }
-}
-
-async function handleRoleAction(action, roleId) {
-  const activeUserId = getStoredUserId();
-
-  if (!activeUserId) {
-    alert("Session invalid or expired. Please log in again.");
-    window.location.href = "index.html";
-    return;
-  }
-
-  if (action === 'Close') {
-    const formattedId = `#RL-${String(roleId).padStart(4, '0')}`;
-    const confirmed = confirm(`Are you sure you want to close ticket ${formattedId}? This will archive the role.`);
-    if (!confirmed) return;
-  }
-
-  try {
-    const res = await fetch('/api/roles-action', {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'x-user-id': activeUserId.toString()
-      },
-      body: JSON.stringify({ action, roleId, userId: activeUserId })
-    });
-
-    if (res.status === 401 || res.status === 403) {
-      localStorage.removeItem("user");
-      sessionStorage.removeItem("user");
-      window.location.href = "index.html";
+      const result = await pool.request().query(query);
+      context.res.status = 200;
+      context.res.body = JSON.stringify(result.recordset);
       return;
     }
 
-    const data = await res.json();
+    // =========================================================================
+    // POST: Create New Role (Matches dbo.Roles & dbo.RoleRecruiters schemas)
+    // =========================================================================
+    if (req.method === 'POST') {
+      const body = req.body || {};
+      const createdByUserId = req.headers['x-user-id'] || body.userId;
 
-    if (!res.ok) {
-      alert(data.message || 'Action failed.');
-      return;
+      const positionId = parseInt(body.positionId || body.PositionID);
+      const clientId = parseInt(body.clientId || body.ClientID);
+
+      if (!positionId || !clientId) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ error: "Position and Client are required fields." });
+        return;
+      }
+
+      if (!createdByUserId) {
+        context.res.status = 400;
+        context.res.body = JSON.stringify({ error: "CreatedByUserID (x-user-id header) is required." });
+        return;
+      }
+
+      const transaction = new sql.Transaction(pool);
+      await transaction.begin();
+
+      try {
+        const request = new sql.Request(transaction);
+
+        // Required NOT NULL columns from dbo.Roles schema
+        request.input('PositionID', sql.Int, positionId);
+        request.input('ClientID', sql.Int, clientId);
+        request.input('SeniorityLevel', sql.NVarChar(100), body.seniority || 'Mid-Level');
+        request.input('MinEducation', sql.NVarChar(100), body.education || 'Bachelor''s Degree');
+        request.input('MinYearsExperience', sql.Int, body.minExperience ? parseInt(body.minExperience) : 0);
+        request.input('Status', sql.NVarChar(50), 'Active');
+        request.input('CreatedByUserID', sql.Int, parseInt(createdByUserId));
+
+        // Optional NULL columns from dbo.Roles schema
+        request.input('FieldOfStudy', sql.NVarChar(150), body.fieldOfStudy || null);
+        request.input('Location', sql.NVarChar(150), body.location || null);
+        request.input('WorkModel', sql.NVarChar(50), body.workModel || 'Hybrid');
+        request.input('RateBudgetMin', sql.Decimal(18, 2), body.rateMin ? parseFloat(body.rateMin) : null);
+        request.input('RateBudgetMax', sql.Decimal(18, 2), body.rateMax ? parseFloat(body.rateMax) : null);
+
+        const insertRoleQuery = `
+          INSERT INTO dbo.Roles (
+            PositionID, 
+            ClientID, 
+            SeniorityLevel, 
+            MinEducation, 
+            FieldOfStudy, 
+            MinYearsExperience, 
+            Location, 
+            WorkModel, 
+            RateBudgetMin, 
+            RateBudgetMax, 
+            Status, 
+            CreatedByUserID, 
+            CreatedDate
+          )
+          OUTPUT INSERTED.RoleID
+          VALUES (
+            @PositionID, 
+            @ClientID, 
+            @SeniorityLevel, 
+            @MinEducation, 
+            @FieldOfStudy, 
+            @MinYearsExperience, 
+            @Location, 
+            @WorkModel, 
+            @RateBudgetMin, 
+            @RateBudgetMax, 
+            @Status, 
+            @CreatedByUserID, 
+            GETDATE()
+          );
+        `;
+
+        const roleRes = await request.query(insertRoleQuery);
+        const newRoleId = roleRes.recordset[0].RoleID;
+
+        // Insert into dbo.RoleRecruiters (RoleID, UserID)[cite: 7]
+        let recruitersList = Array.isArray(body.recruiters) ? body.recruiters.map(Number) : [];
+        const creatorIdNum = parseInt(createdByUserId);
+
+        if (!recruitersList.includes(creatorIdNum)) {
+          recruitersList.push(creatorIdNum);
+        }
+
+        for (const uId of recruitersList) {
+          if (!uId || isNaN(uId)) continue;
+          
+          const recReq = new sql.Request(transaction);
+          recReq.input('RoleID', sql.Int, newRoleId);
+          recReq.input('UserID', sql.Int, uId);
+          
+          await recReq.query(`
+            IF NOT EXISTS (SELECT 1 FROM dbo.RoleRecruiters WHERE RoleID = @RoleID AND UserID = @UserID)
+            BEGIN
+              INSERT INTO dbo.RoleRecruiters (RoleID, UserID) VALUES (@RoleID, @UserID);
+            END
+          `);
+        }
+
+        await transaction.commit();
+
+        context.res.status = 201;
+        context.res.body = JSON.stringify({ 
+          success: true, 
+          roleId: newRoleId, 
+          message: "Role successfully created." 
+        });
+        return;
+
+      } catch (txnErr) {
+        await transaction.rollback();
+        context.log.error("Transaction error creating role:", txnErr.message);
+        context.res.status = 500;
+        context.res.body = JSON.stringify({ error: `Database error: ${txnErr.message}` });
+        return;
+      }
     }
 
-    await fetchAndRenderRoles();
+    context.res.status = 405;
+    context.res.body = JSON.stringify({ error: "Method not allowed" });
 
   } catch (err) {
-    console.error("Action error:", err);
-    alert('An error occurred executing this action.');
+    context.log.error("Error in /api/roles:", err.message);
+    context.res.status = 500;
+    context.res.body = JSON.stringify({ error: `Server error: ${err.message}` });
   }
-}
+};
