@@ -17,6 +17,12 @@ module.exports = async function (context, req) {
     }
 
     const connectionString = process.env.SqlConnectionString || process.env.DATABASE_URL;
+    if (!connectionString) {
+      context.res.status = 500;
+      context.res.body = JSON.stringify({ error: "SqlConnectionString environment variable is not defined." });
+      return;
+    }
+
     const pool = await sql.connect(connectionString);
 
     const query = `
@@ -24,7 +30,7 @@ module.exports = async function (context, req) {
         r.RoleID,
         p.PositionTitle,
         c.ClientName,
-        ISNULL(u.FullName, 'Recruiter') AS CreatorName,
+        ISNULL(u.FullName, ISNULL(u.Email, 'Recruiter')) AS CreatorName,
         r.CreatedDate
       FROM dbo.Roles r
       LEFT JOIN dbo.Positions p ON r.PositionID = p.PositionID
@@ -67,6 +73,6 @@ module.exports = async function (context, req) {
   } catch (err) {
     context.log.error("Error in check-role-duplicate:", err.message);
     context.res.status = 500;
-    context.res.body = JSON.stringify({ error: err.message });
+    context.res.body = JSON.stringify({ error: `SQL Error: ${err.message}` });
   }
 };
