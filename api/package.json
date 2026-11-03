@@ -11,8 +11,8 @@
   "dependencies": {
     "@azure/storage-blob": "^12.17.0",
     "bcryptjs": "^2.4.3",
+    "mssql": "^9.1.1",
     "@azure/msal-node": "^2.16.0",
-  "mssql": "^10.0.1",
-  "uuid": "^11.0.3"
+    "uuid": "^11.0.3"
   }
 }
