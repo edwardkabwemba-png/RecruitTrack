@@ -42,6 +42,32 @@
       <a href="manage-recruits.html" class="btn btn-secondary">Back to Recruits List</a>
     </header>
 
+    
+    <!-- Amber Duplicate Candidate Banner (Figure 6) -->
+<div id="recruitDuplicateBanner" style="display: none; background-color: #fef3c7; border: 1px solid #fde68a; padding: 12px 18px; border-radius: 6px; margin-bottom: 20px; align-items: center; justify-content: space-between; gap: 15px; flex-wrap: wrap; font-size: 0.85rem; color: #92400e;">
+  <div style="flex: 1; min-width: 280px;">
+    ⚠️ <strong>Possible existing candidate</strong> 
+    <span style="font-size: 0.78rem; color: #b45309;" id="dupMatchReason">(new-candidate mode only). Email matches an existing record —</span> 
+    <strong id="dupCandidateName">Thabo Nkosi, CID-08841</strong>, 
+    last sourced by <span id="dupRecruiter">Jigyasa K.</span> on <span id="dupDate">21 Jul 2026</span> for <span id="dupRole">DevOps Engineer @ Nexora Financial</span>.
+  </div>
+  <div style="display: flex; gap: 8px;">
+    <button type="button" id="btnViewExistingRecruit" class="btn-warning-action" style="background: #fff; color: #374151; border: 1px solid #cbd5e1; padding: 6px 12px; border-radius: 6px; font-weight: 600; cursor: pointer;">View Existing Record</button>
+    <button type="button" id="btnSubmitToRoleInstead" class="btn-blue" style="background: #1d4ed8; color: #fff; border: none; padding: 6px 14px; border-radius: 6px; font-weight: 600; cursor: pointer;">Submit to This Role Instead</button>
+  </div>
+</div>
+
+<!-- Soft Non-Blocking Hint Banner -->
+<div id="recruitSoftHintBanner" style="display: none; background-color: #eff6ff; border: 1px solid #bfdbfe; padding: 10px 14px; border-radius: 6px; margin-bottom: 20px; font-size: 0.83rem; color: #1e40af;">
+  💡 <span id="softHintText">Possible match: A candidate with this name already exists. Please verify contact details.</span>
+</div>
+
+<!-- Identification Section with Manual Flag Link -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 15px;">
+  <label style="font-size: 0.8rem; font-weight: 700;">Identification Details</label>
+  <a href="#" onclick="flagCandidateDuplicate(); return false;" style="font-size: 0.75rem; color: #2563eb; text-decoration: underline;">🚩 Flag as possible duplicate</a>
+</div>
+
     <form id="addRecruitForm">
       <!-- Section A: Personal & Contact -->
       <div class="section-card">
