@@ -96,7 +96,7 @@ module.exports = async function (context, req) {
         request.input('PositionID', sql.Int, positionId);
         request.input('ClientID', sql.Int, clientId);
         request.input('SeniorityLevel', sql.NVarChar(100), body.seniority || 'Mid-Level');
-        request.input('MinEducation', sql.NVarChar(100), body.education || 'Bachelor''s Degree');
+        request.input('MinEducation', sql.NVarChar(100), body.education || 'Bachelors Degree');
         request.input('MinYearsExperience', sql.Int, body.minExperience ? parseInt(body.minExperience) : 0);
         request.input('Status', sql.NVarChar(50), 'Active');
         request.input('CreatedByUserID', sql.Int, parseInt(createdByUserId));
