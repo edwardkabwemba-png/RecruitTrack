@@ -35,7 +35,7 @@ function setupRoleFilterListeners() {
   myRolesCheckbox?.addEventListener('change', fetchAndRenderRoles);
 }
 
-// Event delegation handler for row actions (avoids inline onclick quotation errors)
+// Event delegation handler for row actions
 function setupTableActionDelegation() {
   const tbody = document.getElementById('roles-table-body');
   if (!tbody) return;
