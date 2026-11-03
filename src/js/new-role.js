@@ -219,10 +219,15 @@ function setupDuplicateCheckListeners() {
     return;
   }
 
-  posSelect.addEventListener('change', checkDuplicateRole);
-  clientSelect.addEventListener('change', checkDuplicateRole);
-  posSelect.addEventListener('input', checkDuplicateRole);
-  clientSelect.addEventListener('input', checkDuplicateRole);
+  const triggerCheck = () => {
+    ignoreDuplicateWarning = false;
+    checkDuplicateRole();
+  };
+
+  posSelect.addEventListener('change', triggerCheck);
+  clientSelect.addEventListener('change', triggerCheck);
+  posSelect.addEventListener('input', triggerCheck);
+  clientSelect.addEventListener('input', triggerCheck);
 }
 
 async function checkDuplicateRole() {
@@ -237,14 +242,15 @@ async function checkDuplicateRole() {
   const clientId = clientSelect.value;
 
   if (!posId || !clientId) {
-    ignoreDuplicate();
+    const banner = document.getElementById('duplicateBanner');
+    if (banner) banner.style.display = 'none';
     return;
   }
 
   try {
     const activeUserId = getStoredUserId();
     const res = await fetch(`/api/check-role-duplicate?positionId=${encodeURIComponent(posId)}&clientId=${encodeURIComponent(clientId)}`, {
-      headers: { 'x-user-id': activeUserId }
+      headers: { 'x-user-id': activeUserId.toString() }
     });
 
     if (res.status === 401 || res.status === 403) {
@@ -316,10 +322,10 @@ function addSelectedSkill(type) {
 
   if (type === 'reqSkill') {
     const yrsInput = document.getElementById('skillYearsInput');
-    yrs = yrsInput ? parseInt(yrsInput.value, 10) : null;
-    if (yrs && !isNaN(yrs)) {
-      label += ` — ${yrs} yrs`;
-      years = yrs;
+    const parsedYrs = yrsInput ? parseInt(yrsInput.value, 10) : null;
+    if (parsedYrs && !isNaN(parsedYrs)) {
+      label += ` — ${parsedYrs} yrs`;
+      years = parsedYrs;
     }
   }
 
@@ -417,7 +423,7 @@ async function joinAsCoRecruiter() {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
-      'x-user-id': activeUserId
+      'x-user-id': activeUserId.toString()
     },
     body: JSON.stringify({ action: 'Join', roleId: roleId, userId: activeUserId })
   });
