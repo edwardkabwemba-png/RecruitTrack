@@ -4,13 +4,13 @@ module.exports = async function (context, req) {
   context.res = { headers: { 'Content-Type': 'application/json' } };
 
   try {
-    const pool = await sql.connect(process.env.SqlConnectionString);
+    const pool = await sql.connect(process.env.SqlConnectionString || process.env.DATABASE_URL);
 
     // Read active user ID from header, request body, or recruiters array fallback
     const headerUserId = req.headers['x-user-id'];
     const bodyUserId = req.body && req.body.createdByUserId;
     const recruiterUserId = (req.body && Array.isArray(req.body.recruiters) && req.body.recruiters[0]) 
-      ? req.body.recruiters[0].id 
+      ? (typeof req.body.recruiters[0] === 'object' ? req.body.recruiters[0].id : req.body.recruiters[0])
       : null;
 
     const rawUserId = headerUserId || bodyUserId || recruiterUserId;
@@ -104,18 +104,15 @@ module.exports = async function (context, req) {
         if (positionId) whereConditions.push('r.PositionID = @PositionID');
         if (clientId) whereConditions.push('r.ClientID = @ClientID');
 
-        // Status Filter
         const targetStatus = status || stage;
         if (targetStatus && targetStatus !== 'All' && !targetStatus.startsWith('Status:')) {
           whereConditions.push('r.Status = @Status');
         }
 
-        // Search Filter
         if (search && search.trim() !== '') {
           whereConditions.push('(p.PositionTitle LIKE @Search OR c.ClientName LIKE @Search OR CAST(r.RoleID AS NVARCHAR(20)) LIKE @SearchClean)');
         }
 
-        // My Roles Filter
         if (myRoles === 'true' && activeUserId) {
           whereConditions.push('EXISTS (SELECT 1 FROM dbo.RoleRecruiters myRR WHERE myRR.RoleID = r.RoleID AND myRR.UserID = @ActiveUserID)');
         }
@@ -212,8 +209,8 @@ module.exports = async function (context, req) {
           .input('MinYearsExperience', sql.Int, minExperience ? parseInt(minExperience, 10) : 0)
           .input('Location', sql.NVarChar(300), location || null)
           .input('WorkModel', sql.NVarChar(100), workModel || 'Hybrid')
-          .input('RateBudgetMin', sql.Decimal(9, 2), rateMin ? parseFloat(rateMin) : null)
-          .input('RateBudgetMax', sql.Decimal(9, 2), rateMax ? parseFloat(rateMax) : null)
+          .input('RateBudgetMin', sql.Decimal(18, 2), rateMin ? parseFloat(rateMin) : null)
+          .input('RateBudgetMax', sql.Decimal(18, 2), rateMax ? parseFloat(rateMax) : null)
           .input('Status', sql.NVarChar(40), 'Active')
           .input('CreatedByUserID', sql.Int, activeUserId)
           .input('CreatedDate', sql.DateTime, new Date())
@@ -221,10 +218,11 @@ module.exports = async function (context, req) {
 
         const newRoleId = roleResult.recordset[0].RoleID;
 
+        // Save Required Skills
         if (Array.isArray(reqSkills) && reqSkills.length > 0) {
           for (const item of reqSkills) {
-            const skillId = parseInt(item.id, 10);
-            const minYears = item.years ? parseInt(item.years, 10) : 0;
+            const skillId = typeof item === 'object' ? parseInt(item.id, 10) : parseInt(item, 10);
+            const minYears = typeof item === 'object' && item.years ? parseInt(item.years, 10) : 0;
 
             if (!isNaN(skillId)) {
               const skillReq = new sql.Request(transaction);
@@ -238,10 +236,11 @@ module.exports = async function (context, req) {
           }
         }
 
+        // Save Nice-To-Have Skills
         if (Array.isArray(niceSkills) && niceSkills.length > 0) {
           for (const item of niceSkills) {
-            const skillId = parseInt(item.id, 10);
-            const minYears = item.years ? parseInt(item.years, 10) : 0;
+            const skillId = typeof item === 'object' ? parseInt(item.id, 10) : parseInt(item, 10);
+            const minYears = typeof item === 'object' && item.years ? parseInt(item.years, 10) : 0;
 
             if (!isNaN(skillId)) {
               const skillReq = new sql.Request(transaction);
@@ -255,27 +254,43 @@ module.exports = async function (context, req) {
           }
         }
 
+        // Save Certifications
         if (Array.isArray(certifications) && certifications.length > 0) {
           for (const item of certifications) {
-            const certReq = new sql.Request(transaction);
-            await certReq
-              .input('RoleID', sql.Int, newRoleId)
-              .input('CertificationName', sql.NVarChar(200), item.label || item.name || item.id)
-              .query('INSERT INTO dbo.RoleCertifications (RoleID, CertificationName) VALUES (@RoleID, @CertificationName)');
+            const certName = typeof item === 'object' ? (item.label || item.name || item.id) : String(item);
+            if (certName) {
+              const certReq = new sql.Request(transaction);
+              await certReq
+                .input('RoleID', sql.Int, newRoleId)
+                .input('CertificationName', sql.NVarChar(200), certName)
+                .query('INSERT INTO dbo.RoleCertifications (RoleID, CertificationName) VALUES (@RoleID, @CertificationName)');
+            }
           }
         }
 
+        // Extract Recruiter IDs safely
+        let recruiterIdsList = [];
         if (Array.isArray(recruiters) && recruiters.length > 0) {
-          for (const item of recruiters) {
-            const recUserId = parseInt(item.id, 10);
-            if (!isNaN(recUserId)) {
-              const recReq = new sql.Request(transaction);
-              await recReq
-                .input('RoleID', sql.Int, newRoleId)
-                .input('UserID', sql.Int, recUserId)
-                .query('INSERT INTO dbo.RoleRecruiters (RoleID, UserID) VALUES (@RoleID, @UserID)');
-            }
-          }
+          recruiterIdsList = recruiters.map(item => typeof item === 'object' ? parseInt(item.id, 10) : parseInt(item, 10)).filter(id => !isNaN(id));
+        }
+
+        // Ensure active creator is linked
+        if (!recruiterIdsList.includes(activeUserId)) {
+          recruiterIdsList.push(activeUserId);
+        }
+
+        // Save Assigned Recruiters safely into dbo.RoleRecruiters
+        for (const recUserId of recruiterIdsList) {
+          const recReq = new sql.Request(transaction);
+          await recReq
+            .input('RoleID', sql.Int, newRoleId)
+            .input('UserID', sql.Int, recUserId)
+            .query(`
+              IF NOT EXISTS (SELECT 1 FROM dbo.RoleRecruiters WHERE RoleID = @RoleID AND UserID = @UserID)
+              BEGIN
+                INSERT INTO dbo.RoleRecruiters (RoleID, UserID) VALUES (@RoleID, @UserID);
+              END
+            `);
         }
 
         await transaction.commit();

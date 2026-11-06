@@ -1,5 +1,6 @@
 let uploadedDocumentUrl = null;
 let editingRecruitId = null;
+let currentExistingRecruitId = null;
 
 const pendingFiles = {
   CV: [],
@@ -132,6 +133,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   getElem('expectedCurrencySelect')?.addEventListener('change', calculateRateConversions);
   getElem('countrySelect')?.addEventListener('change', handleCountryChange);
 
+  // Real-time Duplicate Detection Event Listeners
+  setupDuplicateDetectionListeners();
+
   setupCurrentRoleAutoFill();
   setupSkillTagDropdown('skillSelect', 'skillsContainer');
   setupTagDropdown('certSelect', 'certsContainer');
@@ -158,6 +162,157 @@ document.addEventListener('DOMContentLoaded', async () => {
   calculateRateConversions();
   updateStageUI();
 });
+
+// =========================================================================
+// DUPLICATE CANDIDATE CHECKING LOGIC (TIER 1, TIER 2, TIER 3 & MANUAL FLAG)
+// =========================================================================
+function setupDuplicateDetectionListeners() {
+  const emailInput = getElem('email');
+  const phoneInput = getElem('phone');
+  const firstNameInput = getElem('firstName');
+  const surnameInput = getElem('surname');
+  const idNumberInput = getElem('idNumber');
+
+  let checkDebounce;
+  const triggerCheck = () => {
+    clearTimeout(checkDebounce);
+    checkDebounce = setTimeout(checkRecruitDuplicate, 400);
+  };
+
+  emailInput?.addEventListener('input', triggerCheck);
+  phoneInput?.addEventListener('input', triggerCheck);
+  firstNameInput?.addEventListener('input', triggerCheck);
+  surnameInput?.addEventListener('input', triggerCheck);
+  idNumberInput?.addEventListener('change', triggerCheck);
+}
+
+async function checkRecruitDuplicate() {
+  // Only check duplicates when creating a new candidate or when allowed
+  const email = getElem('email')?.value?.trim() || '';
+  const phone = getElem('phone')?.value?.trim() || '';
+  const firstName = getElem('firstName')?.value?.trim() || '';
+  const surname = getElem('surname')?.value?.trim() || '';
+  const idType = getElem('idType')?.value || '';
+  const idNumber = getElem('idNumber')?.value?.trim() || '';
+
+  if (!email && !phone && (!firstName || !surname)) {
+    hideRecruitBanners();
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/check-recruit-duplicate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': getStoredUserId()
+      },
+      body: JSON.stringify({
+        email,
+        phone,
+        firstName,
+        surname,
+        idType,
+        idNumber,
+        recruitId: editingRecruitId || 0
+      })
+    });
+
+    if (!res.ok) return;
+    const data = await res.json();
+
+    hideRecruitBanners();
+
+    // TIER 1: High Confidence Match (Amber Blocking Banner - Figure 6)
+    if (data.matchType === 'HIGH_CONFIDENCE' && data.candidate) {
+      const cand = data.candidate;
+      currentExistingRecruitId = cand.recruitId;
+
+      const dupReason = getElem('dupMatchReason');
+      const dupName = getElem('dupCandidateName');
+      const dupRecruiter = getElem('dupRecruiter');
+      const dupDate = getElem('dupDate');
+      const dupRole = getElem('dupRole');
+
+      if (dupReason) dupReason.textContent = `(${data.matchReason}) —`;
+      if (dupName) dupName.textContent = `${cand.fullName}, ${cand.formattedId}`;
+      if (dupRecruiter) dupRecruiter.textContent = cand.lastRecruiter;
+      if (dupDate) dupDate.textContent = cand.lastDate;
+      if (dupRole) dupRole.textContent = cand.lastRole;
+
+      const btnView = getElem('btnViewExistingRecruit');
+      if (btnView) {
+        btnView.onclick = () => {
+          window.open(`add-recruit.html?id=${cand.recruitId}`, '_blank');
+        };
+      }
+
+      const btnSubmit = getElem('btnSubmitToRoleInstead');
+      if (btnSubmit) {
+        btnSubmit.onclick = () => {
+          const urlParams = new URLSearchParams(window.location.search);
+          const roleId = urlParams.get('roleId') || getElem('roleSelect')?.value;
+          if (roleId) {
+            window.location.href = `add-recruit.html?id=${cand.recruitId}&assignRoleId=${roleId}`;
+          } else {
+            window.location.href = `add-recruit.html?id=${cand.recruitId}`;
+          }
+        };
+      }
+
+      const banner = getElem('recruitDuplicateBanner');
+      if (banner) banner.style.display = 'flex';
+    } 
+    // TIER 2: Soft Warning Match (Blue Informational Banner)
+    else if (data.matchType === 'SOFT_WARNING') {
+      const hintText = getElem('softHintText');
+      if (hintText) hintText.textContent = data.message;
+      const hintBanner = getElem('recruitSoftHintBanner');
+      if (hintBanner) hintBanner.style.display = 'block';
+    }
+  } catch (err) {
+    console.error('Error checking candidate duplicates:', err);
+  }
+}
+
+function hideRecruitBanners() {
+  const banner = getElem('recruitDuplicateBanner');
+  const hintBanner = getElem('recruitSoftHintBanner');
+  if (banner) banner.style.display = 'none';
+  if (hintBanner) hintBanner.style.display = 'none';
+}
+
+async function flagCandidateDuplicate() {
+  const targetRecruitId = editingRecruitId || currentExistingRecruitId;
+
+  if (!targetRecruitId) {
+    alert("Please save the candidate record first before flagging duplicates.");
+    return;
+  }
+
+  const notes = prompt("Please enter a brief note for the Admin explaining why this candidate is a duplicate:");
+  if (notes === null) return;
+
+  try {
+    const res = await fetch('/api/flag-recruit-duplicate', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': getStoredUserId()
+      },
+      body: JSON.stringify({ recruitId: targetRecruitId, notes })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      alert("Candidate has been successfully flagged for Admin Duplicate Review.");
+    } else {
+      alert(data.error || "Failed to flag duplicate.");
+    }
+  } catch (err) {
+    alert(`Error: ${err.message}`);
+  }
+}
 
 function parseExchangeRates(ratesData) {
   if (!ratesData) return;

@@ -7,6 +7,7 @@ let dbSkills = [];
 let dbCertifications = [];
 let matchedDuplicateRole = null;
 let dbUsers = [];
+let ignoreDuplicateWarning = false;
 
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
@@ -31,6 +32,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   ]);
 
   setCurrentUserDefault();
+  setupDuplicateCheckListeners();
 
   const form = document.getElementById('newRoleForm');
   if (form) {
@@ -41,7 +43,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // --- LOAD DROPDOWNS & DB DATA ---
 
 async function loadPositions() {
-  const select = document.getElementById('positionSelect');
+  const select = document.getElementById('positionSelect') || document.getElementById('positionId');
   if (!select) return;
 
   try {
@@ -73,7 +75,7 @@ async function loadPositions() {
 }
 
 async function loadClients() {
-  const select = document.getElementById('clientSelect');
+  const select = document.getElementById('clientSelect') || document.getElementById('clientId');
   if (!select) return;
 
   try {
@@ -206,21 +208,49 @@ function setCurrentUserDefault() {
   }
 }
 
-// --- DUPLICATE CHECKING ---
+// --- DUPLICATE CHECKING LISTENERS & LOGIC ---
 
-async function checkDuplicate() {
-  const posSelect = document.getElementById('positionSelect');
-  const clientSelect = document.getElementById('clientSelect');
+function setupDuplicateCheckListeners() {
+  const posSelect = document.getElementById('positionSelect') || document.getElementById('positionId') || document.querySelector('select[name="positionId"]');
+  const clientSelect = document.getElementById('clientSelect') || document.getElementById('clientId') || document.querySelector('select[name="clientId"]');
+
+  if (!posSelect || !clientSelect) {
+    console.warn("Duplicate check setup: Could not locate position or client select elements.");
+    return;
+  }
+
+  const triggerCheck = () => {
+    ignoreDuplicateWarning = false;
+    checkDuplicateRole();
+  };
+
+  posSelect.addEventListener('change', triggerCheck);
+  clientSelect.addEventListener('change', triggerCheck);
+  posSelect.addEventListener('input', triggerCheck);
+  clientSelect.addEventListener('input', triggerCheck);
+}
+
+async function checkDuplicateRole() {
+  if (ignoreDuplicateWarning) return;
+
+  const posSelect = document.getElementById('positionSelect') || document.getElementById('positionId');
+  const clientSelect = document.getElementById('clientSelect') || document.getElementById('clientId');
+
   if (!posSelect || !clientSelect) return;
 
   const posId = posSelect.value;
   const clientId = clientSelect.value;
 
-  if (!posId || !clientId) return;
+  if (!posId || !clientId) {
+    const banner = document.getElementById('duplicateBanner');
+    if (banner) banner.style.display = 'none';
+    return;
+  }
 
   try {
-    const res = await fetch(`/api/roles?positionId=${posId}&clientId=${clientId}`, {
-      headers: { 'x-user-id': getStoredUserId() }
+    const activeUserId = getStoredUserId();
+    const res = await fetch(`/api/check-role-duplicate?positionId=${encodeURIComponent(posId)}&clientId=${encodeURIComponent(clientId)}`, {
+      headers: { 'x-user-id': activeUserId.toString() }
     });
 
     if (res.status === 401 || res.status === 403) {
@@ -230,14 +260,26 @@ async function checkDuplicate() {
       return;
     }
 
-    const roles = await res.json();
+    if (!res.ok) return;
 
-    const activeDup = Array.isArray(roles) ? roles.find(r => r.PositionID == posId && r.ClientID == clientId && r.Status !== 'Closed') : null;
-
+    const data = await res.json();
     const banner = document.getElementById('duplicateBanner');
-    if (activeDup && banner) {
-      matchedDuplicateRole = activeDup;
-      document.getElementById('dupDetails').innerText = `${activeDup.PositionTitle} @ ${activeDup.ClientName}, #RL-${String(activeDup.RoleID).padStart(4,'0')}`;
+
+    if (data.exists && data.duplicateRole && banner) {
+      matchedDuplicateRole = data.duplicateRole;
+
+      const dupDetails = document.getElementById('dupDetails');
+      const dupTitle = document.getElementById('dupTitle');
+      const dupCreator = document.getElementById('dupCreator');
+      const dupDate = document.getElementById('dupDate');
+
+      const formattedLabel = `${data.duplicateRole.positionTitle} @ ${data.duplicateRole.clientName}, #RL-${String(data.duplicateRole.roleId).padStart(4, '0')}`;
+
+      if (dupDetails) dupDetails.innerText = formattedLabel;
+      if (dupTitle) dupTitle.innerText = formattedLabel;
+      if (dupCreator) dupCreator.innerText = data.duplicateRole.creatorName || 'Recruiter';
+      if (dupDate) dupDate.innerText = data.duplicateRole.createdDate || 'Recently';
+
       banner.style.display = 'flex';
     } else if (banner) {
       banner.style.display = 'none';
@@ -280,14 +322,13 @@ function addSelectedSkill(type) {
 
   if (type === 'reqSkill') {
     const yrsInput = document.getElementById('skillYearsInput');
-    yrs = yrsInput ? parseInt(yrsInput.value, 10) : null;
-    if (yrs && !isNaN(yrs)) {
-      label += ` — ${yrs} yrs`;
-      years = yrs;
+    const parsedYrs = yrsInput ? parseInt(yrsInput.value, 10) : null;
+    if (parsedYrs && !isNaN(parsedYrs)) {
+      label += ` — ${parsedYrs} yrs`;
+      years = parsedYrs;
     }
   }
 
-  // Include years property in the object
   const skillItem = { id: skillId, label: label, years: years };
 
   if (type === 'reqSkill') {
@@ -369,20 +410,22 @@ function renderTags(type) {
 // --- BANNER ACTIONS ---
 
 function viewDuplicate() {
-  if (matchedDuplicateRole) window.location.href = `/roles.html?id=${matchedDuplicateRole.RoleID}`;
+  const roleId = matchedDuplicateRole?.roleId || matchedDuplicateRole?.RoleID;
+  if (roleId) window.location.href = `/roles.html?id=${roleId}`;
 }
 
 async function joinAsCoRecruiter() {
-  if (!matchedDuplicateRole) return;
+  const roleId = matchedDuplicateRole?.roleId || matchedDuplicateRole?.RoleID;
+  if (!roleId) return;
   const activeUserId = getStoredUserId();
   
   const res = await fetch('/api/roles-action', {
     method: 'POST',
     headers: { 
       'Content-Type': 'application/json',
-      'x-user-id': activeUserId
+      'x-user-id': activeUserId.toString()
     },
-    body: JSON.stringify({ action: 'Join', roleId: matchedDuplicateRole.RoleID, userId: activeUserId })
+    body: JSON.stringify({ action: 'Join', roleId: roleId, userId: activeUserId })
   });
 
   if (res.status === 401 || res.status === 403) {
@@ -396,6 +439,7 @@ async function joinAsCoRecruiter() {
 }
 
 function ignoreDuplicate() {
+  ignoreDuplicateWarning = true;
   const banner = document.getElementById('duplicateBanner');
   if (banner) banner.style.display = 'none';
 }
@@ -413,7 +457,6 @@ async function handleFormSubmit(e) {
     return;
   }
 
-  // Find Submit Button & Trigger Loading UI
   const submitBtn = e.target.querySelector('button[type="submit"]') || document.getElementById('submitRoleBtn');
   const originalBtnContent = submitBtn ? submitBtn.innerHTML : 'Create Role';
 
@@ -426,8 +469,8 @@ async function handleFormSubmit(e) {
   }
 
   const payload = {
-    positionId: document.getElementById('positionSelect')?.value,
-    clientId: document.getElementById('clientSelect')?.value,
+    positionId: document.getElementById('positionSelect')?.value || document.getElementById('positionId')?.value,
+    clientId: document.getElementById('clientSelect')?.value || document.getElementById('clientId')?.value,
     seniority: document.getElementById('seniority')?.value,
     education: document.getElementById('education')?.value,
     fieldOfStudy: document.getElementById('fieldOfStudy')?.value,
@@ -472,7 +515,6 @@ async function handleFormSubmit(e) {
     console.error("Form Submit Error:", err);
     alert(err.message || 'Error creating role.');
 
-    // Reset button state on failure so user can try again
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnContent;
