@@ -237,6 +237,7 @@ module.exports = async function (context, req) {
               @Search IS NULL OR 
               r.FirstName LIKE @Search OR 
               r.Surname LIKE @Search OR 
+              CONCAT(ISNULL(r.FirstName, ''), ' ', ISNULL(r.Surname, '')) LIKE @Search OR
               r.Email LIKE @Search OR 
               r.CurrentRole LIKE @Search OR
               latestApp.PositionTitle LIKE @Search
