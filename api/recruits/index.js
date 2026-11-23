@@ -118,7 +118,6 @@ module.exports = async function (context, req) {
         const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
         const stageFilter = stage && stage.trim() !== '' && stage.trim() !== 'All' ? stage.trim() : null;
         const seniorityPattern = seniority && seniority.trim() !== '' ? `${seniority.trim()}%` : null;
-        reqQuery.input('Seniority', sql.NVarChar(50), seniorityPattern);
         const minExpVal = safeParseFloat(minExp);
         const hideActiveFlag = hideActive === 'true';
 
@@ -129,7 +128,7 @@ module.exports = async function (context, req) {
         const reqQuery = pool.request();
         reqQuery.input('Search', sql.NVarChar(100), searchPattern);
         reqQuery.input('Stage', sql.NVarChar(50), stageFilter);
-        reqQuery.input('Seniority', sql.NVarChar(50), seniorityFilter);
+        reqQuery.input('Seniority', sql.NVarChar(50), seniorityPattern);
         reqQuery.input('MinExp', sql.Decimal(4, 1), minExpVal);
 
         let dynamicClauses = [];
@@ -244,10 +243,10 @@ module.exports = async function (context, req) {
             )
             AND (@Stage IS NULL OR @Stage = '' OR latestApp.LifecycleStage = @Stage)
             AND (
-          @Seniority IS NULL OR 
-          LTRIM(RTRIM(r.SeniorityLevel)) LIKE @Seniority OR
-          (@Seniority = 'Mid%' AND LTRIM(RTRIM(r.SeniorityLevel)) LIKE 'Intermediate%')
-        )
+              @Seniority IS NULL OR 
+              LTRIM(RTRIM(r.SeniorityLevel)) LIKE @Seniority OR
+              (@Seniority = 'Mid%' AND LTRIM(RTRIM(r.SeniorityLevel)) LIKE 'Intermediate%')
+            )
             AND (@MinExp IS NULL OR ISNULL(r.TotalYearsExperience, 0) >= @MinExp)
             ${extraWhereSql}
           ${orderBySql};
