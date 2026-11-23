@@ -1,21 +1,5 @@
 const sql = require('mssql');
 
-let poolPromise = null;
-
-async function getPool() {
-  if (!poolPromise) {
-    const connStr = process.env.SqlConnectionString || process.env.DATABASE_URL;
-    if (!connStr) {
-      throw new Error("Missing SqlConnectionString in environment settings.");
-    }
-    poolPromise = sql.connect(connStr).catch((err) => {
-      poolPromise = null; // Reset cache so next request can retry
-      throw err;
-    });
-  }
-  return poolPromise;
-}
-
 const safeParseInt = (val) => {
   if (val === null || val === undefined || val === '') return null;
   const parsed = parseInt(val, 10);
@@ -46,7 +30,7 @@ async function getZarExchangeRate(pool, currency) {
       return parseFloat(res.recordset[0].Rate);
     }
   } catch (err) {
-    console.error(`Error looking up exchange rate for ${pair}:`, err.message);
+    console.error(`Exchange rate lookup error for ${pair}:`, err.message);
   }
   return 1.0;
 }
@@ -61,7 +45,12 @@ module.exports = async function (context, req) {
   };
 
   try {
-    const pool = await getPool();
+    const connStr = process.env.SqlConnectionString || process.env.DATABASE_URL;
+    if (!connStr) {
+      return sendJson(500, { message: "Missing SqlConnectionString in environment settings." });
+    }
+
+    const pool = await sql.connect(connStr);
 
     const loggedInUserHeader = req.headers['x-user-id'] || req.query.userId;
     const activeUserId = safeParseInt(loggedInUserHeader);
@@ -123,7 +112,7 @@ module.exports = async function (context, req) {
       }
 
       // =======================================================================
-      // TALENT POOL & RECENT RECRUITS (One deduplicated row per candidate)
+      // TALENT POOL & RECENT RECRUITS
       // =======================================================================
       if (action === 'talentPool' || action === 'recent' || !action) {
         const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
@@ -132,7 +121,6 @@ module.exports = async function (context, req) {
         const minExpVal = safeParseFloat(minExp);
         const hideActiveFlag = hideActive === 'true';
 
-        // Parse comma-separated multi-select filters
         const roleList = roles ? roles.split(',').map(s => s.trim()).filter(Boolean) : [];
         const classList = classifications ? classifications.split(',').map(s => s.trim()).filter(Boolean) : [];
         const skillList = skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : [];
@@ -144,9 +132,8 @@ module.exports = async function (context, req) {
         reqQuery.input('MinExp', sql.Decimal(4, 1), minExpVal);
 
         let dynamicClauses = [];
-
-        // OR logic between Current Role and Role Classification when either/both are chosen
         let roleOrClassClauses = [];
+
         if (roleList.length > 0) {
           const roleParams = roleList.map((val, idx) => {
             const pName = `RoleFilter${idx}`;
@@ -169,7 +156,6 @@ module.exports = async function (context, req) {
           dynamicClauses.push(`(${roleOrClassClauses.join(' OR ')})`);
         }
 
-        // AND logic for each additional skill filter
         skillList.forEach((sk, idx) => {
           const pName = `SkillFilter${idx}`;
           reqQuery.input(pName, sql.NVarChar(150), `%${sk}%`);
@@ -278,7 +264,6 @@ module.exports = async function (context, req) {
         try { body = JSON.parse(body); } catch (e) {}
       }
 
-      // Quick Action: Submit existing candidate from Talent Pool to an Active Role
       if (body.action === 'submitToRole') {
         const targetRecruitId = safeParseInt(body.recruitId);
         const targetRoleId = safeParseInt(body.roleId);
