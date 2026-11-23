@@ -1,13 +1,12 @@
 let roleDebounceTimer = null;
 
-// Helper: Safely retrieve logged-in User ID from storage
+// Helper: Safely retrieve logged-in User ID from local/session storage
 function getStoredUserId() {
   const storedUser = JSON.parse(localStorage.getItem("user") || sessionStorage.getItem("user") || "{}");
   return storedUser.userId || storedUser.UserID || storedUser.id || localStorage.getItem('userId') || sessionStorage.getItem('userId') || window.currentUserId || '';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // --- ROUTE GUARD: Verify user credentials before running any logic ---
   const currentUserId = getStoredUserId();
   if (!currentUserId) {
     window.location.href = "index.html";
@@ -15,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   setupRoleFilterListeners();
+  setupTableActionDelegation();
   await fetchAndRenderRoles();
 });
 
@@ -23,7 +23,7 @@ function setupRoleFilterListeners() {
   const statusFilter = document.getElementById('statusFilter') || document.querySelector('.filter-bar select');
   const myRolesCheckbox = document.getElementById('myRolesCheckbox') || document.querySelector('.filter-bar input[type="checkbox"]');
 
-  // Debounced live search on typing
+  // Live search debouncer (300ms)
   searchInput?.addEventListener('input', () => {
     clearTimeout(roleDebounceTimer);
     roleDebounceTimer = setTimeout(() => {
@@ -31,14 +31,23 @@ function setupRoleFilterListeners() {
     }, 300);
   });
 
-  // Query immediately on status dropdown selection change
-  statusFilter?.addEventListener('change', () => {
-    fetchAndRenderRoles();
-  });
+  statusFilter?.addEventListener('change', fetchAndRenderRoles);
+  myRolesCheckbox?.addEventListener('change', fetchAndRenderRoles);
+}
 
-  // Query immediately on "My Roles Only" toggle
-  myRolesCheckbox?.addEventListener('change', () => {
-    fetchAndRenderRoles();
+// Event delegation handler for row actions
+function setupTableActionDelegation() {
+  const tbody = document.getElementById('roles-table-body');
+  if (!tbody) return;
+
+  tbody.addEventListener('click', (e) => {
+    const actionBtn = e.target.closest('.btn-role-action');
+    if (actionBtn) {
+      e.preventDefault();
+      const action = actionBtn.dataset.action;
+      const roleId = parseInt(actionBtn.dataset.id, 10);
+      handleRoleAction(action, roleId);
+    }
   });
 }
 
@@ -54,7 +63,6 @@ async function fetchAndRenderRoles() {
   const searchVal = searchInput?.value.trim() || '';
   let statusVal = statusFilter?.value || '';
 
-  // Clean up status value if "All" or placeholder options are selected
   if (statusVal.toLowerCase().includes('all') || statusVal.startsWith('Status:')) {
     statusVal = '';
   }
@@ -89,7 +97,6 @@ async function fetchAndRenderRoles() {
 
     let roles = await res.json();
 
-    // Safely parse double-stringified JSON response if returned by backend
     if (typeof roles === 'string') {
       try { roles = JSON.parse(roles); } catch (e) {}
     }
@@ -110,10 +117,9 @@ async function fetchAndRenderRoles() {
       const idList = role.RecruiterIDs ? role.RecruiterIDs.split(',').map(Number).filter(Boolean) : [];
 
       const recruitersHtml = initialsList.length > 0 
-        ? initialsList.map(i => `<span class="avatar">${i}</span>`).join('') 
+        ? initialsList.map(i => `<span class="avatar">${i.trim()}</span>`).join('') 
         : '-';
 
-      // Robust check for user assignment
       const isUserAssigned = activeUserId ? idList.includes(Number(activeUserId)) : false;
       const canJoin = !isUserAssigned && idList.length < 2 && status !== 'Closed';
 
@@ -124,13 +130,13 @@ async function fetchAndRenderRoles() {
         const freezeAction = status === 'Frozen' ? 'Unfreeze' : 'Freeze';
 
         actionsHtml = `
-          <a href="role-details.html?id=${roleIdNum}" style="color: #2563eb; margin-right: 8px; font-weight: 500;">View</a>
-          <a href="#" onclick="handleRoleAction('${freezeAction}', ${roleIdNum}); return false;" style="color: #475569; margin-right: 8px;">${freezeAction}</a>
-          <a href="#" onclick="handleRoleAction('Close', ${roleIdNum}); return false;" style="color: #dc2626; margin-right: 8px;">Close</a>
+          <a href="role-details.html?id=${roleIdNum}" style="color: #2563eb; margin-right: 8px; font-weight: 500; text-decoration: none;">View</a>
+          <button type="button" class="btn-role-action" data-action="${freezeAction}" data-id="${roleIdNum}" style="background:none; border:none; color:#475569; margin-right:8px; cursor:pointer;">${freezeAction}</button>
+          <button type="button" class="btn-role-action" data-action="Close" data-id="${roleIdNum}" style="background:none; border:none; color:#dc2626; margin-right:8px; cursor:pointer;">Close</button>
         `;
 
         if (canJoin) {
-          actionsHtml += `<a href="#" onclick="handleRoleAction('Join', ${roleIdNum}); return false;" style="color: #1d4ed8; font-weight: bold;">Join as Co-Recruiter</a>`;
+          actionsHtml += `<button type="button" class="btn-role-action" data-action="Join" data-id="${roleIdNum}" style="background:none; border:none; color:#1d4ed8; font-weight:bold; cursor:pointer;">Join as Co-Recruiter</button>`;
         }
       }
 

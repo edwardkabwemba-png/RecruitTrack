@@ -17,24 +17,36 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // Resolve binary data into a Node Buffer from any incoming format
+    // Resolve binary data into a pure Node Buffer without UTF-8 corruption
     let fileBuffer = null;
     if (Buffer.isBuffer(req.body)) {
       fileBuffer = req.body;
-    } else if (req.rawBody) {
-      fileBuffer = Buffer.isBuffer(req.rawBody) 
-        ? req.rawBody 
-        : Buffer.from(req.rawBody, typeof req.rawBody === 'string' ? 'utf8' : 'binary');
+    } else if (req.body instanceof Uint8Array || req.body instanceof ArrayBuffer || ArrayBuffer.isView(req.body)) {
+      fileBuffer = Buffer.from(req.body);
+    } else if (req.body && req.body.type === 'Buffer' && Array.isArray(req.body.data)) {
+      fileBuffer = Buffer.from(req.body.data);
+    } else if (Buffer.isBuffer(req.rawBody)) {
+      fileBuffer = req.rawBody;
+    } else if (typeof req.rawBody === 'string') {
+      // Fallback only if host didn't pass binary Buffer; 'latin1' preserves 1:1 byte mapping unlike 'utf8'
+      fileBuffer = Buffer.from(req.rawBody, 'latin1');
     } else if (typeof req.body === 'string') {
       fileBuffer = Buffer.from(req.body, 'base64');
-    } else if (req.body && req.body.data) {
-      fileBuffer = Buffer.from(req.body.data);
     }
 
     if (!fileBuffer || fileBuffer.length === 0) {
       context.res.status = 400;
       context.res.body = JSON.stringify({ message: 'No valid file binary data received in request.' });
       return;
+    }
+
+    // Sanity check: verify PDF magic bytes (%PDF-) if content-type is PDF
+    const contentType = req.headers['content-type'] || 'application/pdf';
+    if (contentType === 'application/pdf' && fileBuffer.length >= 5) {
+      const headerSignature = fileBuffer.subarray(0, 5).toString('ascii');
+      if (headerSignature !== '%PDF-') {
+        context.log.warn(`Warning: Uploaded PDF header signature is '${headerSignature}' instead of '%PDF-'.`);
+      }
     }
 
     // Extract headers
@@ -54,15 +66,19 @@ module.exports = async function (context, req) {
 
     const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    // Upload verified Buffer
+    // Upload verified Buffer with explicit MIME type and inline disposition
     await blockBlobClient.uploadData(fileBuffer, {
-      blobHTTPHeaders: { blobContentType: req.headers['content-type'] || 'application/pdf' }
+      blobHTTPHeaders: { 
+        blobContentType: contentType,
+        blobContentDisposition: `inline; filename="${cleanFileName}"`
+      }
     });
 
     context.res.status = 200;
     context.res.body = JSON.stringify({
       message: 'Upload successful',
-      fileUrl: blockBlobClient.url
+      fileUrl: blockBlobClient.url,
+      sizeBytes: fileBuffer.length
     });
 
   } catch (err) {
