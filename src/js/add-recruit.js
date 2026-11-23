@@ -847,24 +847,37 @@ function setupTagDropdown(selectId, containerId) {
   });
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+}
+
 async function uploadSingleFile(file, folderPath) {
   if (!file) return null;
   const sanitizedFolderPath = folderPath.replace(/\s+/g, '_');
-  const buffer = await file.arrayBuffer();
+  const fileBase64 = await fileToBase64(file);
+
   const res = await fetch('/api/upload-document', {
     method: 'POST',
     headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-      'X-File-Name': encodeURIComponent(file.name),
-      'X-Folder-Path': encodeURIComponent(sanitizedFolderPath),
+      'Content-Type': 'application/json',
       'x-user-id': getStoredUserId()
     },
-    body: buffer
+    body: JSON.stringify({
+      fileName: file.name,
+      folderPath: sanitizedFolderPath,
+      contentType: file.type || 'application/pdf',
+      fileBase64: fileBase64
+    })
   });
 
   if (!res.ok) {
     const errorData = await res.json().catch(() => ({}));
-    throw new Error(`Upload failed (${res.status}): ${errorData.error || res.statusText}`);
+    throw new Error(`Upload failed (${res.status}): ${errorData.message || errorData.error || res.statusText}`);
   }
   const data = await res.json();
   return data.fileUrl;
