@@ -117,7 +117,8 @@ module.exports = async function (context, req) {
       if (action === 'talentPool' || action === 'recent' || !action) {
         const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
         const stageFilter = stage && stage.trim() !== '' && stage.trim() !== 'All' ? stage.trim() : null;
-        const seniorityFilter = seniority && seniority.trim() !== '' ? seniority.trim() : null;
+        const seniorityPattern = seniority && seniority.trim() !== '' ? `${seniority.trim()}%` : null;
+        reqQuery.input('Seniority', sql.NVarChar(50), seniorityPattern);
         const minExpVal = safeParseFloat(minExp);
         const hideActiveFlag = hideActive === 'true';
 
@@ -242,7 +243,11 @@ module.exports = async function (context, req) {
               latestApp.PositionTitle LIKE @Search
             )
             AND (@Stage IS NULL OR @Stage = '' OR latestApp.LifecycleStage = @Stage)
-            AND (@Seniority IS NULL OR r.SeniorityLevel = @Seniority)
+            AND (
+          @Seniority IS NULL OR 
+          LTRIM(RTRIM(r.SeniorityLevel)) LIKE @Seniority OR
+          (@Seniority = 'Mid%' AND LTRIM(RTRIM(r.SeniorityLevel)) LIKE 'Intermediate%')
+        )
             AND (@MinExp IS NULL OR ISNULL(r.TotalYearsExperience, 0) >= @MinExp)
             ${extraWhereSql}
           ${orderBySql};
