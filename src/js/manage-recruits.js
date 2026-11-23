@@ -2,6 +2,7 @@ let selectedRoles = [];
 let selectedClassifications = [];
 let selectedSkills = [];
 let activeRolesList = [];
+let nameSearchTimer = null;
 
 // Helper: Safely retrieve logged-in User ID from storage
 function getStoredUserId() {
@@ -10,7 +11,6 @@ function getStoredUserId() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // --- ROUTE GUARD: Verify user credentials before running any logic ---
   const currentUserId = getStoredUserId();
   if (!currentUserId) {
     window.location.href = "index.html";
@@ -39,7 +39,6 @@ async function loadTalentPoolDropdowns() {
 
     const data = await res.json();
 
-    // Populate Positions (+ Add role) & unique Classifications (+ Add classification)
     const roleSelect = document.getElementById('roleDropdownSelect');
     const classSelect = document.getElementById('classificationDropdownSelect');
     const uniqueClassifications = new Set();
@@ -61,7 +60,6 @@ async function loadTalentPoolDropdowns() {
       });
     }
 
-    // Populate Skills (Skill: + Add skill)
     const skillSelect = document.getElementById('skillDropdownSelect');
     if (skillSelect && Array.isArray(data.skills)) {
       data.skills.forEach(s => {
@@ -69,7 +67,6 @@ async function loadTalentPoolDropdowns() {
       });
     }
 
-    // Populate Active Roles for "Submit to Role" modal
     activeRolesList = data.roles || [];
     const targetRoleSelect = document.getElementById('targetRoleSelect');
     if (targetRoleSelect) {
@@ -84,6 +81,14 @@ async function loadTalentPoolDropdowns() {
 }
 
 function setupTalentPoolListeners() {
+  // Live debounced search by candidate name & surname
+  document.getElementById('candidateNameSearch')?.addEventListener('input', () => {
+    clearTimeout(nameSearchTimer);
+    nameSearchTimer = setTimeout(() => {
+      fetchTalentPool();
+    }, 300);
+  });
+
   // Multi-select Role pills
   document.getElementById('roleDropdownSelect')?.addEventListener('change', (e) => {
     const val = e.target.value;
@@ -132,9 +137,11 @@ function setupTalentPoolListeners() {
     renderFilterPills('classification');
     renderFilterPills('skill');
 
+    const nameSearchEl = document.getElementById('candidateNameSearch');
     const seniorityEl = document.getElementById('seniorityFilter');
     const minExpEl = document.getElementById('minExperienceFilter');
     const hideEl = document.getElementById('hideActivePipelineCheckbox');
+    if (nameSearchEl) nameSearchEl.value = '';
     if (seniorityEl) seniorityEl.value = '';
     if (minExpEl) minExpEl.value = '';
     if (hideEl) hideEl.checked = false;
@@ -200,6 +207,29 @@ function formatMonthsAgo(dateValue) {
   return { text, isStale: months >= 12 };
 }
 
+function formatSkillsDisplay(skillsRaw, otherSkillsRaw) {
+  const parts = [];
+  [skillsRaw, otherSkillsRaw].forEach(val => {
+    if (!val) return;
+    if (Array.isArray(val)) {
+      parts.push(...val);
+    } else if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(trimmed);
+          if (Array.isArray(parsed)) {
+            parts.push(...parsed);
+            return;
+          }
+        } catch (_) {}
+      }
+      parts.push(trimmed);
+    }
+  });
+  return parts.filter(Boolean).join(', ') || '-';
+}
+
 function formatExpectedRate(c) {
   const freqLabel = (c.ExpectedRateFrequency || 'Monthly').toLowerCase().startsWith('hour') ? '/ hr' : '/ mo';
   const currency = (c.ExpectedRateCurrency || 'ZAR').toUpperCase();
@@ -226,6 +256,10 @@ async function fetchTalentPool() {
 
   try {
     const params = new URLSearchParams({ action: 'talentPool' });
+
+    const searchVal = document.getElementById('candidateNameSearch')?.value.trim();
+    if (searchVal) params.append('search', searchVal);
+
     if (selectedRoles.length > 0) params.append('roles', selectedRoles.join(','));
     if (selectedClassifications.length > 0) params.append('classifications', selectedClassifications.join(','));
     if (selectedSkills.length > 0) params.append('skills', selectedSkills.join(','));
@@ -273,14 +307,13 @@ async function fetchTalentPool() {
       const cid = `CID-${String(c.RecruitID).padStart(5, '0')}`;
       const confirmedInfo = formatMonthsAgo(c.DateSourced || c.CreatedDate);
 
-      // Format Seniority Level and Years of Experience (e.g., "Senior / 8 yrs")
       const seniorityPart = c.SeniorityLevel || '';
       const expPart = (c.TotalYearsExperience !== null && c.TotalYearsExperience !== undefined && c.TotalYearsExperience !== '')
         ? `${c.TotalYearsExperience} yrs`
         : '';
       const seniorityYrs = [seniorityPart, expPart].filter(Boolean).join(' / ') || '-';
 
-      const keySkills = [c.Skills, c.OtherSkills].filter(Boolean).join(', ') || '-';
+      const keySkills = formatSkillsDisplay(c.Skills, c.OtherSkills);
       const rateHtml = formatExpectedRate(c);
 
       const inPipeline = Number(c.IsInActivePipeline) === 1;
