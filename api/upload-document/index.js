@@ -17,46 +17,36 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // Resolve binary data into a pure Node Buffer without UTF-8 corruption
+    const body = req.body || {};
     let fileBuffer = null;
-    if (Buffer.isBuffer(req.body)) {
+
+    // 1. Primary path: Clean Base64 JSON payload (immune to Azure SWA binary proxy corruption)
+    if (body.fileBase64 && typeof body.fileBase64 === 'string') {
+      // Strip data URL prefix if present (e.g., "data:application/pdf;base64,...")
+      const cleanBase64 = body.fileBase64.includes(',') 
+        ? body.fileBase64.split(',')[1] 
+        : body.fileBase64;
+      fileBuffer = Buffer.from(cleanBase64, 'base64');
+    } 
+    // 2. Fallback for direct Buffer
+    else if (Buffer.isBuffer(req.body)) {
       fileBuffer = req.body;
-    } else if (req.body instanceof Uint8Array || req.body instanceof ArrayBuffer || ArrayBuffer.isView(req.body)) {
-      fileBuffer = Buffer.from(req.body);
-    } else if (req.body && req.body.type === 'Buffer' && Array.isArray(req.body.data)) {
-      fileBuffer = Buffer.from(req.body.data);
-    } else if (Buffer.isBuffer(req.rawBody)) {
-      fileBuffer = req.rawBody;
-    } else if (typeof req.rawBody === 'string') {
-      // Fallback only if host didn't pass binary Buffer; 'latin1' preserves 1:1 byte mapping unlike 'utf8'
-      fileBuffer = Buffer.from(req.rawBody, 'latin1');
-    } else if (typeof req.body === 'string') {
-      fileBuffer = Buffer.from(req.body, 'base64');
     }
 
     if (!fileBuffer || fileBuffer.length === 0) {
       context.res.status = 400;
-      context.res.body = JSON.stringify({ message: 'No valid file binary data received in request.' });
+      context.res.body = JSON.stringify({ message: 'No valid file data received in request.' });
       return;
     }
 
-    // Sanity check: verify PDF magic bytes (%PDF-) if content-type is PDF
-    const contentType = req.headers['content-type'] || 'application/pdf';
-    if (contentType === 'application/pdf' && fileBuffer.length >= 5) {
-      const headerSignature = fileBuffer.subarray(0, 5).toString('ascii');
-      if (headerSignature !== '%PDF-') {
-        context.log.warn(`Warning: Uploaded PDF header signature is '${headerSignature}' instead of '%PDF-'.`);
-      }
-    }
+    // Extract metadata from JSON body or fallback to headers
+    const rawFileName = body.fileName || decodeURIComponent(req.headers['x-file-name'] || `doc-${Date.now()}.pdf`);
+    const folderPath = body.folderPath || decodeURIComponent(req.headers['x-folder-path'] || 'Unsorted');
+    const contentType = body.contentType || req.headers['content-type'] || 'application/pdf';
 
-    // Extract headers
-    const rawFileName = decodeURIComponent(req.headers['x-file-name'] || `doc-${Date.now()}.pdf`);
-    const folderPath = decodeURIComponent(req.headers['x-folder-path'] || 'Unsorted');
-    
-    const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const cleanFileName = rawFileName.replace(/[^a-zA-Z0-9._()-]/g, '_');
     const cleanFolderPath = folderPath.replace(/[^a-zA-Z0-9_\-/]/g, '_');
 
-    // Folder path format: FirstName_Surname/Category/timestamp-filename.pdf
     const blobName = `${cleanFolderPath}/${Date.now()}-${cleanFileName}`;
 
     const blobServiceClient = BlobServiceClient.fromConnectionString(connStr);
@@ -66,7 +56,6 @@ module.exports = async function (context, req) {
 
     const blockBlobClient = containerClient.getBlockBlobClient(blobName);
 
-    // Upload verified Buffer with explicit MIME type and inline disposition
     await blockBlobClient.uploadData(fileBuffer, {
       blobHTTPHeaders: { 
         blobContentType: contentType,
