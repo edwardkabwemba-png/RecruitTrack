@@ -1,16 +1,21 @@
 const sql = require('mssql');
 
-// Cache connection pool outside the request handler
 let poolPromise = null;
 
-function getPool() {
+async function getPool() {
   if (!poolPromise) {
-    poolPromise = sql.connect(process.env.SqlConnectionString);
+    const connStr = process.env.SqlConnectionString || process.env.DATABASE_URL;
+    if (!connStr) {
+      throw new Error("Missing SqlConnectionString in environment settings.");
+    }
+    poolPromise = sql.connect(connStr).catch((err) => {
+      poolPromise = null; // Reset cache so next request can retry
+      throw err;
+    });
   }
   return poolPromise;
 }
 
-// Helper functions for parsing numbers safely
 const safeParseInt = (val) => {
   if (val === null || val === undefined || val === '') return null;
   const parsed = parseInt(val, 10);
@@ -29,7 +34,6 @@ const safeParseDate = (val) => {
   return isNaN(d.getTime()) ? new Date() : d;
 };
 
-// Exchange rate lookup function converting selected currency to ZAR multiplier
 async function getZarExchangeRate(pool, currency) {
   if (!currency || currency.toUpperCase().trim() === 'ZAR') return 1.0;
   const pair = `${currency.toUpperCase().trim()}_ZAR`;
@@ -44,16 +48,21 @@ async function getZarExchangeRate(pool, currency) {
   } catch (err) {
     console.error(`Error looking up exchange rate for ${pair}:`, err.message);
   }
-  return 1.0; // Fallback 1:1 if pair is missing
+  return 1.0;
 }
 
 module.exports = async function (context, req) {
-  context.res = { headers: { 'Content-Type': 'application/json' } };
+  const sendJson = (status, payload) => {
+    context.res = {
+      status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    };
+  };
 
   try {
     const pool = await getPool();
 
-    // Read active logged-in user
     const loggedInUserHeader = req.headers['x-user-id'] || req.query.userId;
     const activeUserId = safeParseInt(loggedInUserHeader);
 
@@ -61,7 +70,7 @@ module.exports = async function (context, req) {
     // GET REQUESTS
     // =========================================================================
     if (req.method === 'GET') {
-      const { action, id, country, search, stage } = req.query;
+      const { action, id, country, search, stage, roles, classifications, seniority, minExp, skills, hideActive, sort } = req.query;
 
       if (action === 'locations') {
         const queryCountry = country || 'South Africa';
@@ -69,9 +78,7 @@ module.exports = async function (context, req) {
           .input('CountryName', sql.NVarChar(100), queryCountry)
           .query("SELECT LocationID, CityName FROM dbo.Locations WHERE CountryName = @CountryName AND IsActive = 1 ORDER BY CityName ASC");
 
-        context.res.status = 200;
-        context.res.body = result.recordset || [];
-        return;
+        return sendJson(200, result.recordset || []);
       }
 
       if (action === 'getOne' && id) {
@@ -83,79 +90,183 @@ module.exports = async function (context, req) {
             a.DocPaySlipsStatus, a.DocCertsStatus, a.DocDegreesStatus
           FROM dbo.Recruits r
           LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
-          WHERE r.RecruitID = @RecruitID;
+          WHERE r.RecruitID = @RecruitID
+          ORDER BY a.ApplicationID DESC;
         `;
         const result = await pool.request().input('RecruitID', sql.Int, safeParseInt(id)).query(query);
-        context.res.status = 200;
-        context.res.body = result.recordset[0] || {};
-        return;
+        return sendJson(200, result.recordset[0] || {});
       }
 
       if (action === 'exchangeRates') {
         const rates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
-        context.res.status = 200;
-        context.res.body = rates.recordset || [];
-        return;
+        return sendJson(200, rates.recordset || []);
       }
 
       if (action === 'dropdowns') {
         const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
         const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
-        const roles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE r.Status = 'Active'");
-        const skills = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
+        const activeRoles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE ISNULL(r.Status, 'Active') = 'Active' ORDER BY r.RoleID DESC");
+        const skillList = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
         const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
         const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
         const exchangeRates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
 
-        context.res.status = 200;
-        context.res.body = {
-          recruiters: recruiters.recordset,
-          sources: sources.recordset,
-          roles: roles.recordset,
-          skills: skills.recordset,
-          certifications: certs.recordset,
-          positions: positions.recordset,
+        return sendJson(200, {
+          recruiters: recruiters.recordset || [],
+          sources: sources.recordset || [],
+          roles: activeRoles.recordset || [],
+          skills: skillList.recordset || [],
+          certifications: certs.recordset || [],
+          positions: positions.recordset || [],
           exchangeRates: exchangeRates.recordset || []
-        };
-        return;
+        });
       }
 
-      if (action === 'recent' || !action) {
+      // =======================================================================
+      // TALENT POOL & RECENT RECRUITS (One deduplicated row per candidate)
+      // =======================================================================
+      if (action === 'talentPool' || action === 'recent' || !action) {
         const searchPattern = search && search.trim() !== '' ? `%${search.trim()}%` : null;
         const stageFilter = stage && stage.trim() !== '' && stage.trim() !== 'All' ? stage.trim() : null;
+        const seniorityFilter = seniority && seniority.trim() !== '' ? seniority.trim() : null;
+        const minExpVal = safeParseFloat(minExp);
+        const hideActiveFlag = hideActive === 'true';
+
+        // Parse comma-separated multi-select filters
+        const roleList = roles ? roles.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const classList = classifications ? classifications.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const skillList = skills ? skills.split(',').map(s => s.trim()).filter(Boolean) : [];
 
         const reqQuery = pool.request();
         reqQuery.input('Search', sql.NVarChar(100), searchPattern);
         reqQuery.input('Stage', sql.NVarChar(50), stageFilter);
+        reqQuery.input('Seniority', sql.NVarChar(50), seniorityFilter);
+        reqQuery.input('MinExp', sql.Decimal(4, 1), minExpVal);
+
+        let dynamicClauses = [];
+
+        // OR logic between Current Role and Role Classification when either/both are chosen
+        let roleOrClassClauses = [];
+        if (roleList.length > 0) {
+          const roleParams = roleList.map((val, idx) => {
+            const pName = `RoleFilter${idx}`;
+            reqQuery.input(pName, sql.NVarChar(150), val);
+            return `r.CurrentRole = @${pName}`;
+          });
+          roleOrClassClauses.push(`(${roleParams.join(' OR ')})`);
+        }
+
+        if (classList.length > 0) {
+          const classParams = classList.map((val, idx) => {
+            const pName = `ClassFilter${idx}`;
+            reqQuery.input(pName, sql.NVarChar(150), val);
+            return `r.RoleClassification = @${pName}`;
+          });
+          roleOrClassClauses.push(`(${classParams.join(' OR ')})`);
+        }
+
+        if (roleOrClassClauses.length > 0) {
+          dynamicClauses.push(`(${roleOrClassClauses.join(' OR ')})`);
+        }
+
+        // AND logic for each additional skill filter
+        skillList.forEach((sk, idx) => {
+          const pName = `SkillFilter${idx}`;
+          reqQuery.input(pName, sql.NVarChar(150), `%${sk}%`);
+          dynamicClauses.push(`(r.Skills LIKE @${pName} OR r.OtherSkills LIKE @${pName})`);
+        });
+
+        if (hideActiveFlag) {
+          dynamicClauses.push(`activeApp.ApplicationID IS NULL`);
+        }
+
+        const extraWhereSql = dynamicClauses.length > 0 ? `AND ${dynamicClauses.join(' AND ')}` : '';
+
+        let orderBySql = 'ORDER BY COALESCE(latestApp.DateSourced, r.CreatedDate) DESC, r.RecruitID DESC';
+        if (sort === 'experience_desc') {
+          orderBySql = 'ORDER BY ISNULL(r.TotalYearsExperience, 0) DESC, r.RecruitID DESC';
+        } else if (sort === 'rate_asc') {
+          orderBySql = 'ORDER BY ISNULL(r.ExpectedRate, 999999999) ASC, r.RecruitID DESC';
+        } else if (sort === 'name_asc') {
+          orderBySql = 'ORDER BY r.FirstName ASC, r.Surname ASC';
+        }
 
         const query = `
-          SELECT TOP 50 
-            r.RecruitID, r.FirstName, r.Surname, r.Email, r.Phone, r.CreatedDate, r.CurrentLocation,
-            a.ApplicationID, a.RoleID, p.PositionTitle, c.ClientName, u.FullName AS RecruiterName,
-            s.SourceName, ISNULL(a.LifecycleStage, 'Sourced') AS Stage, a.DateSourced
+          SELECT TOP 100
+            r.RecruitID,
+            r.FirstName,
+            r.Surname,
+            r.Email,
+            r.Phone,
+            r.CreatedDate,
+            r.CurrentLocation,
+            r.CurrentRole,
+            r.RoleClassification,
+            r.SeniorityLevel,
+            r.TotalYearsExperience,
+            r.ExpectedRate,
+            r.ExpectedRateCurrency,
+            r.ExpectedRateRaw,
+            r.ExpectedRateFrequency,
+            r.Skills,
+            r.OtherSkills,
+            latestApp.ApplicationID,
+            latestApp.RoleID AS LatestRoleID,
+            latestApp.PositionTitle,
+            latestApp.ClientName,
+            latestApp.RecruiterName,
+            latestApp.SourceName,
+            ISNULL(latestApp.LifecycleStage, 'Sourced') AS Stage,
+            latestApp.DateSourced,
+            CASE WHEN activeApp.ApplicationID IS NOT NULL THEN 1 ELSE 0 END AS IsInActivePipeline,
+            activeApp.RoleID AS ActiveRoleID,
+            activeApp.RecruiterName AS ActiveRecruiterName
           FROM dbo.Recruits r
-          LEFT JOIN dbo.Applications a ON r.RecruitID = a.RecruitID
-          LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
-          LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
-          LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
-          LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
-          LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
+          OUTER APPLY (
+            SELECT TOP 1
+              a.ApplicationID, a.RoleID, a.LifecycleStage, a.DateSourced,
+              p.PositionTitle, c.ClientName, u.FullName AS RecruiterName, s.SourceName
+            FROM dbo.Applications a
+            LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
+            LEFT JOIN dbo.Positions p ON ro.PositionID = p.PositionID
+            LEFT JOIN dbo.Clients c ON ro.ClientID = c.ClientID
+            LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+            LEFT JOIN dbo.Sources s ON a.SourceID = s.SourceID
+            WHERE a.RecruitID = r.RecruitID
+            ORDER BY a.ApplicationID DESC
+          ) latestApp
+          OUTER APPLY (
+            SELECT TOP 1
+              a.ApplicationID, a.RoleID, u.FullName AS RecruiterName
+            FROM dbo.Applications a
+            LEFT JOIN dbo.Roles ro ON a.RoleID = ro.RoleID
+            LEFT JOIN dbo.Users u ON a.RecruiterUserID = u.UserID
+            WHERE a.RecruitID = r.RecruitID
+              AND ISNULL(a.LifecycleStage, 'Sourced') NOT IN ('Rejected', 'Withdrawn', 'Declined', 'Hired')
+              AND ISNULL(ro.Status, 'Active') != 'Closed'
+            ORDER BY a.ApplicationID DESC
+          ) activeApp
           WHERE 1=1
             AND (
               @Search IS NULL OR 
               r.FirstName LIKE @Search OR 
               r.Surname LIKE @Search OR 
               r.Email LIKE @Search OR 
-              p.PositionTitle LIKE @Search
+              r.CurrentRole LIKE @Search OR
+              latestApp.PositionTitle LIKE @Search
             )
-            AND (@Stage IS NULL OR @Stage = '' OR a.LifecycleStage = @Stage)
-          ORDER BY r.RecruitID DESC;
+            AND (@Stage IS NULL OR @Stage = '' OR latestApp.LifecycleStage = @Stage)
+            AND (@Seniority IS NULL OR r.SeniorityLevel = @Seniority)
+            AND (@MinExp IS NULL OR ISNULL(r.TotalYearsExperience, 0) >= @MinExp)
+            ${extraWhereSql}
+          ${orderBySql};
         `;
+
         const result = await reqQuery.query(query);
-        context.res.status = 200;
-        context.res.body = result.recordset || [];
-        return;
+        return sendJson(200, result.recordset || []);
       }
+
+      return sendJson(400, { message: `Unsupported GET action: ${action}` });
     }
 
     // =========================================================================
@@ -165,6 +276,44 @@ module.exports = async function (context, req) {
       let body = req.body || {};
       if (typeof body === 'string') {
         try { body = JSON.parse(body); } catch (e) {}
+      }
+
+      // Quick Action: Submit existing candidate from Talent Pool to an Active Role
+      if (body.action === 'submitToRole') {
+        const targetRecruitId = safeParseInt(body.recruitId);
+        const targetRoleId = safeParseInt(body.roleId);
+        const recruiterId = safeParseInt(body.recruiterId) || activeUserId;
+
+        if (!targetRecruitId || !targetRoleId) {
+          return sendJson(400, { message: "Candidate ID and Role ID are required." });
+        }
+
+        const existingCheck = await pool.request()
+          .input('RecruitID', sql.Int, targetRecruitId)
+          .input('RoleID', sql.Int, targetRoleId)
+          .query("SELECT TOP 1 ApplicationID FROM dbo.Applications WHERE RecruitID = @RecruitID AND RoleID = @RoleID");
+
+        if (existingCheck.recordset && existingCheck.recordset.length > 0) {
+          return sendJson(409, { message: "This candidate has already been submitted to the selected role." });
+        }
+
+        await pool.request()
+          .input('RecruitID', sql.Int, targetRecruitId)
+          .input('RoleID', sql.Int, targetRoleId)
+          .input('RecruiterUserID', sql.Int, recruiterId)
+          .query(`
+            INSERT INTO dbo.Applications (
+              RecruitID, RoleID, RecruiterUserID, DateSourced,
+              LifecycleStage, DocCvStatus, DocIdStatus, DocPaySlipsStatus,
+              DocCertsStatus, DocDegreesStatus
+            )
+            VALUES (
+              @RecruitID, @RoleID, @RecruiterUserID, GETDATE(),
+              'Sourced', 'Pending', 'Pending', 0, 'Pending', 'Pending'
+            );
+          `);
+
+        return sendJson(201, { message: "Candidate successfully submitted to role." });
       }
 
       const rawId = req.query.id || (context.bindingData && context.bindingData.id) || body.recruitId;
@@ -179,15 +328,12 @@ module.exports = async function (context, req) {
       const currentCurrency = (body.currentRateCurrency || body.currentCurrency || 'ZAR').toUpperCase().trim();
       const expectedCurrency = (body.expectedRateCurrency || body.expectedCurrency || 'ZAR').toUpperCase().trim();
 
-      // Look up multipliers from SQL table dbo.ExchangeRates
       const currentMultiplier = await getZarExchangeRate(pool, currentCurrency);
       const expectedMultiplier = await getZarExchangeRate(pool, expectedCurrency);
 
-      // Parse the raw input value entered by the user
       const rawCurrentRate = safeParseFloat(body.currentRateRaw || body.currentRateOriginal || body.currentRate);
       const rawExpectedRate = safeParseFloat(body.expectedRateRaw || body.expectedRateOriginal || body.expectedRate);
 
-      // ALWAYS perform the server-side multiplication to get Rand value for DB storage
       const finalCurrentRateZar = currentCurrency === 'ZAR' 
         ? rawCurrentRate 
         : (rawCurrentRate !== null ? parseFloat((rawCurrentRate * currentMultiplier).toFixed(2)) : null);
@@ -203,7 +349,6 @@ module.exports = async function (context, req) {
         let activeRecruitId = recruitId;
 
         if (isCreate) {
-          // 1a. INSERT NEW RECRUIT
           const recruitReq = new sql.Request(transaction);
           const insertRecruitRes = await recruitReq
             .input('FirstName', sql.NVarChar(100), body.firstName || null)
@@ -250,7 +395,6 @@ module.exports = async function (context, req) {
 
           activeRecruitId = insertRecruitRes.recordset[0].RecruitID;
 
-          // 2a. INSERT APPLICATION
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
@@ -277,7 +421,6 @@ module.exports = async function (context, req) {
               );
             `);
         } else {
-          // 1b. UPDATE RECRUIT MASTER
           const recruitReq = new sql.Request(transaction);
           await recruitReq
             .input('RecruitID', sql.Int, activeRecruitId)
@@ -307,20 +450,33 @@ module.exports = async function (context, req) {
             .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
             .query(`
               UPDATE dbo.Recruits
-              SET FirstName = @FirstName, Surname = @Surname, Email = @Email, Phone = @Phone,
-                  CountryOfResidency = @CountryOfResidency, CurrentLocation = @CurrentLocation,
-                  SeniorityLevel = @SeniorityLevel, TotalYearsExperience = @TotalYearsExperience, 
-                  CurrentRole = @CurrentRole, RoleClassification = @RoleClassification, 
-                  IdType = @IdType, IdNumber = @IdNumber, CurrentRate = @CurrentRate, 
-                  ExpectedRate = @ExpectedRate, CurrentRateFrequency = @CurrentRateFrequency,
-                  CurrentRateCurrency = @CurrentRateCurrency, CurrentRateRaw = @CurrentRateRaw,
-                  ExpectedRateFrequency = @ExpectedRateFrequency, ExpectedRateCurrency = @ExpectedRateCurrency,
-                  ExpectedRateRaw = @ExpectedRateRaw, NoticePeriod = @NoticePeriod,
-                  Skills = @Skills, Certifications = @Certifications, OtherSkills = @OtherSkills
+              SET FirstName = COALESCE(@FirstName, FirstName),
+                  Surname = COALESCE(@Surname, Surname),
+                  Email = COALESCE(@Email, Email),
+                  Phone = COALESCE(@Phone, Phone),
+                  CountryOfResidency = COALESCE(@CountryOfResidency, CountryOfResidency),
+                  CurrentLocation = COALESCE(@CurrentLocation, CurrentLocation),
+                  SeniorityLevel = COALESCE(@SeniorityLevel, SeniorityLevel),
+                  TotalYearsExperience = COALESCE(@TotalYearsExperience, TotalYearsExperience),
+                  CurrentRole = COALESCE(@CurrentRole, CurrentRole),
+                  RoleClassification = COALESCE(@RoleClassification, RoleClassification),
+                  IdType = COALESCE(@IdType, IdType),
+                  IdNumber = COALESCE(@IdNumber, IdNumber),
+                  CurrentRate = COALESCE(@CurrentRate, CurrentRate),
+                  ExpectedRate = COALESCE(@ExpectedRate, ExpectedRate),
+                  CurrentRateFrequency = COALESCE(@CurrentRateFrequency, CurrentRateFrequency),
+                  CurrentRateCurrency = COALESCE(@CurrentRateCurrency, CurrentRateCurrency),
+                  CurrentRateRaw = COALESCE(@CurrentRateRaw, CurrentRateRaw),
+                  ExpectedRateFrequency = COALESCE(@ExpectedRateFrequency, ExpectedRateFrequency),
+                  ExpectedRateCurrency = COALESCE(@ExpectedRateCurrency, ExpectedRateCurrency),
+                  ExpectedRateRaw = COALESCE(@ExpectedRateRaw, ExpectedRateRaw),
+                  NoticePeriod = COALESCE(@NoticePeriod, NoticePeriod),
+                  Skills = COALESCE(@Skills, Skills),
+                  Certifications = COALESCE(@Certifications, Certifications),
+                  OtherSkills = COALESCE(@OtherSkills, OtherSkills)
               WHERE RecruitID = @RecruitID;
             `);
 
-          // 2b. UPSERT APPLICATION
           const appReq = new sql.Request(transaction);
           await appReq
             .input('RecruitID', sql.Int, activeRecruitId)
@@ -368,25 +524,22 @@ module.exports = async function (context, req) {
         }
 
         await transaction.commit();
-        context.res.status = 200;
-        context.res.body = { 
+        return sendJson(200, { 
           message: isCreate ? "Candidate created successfully." : "Candidate updated successfully.",
           recruitId: activeRecruitId 
-        };
-        return;
+        });
       } catch (txError) {
         if (transaction._aborted !== true) {
           try { await transaction.rollback(); } catch (_) {}
         }
         context.log.error("Transaction Error:", txError.message);
-        context.res.status = 500;
-        context.res.body = { message: "Database error during processing.", error: txError.message };
-        return;
+        return sendJson(500, { message: "Database error during processing.", error: txError.message });
       }
     }
+
+    return sendJson(405, { message: "Method not allowed" });
   } catch (error) {
     context.log.error("Recruits API Error:", error);
-    context.res.status = 500;
-    context.res.body = { message: "Server error", error: error.message };
+    return sendJson(500, { message: "Server error", error: error.message });
   }
 };
