@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TalentCoPilot - Manage Recruits</title>
+  <title>TalentCoPilot - Talent Pool</title>
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
   <!-- Navigation Sidebar -->
-   <aside class="sidebar">
+  <aside class="sidebar">
     <div>
       <div class="brand">
         <div class="brand-title">TalentCoPilot</div>
@@ -18,9 +18,9 @@
       <div class="nav-section-title">MAIN</div>
       <ul class="nav-list">
         <li><a href="dashboard.html" class="nav-link">Dashboard</a></li>
-        <li><a href="add-recruit.html" class="nav-link">Add recruit</a></li>
-        <li><a href="manage-recruits.html" class="nav-link active">Talent pool</a></li>
+        <li><a href="add-recruit.html" class="nav-link">Add Recruit</a></li>
         <li><a href="roles.html" class="nav-link">Manage Roles</a></li>
+        <li><a href="manage-recruits.html" class="nav-link active">Talent Pool</a></li>
       </ul>
       <div class="nav-section-title">ADMIN</div>
       <ul class="nav-list">
@@ -30,6 +30,8 @@
         <li><a href="clients.html" class="nav-link">Manage Clients</a></li>
         <li><a href="skills.html" class="nav-link">Manage Skills</a></li>
         <li><a href="certifications.html" class="nav-link">Manage Certifications</a></li>
+        <li><a href="classifications.html" class="nav-link">Manage Classifications</a></li>
+        <li><a href="duplicate-review.html" class="nav-link">Duplicate Review</a></li>
       </ul>
     </div>
   </aside>
@@ -38,26 +40,91 @@
   <main class="main-content">
     <div class="top-bar">
       <div>
-        <h2>Manage Recruits</h2>
-        <p class="subtitle">View and manage candidate applications and recruitment lifecycles</p>
+        <h2>Talent Pool</h2>
+        <p class="subtitle">Search and filter every candidate across the database</p>
       </div>
-      <button onclick="window.location.href='add-recruit.html'" class="btn-primary">+ Add Recruit</button>
+      <div class="tp-header-pill">
+        Search every candidate, whichever Role they originally applied for
+      </div>
     </div>
 
+    <!-- Search & Filter Card -->
+    <div class="card tp-filter-card">
+      <div class="tp-filter-grid">
+        <!-- Current Role Multi-Select Pills -->
+        <div>
+          <span class="tp-filter-label">Current Role</span>
+          <div class="tp-pill-row" id="selectedRolesContainer">
+            <select id="roleDropdownSelect" class="select-control tp-role-select">
+              <option value="">+ Add role</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Role Classification Multi-Select Pills -->
+        <div>
+          <span class="tp-filter-label">Role Classification</span>
+          <div class="tp-pill-row" id="selectedClassificationsContainer">
+            <select id="classificationDropdownSelect" class="select-control tp-class-select">
+              <option value="">+ Add classification</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Refine (Optional) Row -->
+      <div>
+        <span class="tp-filter-label">Refine (optional)</span>
+        <div class="tp-refine-row">
+          <div class="tp-refine-controls">
+            <select id="seniorityFilter" class="select-control">
+              <option value="">Seniority: Any</option>
+              <option value="Junior">Seniority: Junior</option>
+              <option value="Mid">Seniority: Mid</option>
+              <option value="Senior">Seniority: Senior</option>
+              <option value="Lead">Seniority: Lead</option>
+              <option value="Architect">Seniority: Architect</option>
+            </select>
+
+            <select id="minExperienceFilter" class="select-control">
+              <option value="">Min. years experience: Any</option>
+              <option value="1">1+ years</option>
+              <option value="2">2+ years</option>
+              <option value="3">3+ years</option>
+              <option value="5">5+ years</option>
+              <option value="8">8+ years</option>
+              <option value="10">10+ years</option>
+            </select>
+
+            <select id="skillDropdownSelect" class="select-control">
+              <option value="">Skill: + Add skill</option>
+            </select>
+            <div class="tp-pill-row" id="selectedSkillsContainer"></div>
+
+            <label class="tp-checkbox-label">
+              <input type="checkbox" id="hideActivePipelineCheckbox">
+              Hide candidates already in an active pipeline
+            </label>
+          </div>
+
+          <div class="tp-action-buttons">
+            <button type="button" id="btnSearchTalentPool" class="btn-primary">Search</button>
+            <button type="button" id="btnClearTalentPool" class="btn-secondary">Clear</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Table Card -->
     <div class="card">
-      <div class="filter-bar">
-        <input type="text" id="searchInput" class="search-input" placeholder="🔍 Search candidate name, surname, email, or position...">
-        <div class="filter-group">
-          <label for="stageFilter" class="filter-label">Stage:</label>
-          <select id="stageFilter" class="select-control">
-            <option value="">All</option>
-            <option value="Sourced">Sourced</option>
-            <option value="In Discussion">In Discussion</option>
-            <option value="Screened">Screened</option>
-            <option value="CV Prepared">CV Prepared</option>
-            <option value="Interviewed">Interviewed</option>
-            <option value="Offer Sent">Offer Sent</option>
-            <option value="Hired">Hired</option>
+      <div class="tp-results-header">
+        <strong id="resultsCountLabel" class="tp-results-title">Results (0 candidates)</strong>
+        <div>
+          <select id="sortOrderSelect" class="select-control">
+            <option value="recent_confirmed">Sort: Most recently confirmed</option>
+            <option value="experience_desc">Sort: Experience (High to Low)</option>
+            <option value="rate_asc">Sort: Expected Rate (Low to High)</option>
+            <option value="name_asc">Sort: Name (A - Z)</option>
           </select>
         </div>
       </div>
@@ -67,21 +134,53 @@
           <thead>
             <tr>
               <th>CANDIDATE</th>
-              <th>EMAIL / CONTACT</th>
-              <th>ROLE & CLIENT</th>
-              <th>RECRUITER</th>
-              <th>STAGE</th>
-              <th>DATE ADDED</th>
+              <th>CURRENT ROLE</th>
+              <th>CLASSIFICATION</th>
+              <th>SENIORITY / YRS</th>
+              <th>KEY SKILLS</th>
+              <th>EXPECTED RATE</th>
+              <th>STATUS</th>
               <th>ACTIONS</th>
             </tr>
           </thead>
           <tbody id="recruitsTableBody">
-            <tr><td colspan="7" class="text-center text-muted">Loading recruits...</td></tr>
+            <tr><td colspan="8" class="text-center text-muted">Loading talent pool...</td></tr>
           </tbody>
         </table>
       </div>
+
+      <p class="tp-footer-note">
+        Choosing a Current Role or a Classification (or both) returns every candidate matching either selection; each additional filter narrows the list. One row per candidate, not per Application.
+      </p>
     </div>
   </main>
+
+  <!-- Submit Candidate to Role Modal -->
+  <div id="submitToRoleModal" class="modal-backdrop">
+    <div class="modal-card tp-modal-sm">
+      <div class="modal-header">
+        <h3>Submit Candidate to Role</h3>
+        <button type="button" id="closeSubmitRoleModal" class="modal-close-btn">&times;</button>
+      </div>
+      <form id="submitToRoleForm">
+        <input type="hidden" id="submitCandidateId">
+        <div class="tp-form-group">
+          <label class="form-label-sm">Candidate</label>
+          <input type="text" id="submitCandidateNameDisplay" disabled class="input-control tp-disabled-input">
+        </div>
+        <div class="tp-form-group-lg">
+          <label class="form-label-sm">Select Active Role *</label>
+          <select id="targetRoleSelect" required class="select-control tp-full-width">
+            <option value="">-- Choose an Active Role --</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" id="cancelSubmitRoleBtn" class="btn-secondary">Cancel</button>
+          <button type="submit" class="btn-primary">Submit to Role</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <!-- Edit Recruit Modal -->
   <div id="editRecruitModal" class="modal-backdrop">
