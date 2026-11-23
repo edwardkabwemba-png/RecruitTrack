@@ -1,13 +1,17 @@
 {
   "navigationFallback": {
-    "rewrite": "/index.html"
+    "rewrite": "/index.html",
+    "exclude": ["/images/*.{png,jpg,gif,svg}", "/css/*", "/js/*", "/api/*"]
   },
   "routes": [
     {
       "route": "/.auth/login/aad",
-      "statusCode": 302,
-      "redirect": "/.auth/login/aad"
+      "allowedRoles": ["anonymous"]
     }
-  ]
+  ],
+  "globalHeaders": {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "strict-origin-when-cross-origin"
+  }
 }
-
