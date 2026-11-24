@@ -96,8 +96,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (editingRecruitId) {
     document.title = "Edit Recruit";
-    const headerTitle = document.querySelector('h2');
-    if (headerTitle) headerTitle.textContent = "Edit Recruit";
+    const headerTitle = document.querySelector('h2') || document.querySelector('.page-subtitle');
+    if (headerTitle) headerTitle.textContent = "Edit recruit details and pipeline progress";
+    const submitBtn = document.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.textContent = "Update Candidate";
     await loadExistingCandidateData(editingRecruitId);
   } else {
     defaultActiveRecruiter();
@@ -117,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fn = firstNameInput?.value.trim() || '';
     const sn = surnameInput?.value.trim() || '';
     if (displayTitle) {
-      displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'Candidate Details';
+      displayTitle.textContent = (fn || sn) ? `${fn} ${sn}`.trim() : 'New Candidate';
     }
   }
 
@@ -187,7 +189,6 @@ function setupDuplicateDetectionListeners() {
 }
 
 async function checkRecruitDuplicate() {
-  // Only check duplicates when creating a new candidate or when allowed
   const email = getElem('email')?.value?.trim() || '';
   const phone = getElem('phone')?.value?.trim() || '';
   const firstName = getElem('firstName')?.value?.trim() || '';
@@ -223,7 +224,7 @@ async function checkRecruitDuplicate() {
 
     hideRecruitBanners();
 
-    // TIER 1: High Confidence Match (Amber Blocking Banner - Figure 6)
+    // TIER 1: High Confidence Match (Amber Blocking Banner)
     if (data.matchType === 'HIGH_CONFIDENCE' && data.candidate) {
       const cand = data.candidate;
       currentExistingRecruitId = cand.recruitId;
@@ -331,8 +332,6 @@ function parseExchangeRates(ratesData) {
       if (baseCurr) exchangeRates[baseCurr] = rateVal;
     }
   });
-
-  console.log('✅ Exchange Rates Map Loaded:', exchangeRates);
 }
 
 async function fetchExchangeRates() {
@@ -433,7 +432,6 @@ function updateStageUI() {
   stageNodes.forEach((node, index) => {
     node.classList.remove('completed', 'active', 'pending', 'failed');
     
-    // RED HIGHLIGHT: Turn current stage node red if marked not successful
     if (isCandidateFailed && index === currentStageIndex) {
       node.classList.add('failed');
     } else if (index < currentStageIndex) {
@@ -625,6 +623,7 @@ async function loadExistingCandidateData(recruitId) {
     setVal('seniorityLevel', data.SeniorityLevel);
     setVal('totalExperience', data.TotalYearsExperience);
     setVal('totalYearsExperience', data.TotalYearsExperience);
+    setVal('highestEducationLevel', data.HighestEducationLevel);
     setVal('idType', data.IdType);
     setVal('idNumber', data.IdNumber);
     setVal('noticePeriod', data.NoticePeriod);
@@ -655,6 +654,7 @@ async function loadExistingCandidateData(recruitId) {
     setVal('sourceSelect', data.SourceID);
     setVal('roleSelect', data.RoleID);
     setVal('otherSkills', data.OtherSkills);
+    setVal('candidateComments', data.Comments);
 
     if (data.Skills) restoreTagBadges('skillsContainer', data.Skills, true);
     if (data.Certifications) restoreTagBadges('certsContainer', data.Certifications, false);
@@ -946,9 +946,11 @@ async function handleCandidateSubmit(e) {
       currentLocation: locationVal,
       seniorityLevel: getElem('senioritySelect')?.value || getElem('seniorityLevel')?.value || null,
       totalYearsExperience: getElem('totalExperience')?.value || getElem('totalYearsExperience')?.value || null,
+      highestEducationLevel: getElem('highestEducationLevel')?.value || null,
       skills: JSON.stringify(Array.from(document.querySelectorAll('#skillsContainer .tag-badge')).map(b => b.dataset.formatted)),
       certifications: JSON.stringify(Array.from(document.querySelectorAll('#certsContainer .tag-badge')).map(b => b.dataset.text)),
       otherSkills: getElem('otherSkills')?.value?.trim() || null,
+      comments: getElem('candidateComments')?.value?.trim() || null,
       noticePeriod: getElem('noticePeriod')?.value || '30 Days',
       
       currentCurrency: currentCurrency,
