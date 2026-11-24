@@ -87,27 +87,52 @@ module.exports = async function (context, req) {
       }
 
       if (action === 'exchangeRates') {
-        const rates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
-        return sendJson(200, rates.recordset || []);
+        try {
+          const rates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
+          return sendJson(200, rates.recordset || []);
+        } catch (err) {
+          context.log.warn("ExchangeRates query warning:", err.message);
+          return sendJson(200, [{ CurrencyPair: 'ZAR_ZAR', Rate: 1.0 }]);
+        }
       }
 
       if (action === 'dropdowns') {
-        const recruiters = await pool.request().query("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1");
-        const sources = await pool.request().query("SELECT SourceID, SourceName FROM dbo.Sources");
-        const activeRoles = await pool.request().query("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE ISNULL(r.Status, 'Active') = 'Active' ORDER BY r.RoleID DESC");
-        const skillList = await pool.request().query("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName");
-        const certs = await pool.request().query("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName");
-        const positions = await pool.request().query("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC");
-        const exchangeRates = await pool.request().query("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates");
+        const safeQuery = async (sqlText, fallback = []) => {
+          try {
+            const res = await pool.request().query(sqlText);
+            return res.recordset || fallback;
+          } catch (qErr) {
+            context.log.warn(`Dropdown sub-query warning [${sqlText}]:`, qErr.message);
+            return fallback;
+          }
+        };
+
+        const [
+          recruiters,
+          sources,
+          activeRoles,
+          skillList,
+          certs,
+          positions,
+          exchangeRates
+        ] = await Promise.all([
+          safeQuery("SELECT UserID, FullName FROM dbo.Users WHERE IsActive = 1 ORDER BY FullName ASC"),
+          safeQuery("SELECT SourceID, SourceName FROM dbo.Sources ORDER BY SourceName ASC"),
+          safeQuery("SELECT r.RoleID, p.PositionTitle + ' @ ' + c.ClientName AS RoleTitle FROM dbo.Roles r JOIN dbo.Positions p ON r.PositionID = p.PositionID JOIN dbo.Clients c ON r.ClientID = c.ClientID WHERE ISNULL(r.Status, 'Active') = 'Active' ORDER BY r.RoleID DESC"),
+          safeQuery("SELECT SkillID, SkillName FROM dbo.SkillLibrary ORDER BY SkillName ASC"),
+          safeQuery("SELECT CertID, CertName FROM dbo.CertificationLibrary ORDER BY CertName ASC"),
+          safeQuery("SELECT PositionID, PositionTitle, classification FROM dbo.Positions WHERE IsActive = 1 ORDER BY PositionTitle ASC"),
+          safeQuery("SELECT CurrencyPair, Rate FROM dbo.ExchangeRates", [{ CurrencyPair: 'ZAR_ZAR', Rate: 1.0 }])
+        ]);
 
         return sendJson(200, {
-          recruiters: recruiters.recordset || [],
-          sources: sources.recordset || [],
-          roles: activeRoles.recordset || [],
-          skills: skillList.recordset || [],
-          certifications: certs.recordset || [],
-          positions: positions.recordset || [],
-          exchangeRates: exchangeRates.recordset || []
+          recruiters,
+          sources,
+          roles: activeRoles,
+          skills: skillList,
+          certifications: certs,
+          positions,
+          exchangeRates
         });
       }
 
