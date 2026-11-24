@@ -190,12 +190,14 @@ module.exports = async function (context, req) {
             r.RoleClassification,
             r.SeniorityLevel,
             r.TotalYearsExperience,
+            r.HighestEducationLevel,
             r.ExpectedRate,
             r.ExpectedRateCurrency,
             r.ExpectedRateRaw,
             r.ExpectedRateFrequency,
             r.Skills,
             r.OtherSkills,
+            r.Comments,
             latestApp.ApplicationID,
             latestApp.RoleID AS LatestRoleID,
             latestApp.PositionTitle,
@@ -349,6 +351,7 @@ module.exports = async function (context, req) {
             .input('CurrentLocation', sql.NVarChar(150), body.currentLocation || null)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel || null)
             .input('TotalYearsExperience', sql.Decimal(4, 1), safeParseFloat(body.totalYearsExperience))
+            .input('HighestEducationLevel', sql.NVarChar(100), body.highestEducationLevel || null)
             .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
             .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType || null)
@@ -365,21 +368,22 @@ module.exports = async function (context, req) {
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
             .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
+            .input('Comments', sql.NVarChar(sql.MAX), body.comments || null)
             .query(`
               INSERT INTO dbo.Recruits (
                 FirstName, Surname, Email, Phone, CountryOfResidency, CurrentLocation, SeniorityLevel,
-                TotalYearsExperience, CurrentRole, RoleClassification, IdType, IdNumber, 
+                TotalYearsExperience, HighestEducationLevel, CurrentRole, RoleClassification, IdType, IdNumber, 
                 CurrentRate, ExpectedRate, CurrentRateFrequency, CurrentRateCurrency, CurrentRateRaw,
                 ExpectedRateFrequency, ExpectedRateCurrency, ExpectedRateRaw,
-                NoticePeriod, Skills, Certifications, OtherSkills, CreatedDate
+                NoticePeriod, Skills, Certifications, OtherSkills, Comments, CreatedDate
               )
               OUTPUT INSERTED.RecruitID
               VALUES (
                 @FirstName, @Surname, @Email, @Phone, @CountryOfResidency, @CurrentLocation, @SeniorityLevel,
-                @TotalYearsExperience, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
+                @TotalYearsExperience, @HighestEducationLevel, @CurrentRole, @RoleClassification, @IdType, @IdNumber, 
                 @CurrentRate, @ExpectedRate, @CurrentRateFrequency, @CurrentRateCurrency, @CurrentRateRaw,
                 @ExpectedRateFrequency, @ExpectedRateCurrency, @ExpectedRateRaw,
-                @NoticePeriod, @Skills, @Certifications, @OtherSkills, GETDATE()
+                @NoticePeriod, @Skills, @Certifications, @OtherSkills, @Comments, GETDATE()
               );
             `);
 
@@ -422,6 +426,7 @@ module.exports = async function (context, req) {
             .input('CurrentLocation', sql.NVarChar(150), body.currentLocation || null)
             .input('SeniorityLevel', sql.NVarChar(50), body.seniorityLevel || null)
             .input('TotalYearsExperience', sql.Decimal(4, 1), safeParseFloat(body.totalYearsExperience))
+            .input('HighestEducationLevel', sql.NVarChar(100), body.highestEducationLevel || null)
             .input('CurrentRole', sql.NVarChar(150), body.currentRole || null)
             .input('RoleClassification', sql.NVarChar(150), body.roleClassification || null)
             .input('IdType', sql.NVarChar(50), body.idType || null)
@@ -438,6 +443,7 @@ module.exports = async function (context, req) {
             .input('Skills', sql.NVarChar(sql.MAX), body.skills || null)
             .input('Certifications', sql.NVarChar(sql.MAX), body.certifications || null)
             .input('OtherSkills', sql.NVarChar(sql.MAX), body.otherSkills || null)
+            .input('Comments', sql.NVarChar(sql.MAX), body.comments !== undefined ? body.comments : null)
             .query(`
               UPDATE dbo.Recruits
               SET FirstName = COALESCE(@FirstName, FirstName),
@@ -448,6 +454,7 @@ module.exports = async function (context, req) {
                   CurrentLocation = COALESCE(@CurrentLocation, CurrentLocation),
                   SeniorityLevel = COALESCE(@SeniorityLevel, SeniorityLevel),
                   TotalYearsExperience = COALESCE(@TotalYearsExperience, TotalYearsExperience),
+                  HighestEducationLevel = COALESCE(@HighestEducationLevel, HighestEducationLevel),
                   CurrentRole = COALESCE(@CurrentRole, CurrentRole),
                   RoleClassification = COALESCE(@RoleClassification, RoleClassification),
                   IdType = COALESCE(@IdType, IdType),
@@ -463,7 +470,8 @@ module.exports = async function (context, req) {
                   NoticePeriod = COALESCE(@NoticePeriod, NoticePeriod),
                   Skills = COALESCE(@Skills, Skills),
                   Certifications = COALESCE(@Certifications, Certifications),
-                  OtherSkills = COALESCE(@OtherSkills, OtherSkills)
+                  OtherSkills = COALESCE(@OtherSkills, OtherSkills),
+                  Comments = COALESCE(@Comments, Comments)
               WHERE RecruitID = @RecruitID;
             `);
 
